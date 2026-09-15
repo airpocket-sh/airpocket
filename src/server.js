@@ -12,7 +12,6 @@
 //   POST /api/send      type text into a session, with or without Enter
 //   POST /api/key       one of a few fixed keys: digits, arrows, Tab, Enter, Esc
 //   POST /api/command   a Controls action, from a fixed table of slash commands
-//   POST /api/answer    approve, decline or answer a pending Codex request
 //   POST /api/seen      opening a finished session takes it off the waiting list
 //   GET  /api/new/options, POST /api/new    start a session through Superset
 //   GET  /api/files, /api/file/text, /api/file/image, POST /api/file/open
@@ -21,7 +20,8 @@
 // <device token>`. There are no cookies, so there is nothing for another site to
 // ride on. The phone never names a terminal or a workspace: it names a session
 // id, and the terminal is looked up here in Airpocket's own records. A second
-// server, on the next port, is the file-only origin (see "files" below).
+// server, on the next port, is the file-only origin (see "files" below). A
+// session with no terminal to type into is read-only.
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -30,14 +30,13 @@ const crypto = require("crypto");
 const { execFile } = require("child_process");
 const { createStore } = require("./store");
 const { PORTS } = require("./ports");
-const { fileSessions, fileQueue, noService } = require("./service");
+const { createService } = require("./service");
 
 const PUBLIC = path.join(__dirname, "public");
 const SUPERSET = path.join(os.homedir(), ".superset", "bin", "superset");
 
 const MAX_BODY = 32 * 1024;
 const MAX_TEXT = 8000;
-const MAX_ANSWER = 1000;
 const TAIL_BYTES = 4 * 1024 * 1024;   // read only the end of a transcript; some are 100 MB
 const MAX_ITEMS = 160;
 const CODEX_WINDOW_MAX = 32 * 1024 * 1024;   // how far back a first look at a Codex file may go
@@ -71,7 +70,6 @@ const KEYS = Object.freeze({
   enter: { text: "", submit: true },
   esc: { text: ESC, submit: false },
 });
-const DECISIONS = new Set(["accept", "acceptForSession", "decline"]);
 
 // ------------------------------------------------------------ controls ---
 // The Controls sheet names a command; the Mac picks the exact text from this
@@ -197,52 +195,6 @@ function tidyScreen(text, { codex = false } = {}) {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/^\n+|\n+$/g, "");
-}
-
-/** A Codex thread as the service's app-server link returns it, reduced to what a phone shows. */
-function codexView(d) {
-  const items = [];
-  for (const turn of (d.turns || []).slice().reverse()) {
-    for (const it of turn.items || []) {
-      switch (it.type) {
-        case "userMessage": items.push({ id: String(it.id || ""), type: "user", text: (it.content || []).map((c) => c.text || "").join("") }); break;
-        case "agentMessage": items.push({ id: String(it.id || ""), type: "agent", text: String(it.text || "") }); break;
-        case "reasoning": {
-          const t = (it.summary || []).map((s) => (typeof s === "string" ? s : s.text || "")).join(" ");
-          if (t) items.push({ id: String(it.id || ""), type: "reason", text: t });
-          break;
-        }
-        case "commandExecution":
-          items.push({ id: String(it.id || ""), type: "cmd", command: String(it.command || ""), status: String(it.status || ""),
-                       output: String(it.aggregatedOutput || it.output || "").slice(-2000) });
-          break;
-        case "fileChange":
-          items.push({ id: String(it.id || ""), type: "files", text: (it.changes || []).map((c) => `${c.kind || c.type || "edit"}  ${c.path || ""}`).join("\n") });
-          break;
-        default:
-          if (it.text) items.push({ id: String(it.id || ""), type: "other", text: `${it.type}: ${String(it.text).slice(0, 300)}` });
-      }
-    }
-  }
-  const pending = (d.pending || []).map((p) => {
-    const method = String(p.method || ""), params = p.params || {};
-    if (method.includes("requestUserInput")) {
-      return {
-        id: String(p.id), kind: "question",
-        questions: (params.questions || []).map((q) => ({
-          id: String(q.id), header: String(q.header || ""), question: String(q.question || ""),
-          options: (q.options || []).map((o) => String(o.label || "")),
-          free: !!q.isOther || !(q.options || []).length, secret: !!q.isSecret,
-        })),
-      };
-    }
-    return {
-      id: String(p.id),
-      kind: method.includes("fileChange") ? "files" : method.includes("permissions") ? "permissions" : "command",
-      command: String(params.command || ""), reason: String(params.reason || ""),
-    };
-  });
-  return { kind: "codex", items: items.slice(-60), pending };
 }
 
 // ------------------------------------------------------------ chat view ---
@@ -422,25 +374,10 @@ function liveState(text) {
 // Codex cites files with :codex-file-citation{path="..." ...}; on the phone the file name is enough.
 const citations = (t) => String(t).replace(/:codex-file-citation\{[^}]*?path="([^"]+)"[^}]*\}/g, (_, p) => "`" + base(p) + "`");
 
-/** Codex transcript items (codexView) -> the same chat items Claude sessions use. */
-function chatFromCodex(items) {
-  const out = [];
-  items.forEach((it, i) => {
-    const id = it.id || "c" + i;
-    if (it.type === "user") out.push({ type: "user", id, text: it.text });
-    else if (it.type === "agent") out.push({ type: "agent", id, text: citations(it.text) });
-    else if (it.type === "cmd") out.push({ type: "tool", id, name: "Shell", label: clip(it.command.split(/\s+/)[0] + " …"), error: /fail|error|declin/i.test(it.status) });
-    else if (it.type === "files") out.push({ type: "tool", id, name: "Edit", label: clip(it.text.split("\n").map((l) => base(l.trim().split(/\s+/).pop())).filter(Boolean).join(", ")) });
-    else if (it.type === "other") out.push({ type: "note", id, text: clip(it.text, 160) });
-  });
-  return out;
-}
-
 // ------------------------------------------------------------ codex view ---
 // Codex writes each thread to ~/.codex/sessions/YYYY/MM/DD/rollout-<time>-<thread id>.jsonl
 // and appends an item_completed event the moment a step finishes, while the turn
-// is still running. Codex's app-server daemon only knows finished turns (a running one
-// reads as "interrupted" with just your message), so the phone reads the file.
+// is still running, so the phone reads the file.
 // What leaves the Mac is the same as for Claude: your messages, Codex's
 // messages, one short label per step. Never command output, file contents,
 // search results or the model's context.
@@ -771,15 +708,22 @@ function runSuperset(args, o = {}) { return runFile(SUPERSET, args, o.timeout ||
 
 function createServer(opts = {}) {
   const store = opts.store || createStore(opts.dataDir);
+  const log = opts.log || ((...a) => console.log(new Date().toISOString(), ...a));
+  // The seams to the background service (service.js), called in-process: its
+  // session records, its waiting list, and taking one off that list. Only start()
+  // creates a service; a server built any other way is handed one, or all three
+  // seams, so it never touches the data folder's records by itself.
+  const service = opts.service || null;
+  if (!service && !(opts.knownSessions && opts.getQueue && opts.dequeue)) {
+    throw new Error("createServer needs a service, or knownSessions, getQueue and dequeue");
+  }
   const deps = {
-    // The seams to the background service (see service.js). Until step 5 they read
-    // Airpocket's own data folder, and every service call is "not available".
-    knownSessions: opts.knownSessions || (() => fileSessions(path.join(store.dir, "sessions"))),
-    getQueue: opts.getQueue || (() => fileQueue(path.join(store.dir, "queue.json"))),
-    service: opts.service || noService,
+    knownSessions: opts.knownSessions || service.knownSessions,
+    getQueue: opts.getQueue || service.getQueue,
+    dequeue: opts.dequeue || service.dequeue,
     superset: opts.superset || runSuperset,
     store,
-    log: opts.log || ((...a) => console.log(new Date().toISOString(), ...a)),
+    log,
     hostLabel: opts.hostLabel || os.hostname().replace(/\.local$/i, ""),
     claudeProjects: opts.claudeProjects || path.join(os.homedir(), ".claude", "projects"),
     codexHome: opts.codexHome || process.env.CODEX_HOME || path.join(os.homedir(), ".codex"),
@@ -907,7 +851,6 @@ function createServer(opts = {}) {
       seen.add(String(e.session_id));
       const q = byId.get(String(e.bridge_id)) || byId.get("sid:" + e.session_id);
       const terminal = !!(e.workspace && e.terminal);
-      const codex = !terminal && String(e.bridge_id || "").startsWith("codex:");
       out.push({
         id: String(e.session_id),
         title: String(e.title || path.basename(e.cwd || "") || "session"),
@@ -919,7 +862,7 @@ function createServer(opts = {}) {
         live: alive(e.pid),
         waiting: !!q,
         kind: q ? (q.kind || "input") : null,
-        via: terminal ? "terminal" : codex ? "codex" : null,
+        via: terminal ? "terminal" : null,               // null: read-only on the phone
         reason: q ? String(q.reason || "") : "",
       });
     }
@@ -931,7 +874,6 @@ function createServer(opts = {}) {
     if (typeof id !== "string" || !SESSION_ID.test(id)) return null;
     return (deps.knownSessions() || []).find((e) => e && String(e.session_id) === id) || null;
   }
-  const isCodex = (e) => !(e.workspace && e.terminal) && String(e.bridge_id || "").startsWith("codex:");
   const typeInto = (e, text, submit) => deps.superset(["terminals", "send", "--workspace", e.workspace,
     "--terminal", e.terminal, "--text", text, ...(submit ? [] : ["--no-submit"])]);
 
@@ -970,7 +912,7 @@ function createServer(opts = {}) {
       if (text !== null) live = liveState(text);
     }
 
-    let items = null, pending = [], ctx = null;
+    let items = null, ctx = null;
     if (agent === "claude") {
       const file = transcriptFor(String(e.session_id));
       if (file) items = chatItems(file);
@@ -983,20 +925,12 @@ function createServer(opts = {}) {
         items = s.items.slice(-MAX_ITEMS);
         if (!live && s.running) live = { state: "working", verb: "Working…", elapsed: elapsedSince(s.running), menu: null, staged: "" };
       }
-      // Threads the service runs keep their approvals there. It is also the fallback
-      // for a thread that has no session file yet. A slow, failing or missing
-      // service never takes the conversation down with it.
-      if (!terminal || !items) {
-        let r = null;
-        try { r = await deps.service("GET", "/codex/thread?id=" + encodeURIComponent(e.session_id)); } catch {}
-        if (r && r.status === 200 && r.json) { const v = codexView(r.json); pending = v.pending; if (!items) items = chatFromCodex(v.items); }
-      }
     }
     if (!terminal && items === null) return json(res, 409, { error: "no_route", message: "This session isn't in a Superset terminal, so it can't be reached from here." }, cors);
 
     if (items) items = filesFor(e, items).items;
-    const sig = items ? digest(JSON.stringify([items, pending])) : "";
-    const out = { kind: items ? "chat" : "terminal", agent, sig, live, pending, at: Date.now() };
+    const sig = items ? digest(JSON.stringify(items)) : "";
+    const out = { kind: items ? "chat" : "terminal", agent, sig, live, at: Date.now() };
     if (terminal && text !== null) out.info = sessionInfo(agent, text, ctx);
     if (items && sig !== since) out.items = items;
     if (view === "terminal" || !items) out.text = text ?? "";
@@ -1014,13 +948,7 @@ function createServer(opts = {}) {
       await typeInto(e, text, submit);
       return json(res, 200, { ok: true, via: "terminal", submitted: submit }, cors);
     }
-    if (isCodex(e)) {
-      if (!submit) return json(res, 400, { error: "submit_only", message: "Codex threads take whole messages." }, cors);
-      const r = await deps.service("POST", "/codex/turn", { threadId: e.session_id, text });
-      if (r.status !== 200) return json(res, 502, { error: "codex_failed", message: String(r.text || "The service refused that message.").slice(0, 200) }, cors);
-      return json(res, 200, { ok: true, via: "codex", submitted: true }, cors);
-    }
-    return json(res, 409, { error: "no_route", message: "This session can't be reached from here." }, cors);
+    return json(res, 409, { error: "no_route", message: "This session isn't in a terminal Airpocket can type into, so it's read-only here." }, cors);
   }
 
   async function pressKey(res, body, cors) {
@@ -1217,9 +1145,9 @@ function createServer(opts = {}) {
     if (!e) return json(res, 404, { error: "unknown_session" }, cors);
     const q = (deps.getQueue() || []).find((x) => x && (String(x.id) === String(e.bridge_id) || (x.sid && String(x.sid) === String(e.session_id))));
     if (!q || !SEEN_CLEARS.has(String(q.reason || ""))) return json(res, 200, { ok: true, cleared: false }, cors);
-    let r = null;
-    try { r = await deps.service("GET", `/dequeue?id=${encodeURIComponent(q.id)}&sid=${encodeURIComponent(q.sid || "")}`); } catch {}
-    return json(res, 200, { ok: true, cleared: !!(r && r.status === 200) }, cors);
+    // Another phone, or expiry, may have taken it off first.
+    const removed = deps.dequeue(String(q.id), q.sid ? String(q.sid) : "");
+    return json(res, 200, { ok: true, cleared: removed > 0 }, cors);
   }
 
   // ---- starting sessions through Superset ----
@@ -1283,34 +1211,6 @@ function createServer(opts = {}) {
     return json(res, 200, { ok: true }, cors);
   }
 
-  async function answer(res, body, cors) {
-    const e = find(body.id);
-    if (!e || !isCodex(e)) return json(res, 404, { error: "unknown_session" }, cors);
-    const r = await deps.service("GET", "/codex/thread?id=" + encodeURIComponent(e.session_id));
-    if (r.status !== 200 || !r.json) return json(res, 502, { error: "codex_unavailable" }, cors);
-    // Answer only a request that is actually pending on this thread, with its original id.
-    const pend = (r.json.pending || []).find((p) => String(p.id) === String(body.request));
-    if (!pend) return json(res, 404, { error: "no_request", message: "That request was already answered." }, cors);
-    let result;
-    if (String(pend.method || "").includes("requestUserInput")) {
-      const given = body.answers && typeof body.answers === "object" && !Array.isArray(body.answers) ? body.answers : null;
-      if (!given) return json(res, 400, { error: "bad_answers" }, cors);
-      const answers = {};
-      for (const q of (pend.params && pend.params.questions) || []) {
-        const v = given[String(q.id)];
-        if (typeof v !== "string" || v.length > MAX_ANSWER) return json(res, 400, { error: "bad_answers" }, cors);
-        answers[q.id] = { answers: [stripControl(v)] };
-      }
-      result = { answers };
-    } else {
-      if (!DECISIONS.has(body.decision)) return json(res, 400, { error: "bad_decision" }, cors);
-      result = { decision: body.decision };
-    }
-    const a = await deps.service("POST", "/codex/answer", { id: pend.id, result });
-    if (a.status !== 200) return json(res, 502, { error: "answer_failed", message: String(a.text || "").slice(0, 200) }, cors);
-    return json(res, 200, { ok: true }, cors);
-  }
-
   async function route(req, res, url) {
     const p = url.pathname;
     const api = p.startsWith("/api/");
@@ -1350,7 +1250,7 @@ function createServer(opts = {}) {
       return json(res, 404, { error: "not_found" }, cors);
     }
     if (req.method === "POST") {
-      const handler = { "/api/send": sendText, "/api/key": pressKey, "/api/answer": answer, "/api/command": command,
+      const handler = { "/api/send": sendText, "/api/key": pressKey, "/api/command": command,
                         "/api/seen": seen, "/api/new": newSession, "/api/file/open": openFile }[p];
       if (!handler) return json(res, 404, { error: "not_found" }, cors);
       const body = await readJson(req, res, cors);
@@ -1383,21 +1283,40 @@ function createServer(opts = {}) {
   });
   fileServer.requestTimeout = 60000;
   server.headersTimeout = 15000;
-  return { server, fileServer, deps };
+  return { server, fileServer, service, deps };
 }
 
-/** Start both servers on 127.0.0.1 only. `npm start` calls this; so will the background service. */
+/**
+ * Airpocket in one process: the service with its hook endpoint, the phone
+ * server and the file-only server, all on 127.0.0.1 only. `npm start` calls this.
+ */
 function start(opts = {}) {
   const port = opts.port ?? PORTS.app;
   const filePort = opts.filePort ?? (opts.port != null ? opts.port + 1 : PORTS.file);
-  const app = createServer({ ...opts, port, filePort });
-  app.server.on("error", (err) => app.deps.log(`server: ${err.code === "EADDRINUSE" ? `port ${port} is already taken` : err.message}`));
-  app.server.listen(port, "127.0.0.1", () => app.deps.log(`airpocket on http://127.0.0.1:${port}`));
-  app.fileServer.on("error", (err) => app.deps.log(`file server: ${err.code === "EADDRINUSE" ? `port ${filePort} is already taken` : err.message}`));
-  app.fileServer.listen(filePort, "127.0.0.1", () => app.deps.log(`file server on http://127.0.0.1:${filePort}`));
+  const hookPort = opts.hookPort ?? (opts.port != null ? opts.port + 2 : PORTS.hook);
+  const store = opts.store || createStore(opts.dataDir);
+  const log = opts.log || ((...a) => console.log(new Date().toISOString(), ...a));
+  const service = opts.service || createService({ dir: store.dir, log });
+  const app = createServer({ ...opts, store, log, service, port, filePort });
+  const taken = (what, p) => (err) => log(`${what}: ${err.code === "EADDRINUSE" ? `port ${p} is already taken` : err.message}`);
+  app.server.on("error", taken("server", port));
+  app.server.listen(port, "127.0.0.1", () => log(`airpocket on http://127.0.0.1:${app.server.address().port}`));
+  app.fileServer.on("error", taken("file server", filePort));
+  app.fileServer.listen(filePort, "127.0.0.1", () => log(`file server on http://127.0.0.1:${app.fileServer.address().port}`));
+  service.hookServer.on("error", taken("hooks", hookPort));
+  service.listen(hookPort, (p) => log(`hooks on http://127.0.0.1:${p}`));
   return app;
 }
 
-module.exports = { start, createServer, tidyScreen, codexView, cleanText, KEYS, liveState, claudeItems, describeTool, chatFromCodex, codexStep, shellLabel, sessionInfo, sessionRoot, fileMeta, mentions };
+module.exports = { start, createServer, tidyScreen, cleanText, KEYS, liveState, claudeItems, describeTool, codexStep, shellLabel, sessionInfo, sessionRoot, fileMeta, mentions };
 
-if (require.main === module) start();
+if (require.main === module) {
+  let app;
+  try { app = start(); } catch (err) {
+    console.error(err.code === "ELOCKED" ? err.message : err.stack || err);
+    process.exit(1);
+  }
+  // Leave the lock behind only after a crash; a stale lock is taken over anyway.
+  process.on("exit", () => app.service.release());
+  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(0));
+}
