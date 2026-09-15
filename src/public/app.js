@@ -554,14 +554,19 @@
       new ResizeObserver(() => document.body.style.setProperty("--composer-h", composer.offsetHeight + "px")).observe(composer);
     }
 
+    // The status line shows whenever there is something to say: a read-only session
+    // still has what it runs with and whether it is working, from its files and the hooks.
+    let said = false;
+    const showStatus = () => { statusEl.hidden = !(can.read || said); };
+
     return {
-      // Only what this session allows shows: no terminal hides the status line, no
-      // running agent hides the message box, keys and Controls. The Mac checks again on every write.
+      // Only what this session allows shows: no running agent hides the message box,
+      // keys and Controls. The Mac checks again on every write.
       setCan(c) {
         const next = { read: !!c.read, send: !!c.send, keys: !!c.keys, controls: !!c.controls, why: String(c.why || "") };
         if (JSON.stringify(next) === JSON.stringify(can)) return;
         can = next;
-        statusEl.hidden = !can.read;
+        showStatus();
         cmEl.hidden = !can.send;
         ctlBtn.hidden = !(can.controls || can.keys);
         if (!can.keys) stopBtn.hidden = true;
@@ -577,6 +582,7 @@
         const t = [i.name || shortModel(i.model), i.effort, i.fast ? "fast" : ""].filter(Boolean).join(" · ");
         infoEl.hidden = !t;
         if (infoEl.dataset.t !== t) { infoEl.dataset.t = t; infoEl.textContent = t; }
+        if (t && !said) { said = true; showStatus(); }
         if (sheetEl && !sheetEl.isConnected) sheetEl = null;
       },
       // A poll failed but the conversation is still on screen.
@@ -585,7 +591,9 @@
         liveText.textContent = "Retrying · " + msg;
       },
       setLive(live) {
-        if (!live) { liveEl.className = "live"; liveText.textContent = "Ready"; stopBtn.hidden = true; menuEl.hidden = true; return; }
+        // No state at all: its agent has exited (a running one is always working or idle).
+        if (!live) { liveEl.className = "live"; liveText.textContent = can.send ? "Ready" : "Not running"; stopBtn.hidden = true; menuEl.hidden = true; return; }
+        if (!said) { said = true; showStatus(); }
         const working = live.state === "working";
         liveEl.className = "live" + (working ? " working" : live.menu ? " ask" : "");
         liveText.textContent = working ? `${live.verb || "Working…"} ${live.elapsed || ""}`.trim()
