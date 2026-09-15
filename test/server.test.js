@@ -563,6 +563,10 @@ test("menus: Codex descriptions come apart from the option", () => {
   const m = liveState("  Select Model and Effort\n› 1. gpt-5.6-sol (current)  Latest frontier model.\n  2. gpt-6-astra            Most capable.\n  Press enter to confirm");
   assert.deepEqual(m.menu.options.map((o) => [o.label, o.hint]), [["gpt-5.6-sol (current)", "Latest frontier model."], ["gpt-6-astra", "Most capable."]]);
   assert.equal(liveState('❯ Try "refactor app.js"\n  ? for shortcuts').staged, "", "Claude's grey suggestion is not typed text");
+  // Claude marks earlier prompts with ❯ too: under an empty box they are history, not typed text.
+  const after = ["❯ Reply with just the word pong.", "", "⏺ pong", "", "✻ Baked for 1s", "", "─".repeat(40), "❯ ", "─".repeat(40), "  ⏸ manual mode on · ? for shortcuts"].join("\n");
+  assert.equal(liveState(tidyScreen(after)).staged, "", "an empty box under an earlier prompt");
+  assert.equal(liveState(tidyScreen(after.replace("❯ \n", "❯ next one\n"))).staged, "next one");
 });
 
 test("seen: opening a finished or idle session clears it; a question stays", async () => {

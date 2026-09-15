@@ -348,13 +348,14 @@ function liveState(text) {
   }
   let staged = "";
   if (!menu) {
-    // Only the prompt box at the bottom counts. Prompts further up are history,
-    // and an empty Codex box shows a grey placeholder.
+    // Only the prompt box at the bottom counts. Prompts further up are history
+    // (Claude marks them with ❯ too), so an empty box, a bare ❯, ends the search;
+    // an empty Codex box shows a grey placeholder.
     for (let k = lines.length - 1, seen = 0; k >= 0 && seen < 12; k--) {
       if (!lines[k].trim()) continue;
       seen++;
-      const m = /^\s*[❯›]\s+(\S.*?)\s*$/.exec(lines[k]);
-      if (m) { if (!CODEX_PLACEHOLDERS.has(m[1]) && !/^Try "/.test(m[1])) staged = clip(m[1], 160); break; }
+      const m = /^\s*[❯›](?:\s+(\S.*?))?\s*$/.exec(lines[k]);
+      if (m) { if (m[1] && !CODEX_PLACEHOLDERS.has(m[1]) && !/^Try "/.test(m[1])) staged = clip(m[1], 160); break; }
     }
   }
   return { state: working ? "working" : "idle", verb: working ? working.verb : "", elapsed: working ? working.elapsed : "", menu, staged };
