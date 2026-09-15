@@ -25,7 +25,7 @@ async function setup(dir = tempDir()) {
   t.secret = JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).secret;
   t.hook = (event, body, o = {}) => call(t.port, "/hook/" + event, body, { Authorization: "Bearer " + t.secret, ...o });
   t.waiting = () => t.svc.getQueue().map((q) => [q.sid, q.kind, q.reason]);
-  t.close = () => new Promise((ok) => t.svc.hookServer.close(ok));
+  t.close = () => new Promise((ok) => t.svc.close(ok));
   return t;
 }
 
@@ -179,11 +179,45 @@ test("a restart keeps records and the waiting list, and the old secret stops wor
   } finally { await t2.close(); }
 });
 
+test("one service per data folder: a second one refuses, writes nothing, and the first keeps working", async () => {
+  const t = await setup();
+  try {
+    await t.hook("enqueue", { session_id: ID, reason: "finished", pid: process.pid });
+    const snapshot = () => Object.fromEntries(["hook.json", "queue.json", "airpocket.lock", path.join("sessions", ID + ".json")]
+      .map((f) => [f, fs.readFileSync(path.join(t.dir, f), "utf8")]));
+    const before = snapshot();
+    assert.equal(before["airpocket.lock"], String(process.pid));
+    assert.throws(() => createService({ dir: t.dir }), (err) => err.code === "ELOCKED" && /already running/.test(err.message));
+    assert.throws(() => start({ dataDir: t.dir, port: 0, filePort: 0, hookPort: 0, log: () => {} }), { code: "ELOCKED" }, "npm start refuses too");
+    assert.deepEqual(snapshot(), before, "hook.json, the waiting list, the record and the lock are untouched");
+    assert.deepEqual(fs.readdirSync(t.dir).filter((n) => n.endsWith(".tmp")), []);
+    assert.equal(await t.hook("touch", { session_id: ID }), 204, "a hook with the file's secret still works");
+    assert.deepEqual(t.waiting(), [[ID, "done", "finished"]]);
+  } finally { await t.close(); }
+  assert.ok(!fs.existsSync(path.join(t.dir, "airpocket.lock")), "closing lets go of the folder");
+});
+
+test("a lock left by a process that is gone, or an empty one, is taken over; hook.json waits for listen", async () => {
+  const { spawnSync } = require("child_process");
+  const gone = spawnSync(process.execPath, ["-e", ""]).pid;          // ran and exited: its pid is free
+  for (const content of [String(gone), "", "not a pid"]) {
+    const dir = tempDir();
+    fs.writeFileSync(path.join(dir, "airpocket.lock"), content);
+    const svc = createService({ dir });
+    assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), String(process.pid), JSON.stringify(content));
+    assert.ok(!fs.existsSync(path.join(dir, "hook.json")), "nothing tells the hooks about a service that isn't listening");
+    const port = await new Promise((ok) => svc.listen(0, ok));
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).port, port);
+    await new Promise((ok) => svc.close(ok));
+  }
+});
+
 test("one process: start() runs the phone server, the file server and the hooks, all on loopback", async () => {
   const dataDir = tempDir();
   const app = start({ dataDir, port: 0, filePort: 0, hookPort: 0, log: () => {} });
-  const servers = [app.server, app.fileServer, app.service.hookServer];
+  const servers = [app.server, app.fileServer];
   try {
+    servers.push(app.service.hookServer);
     await Promise.all(servers.map((s) => (s.listening ? null : new Promise((ok) => s.once("listening", ok)))));
     for (const s of servers) assert.equal(s.address().address, "127.0.0.1");
     // hook.json is rewritten with the port once the hook server listens.
@@ -193,6 +227,7 @@ test("one process: start() runs the phone server, the file server and the hooks,
     assert.equal(await call(hook.port, "/hook/session", { session_id: ID }, { Authorization: "Bearer " + hook.secret }), 204);
     assert.deepEqual(app.deps.knownSessions().map((r) => r.session_id), [ID], "the phone server sees what the hooks reported");
   } finally {
+    app.service.release();
     await Promise.all(servers.map((s) => new Promise((ok) => s.close(ok))));
   }
 });

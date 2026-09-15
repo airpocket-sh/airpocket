@@ -10,7 +10,12 @@
 // The hooks in Claude Code and Codex tell it what happens, through a small
 // endpoint on 127.0.0.1 (never published to the tailnet). Each call must carry
 // the secret in hook.json, a private file that only this Mac's user can read;
-// the secret is new every time the service starts.
+// the secret is new every time the service starts, and hook.json is written
+// only once the endpoint is listening.
+//
+// One service per data folder: airpocket.lock holds the running one's pid. A
+// second one refuses to start and writes nothing; a lock whose process is gone
+// is stale and is taken over.
 //
 //   POST /hook/session   a session started, or something about it changed
 //   POST /hook/enqueue   it waits for you: finished, waiting for you, needs permission, ...
@@ -93,11 +98,41 @@ const absPath = (v) => (typeof v === "string" && v.length <= 1024 && path.isAbso
 const pidOf = (v) => (Number.isSafeInteger(v) && v > 1 ? v : 0);
 const terminalId = (v) => (typeof v === "string" && TERMINAL_ID.test(v) ? v : "");
 
+/**
+ * Take the data folder's lock, or throw (code ELOCKED) when another running
+ * service holds it. A lock whose process is gone, or that says nothing, is stale.
+ */
+function takeLock(file) {
+  for (let tries = 0; tries < 3; tries++) {
+    try {
+      const fd = fs.openSync(file, "wx", 0o600);
+      try { fs.writeSync(fd, String(process.pid)); } finally { fs.closeSync(fd); }
+      return;
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+    }
+    let pid = 0;
+    try { pid = Number(fs.readFileSync(file, "utf8").trim()); } catch {}
+    if (pidOf(pid) && processAlive(pid)) {
+      const err = new Error(`Airpocket is already running for ${path.dirname(file)} (process ${pid}).`);
+      err.code = "ELOCKED";
+      throw err;
+    }
+    try { fs.unlinkSync(file); } catch {}
+  }
+  throw new Error(`Couldn't take ${file}.`);
+}
+
 function createService({ dir, log = () => {}, now = Date.now, alive = processAlive } = {}) {
   if (!dir) throw new Error("createService needs a data folder");
   const sessionsDir = path.join(dir, "sessions");
   const queueFile = path.join(dir, "queue.json");
   const hookFile = path.join(dir, "hook.json");
+  const lockFile = path.join(dir, "airpocket.lock");
+  // The lock comes before anything else is written, so a second service changes nothing.
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  takeLock(lockFile);
+  let locked = true;
   privateDir(dir);
   privateDir(sessionsDir);
 
@@ -231,11 +266,11 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     return !!m && crypto.timingSafeEqual(got, secretHash);
   };
   const writeHookFile = (port) => writeAtomic(hookFile, JSON.stringify({ port, secret }, null, 2) + "\n");
-  writeHookFile(null);
 
   const hookServer = http.createServer((req, res) => {
-    const done = (status) => {
-      res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "Content-Length": 0 });
+    const done = (status, close) => {
+      res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "Content-Length": 0,
+                              ...(close ? { Connection: "close" } : {}) });
       res.end();
       // Hooks fire all the time; log refusals only. Never the body or the secret.
       if (status >= 400) log(`hook ${req.method} ${pathname.slice(0, 40)} ${status}`);
@@ -250,11 +285,20 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     if (req.headers.origin || !LOOPBACK_HOST.test(String(req.headers.host || ""))) { req.resume(); return done(403); }
     if (!secretOk(req.headers.authorization)) { req.resume(); return done(401); }
     if (!JSON_TYPE.test(req.headers["content-type"] || "")) { req.resume(); return done(415); }
+    // Too big: answer at once and close the connection, without reading the rest.
+    if (Number(req.headers["content-length"]) > MAX_BODY) return done(413, true);
     const chunks = [];
     let size = 0, over = false;
-    req.on("data", (c) => { size += c.length; if (size > MAX_BODY) over = true; else chunks.push(c); });
+    req.on("data", (c) => {
+      if (over) return;
+      size += c.length;
+      if (size <= MAX_BODY) { chunks.push(c); return; }
+      over = true;
+      req.pause();
+      done(413, true);
+    });
     req.on("end", () => {
-      if (over) return done(413);
+      if (over) return;
       let b;
       try { b = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch {}
       if (!b || typeof b !== "object" || Array.isArray(b)) return done(400);
@@ -267,7 +311,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
   hookServer.requestTimeout = 5000;
   hookServer.headersTimeout = 5000;
 
-  /** Listen on 127.0.0.1 and tell the hooks where, in hook.json. */
+  /** Listen on 127.0.0.1; only once it is up does hook.json tell the hooks where, and with which secret. */
   function listen(port, cb) {
     hookServer.listen(port, "127.0.0.1", () => {
       const actual = hookServer.address().port;
@@ -277,7 +321,20 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     return hookServer;
   }
 
-  return { dir, hookFile, knownSessions, getQueue, dequeue, sweep, hookServer, listen };
+  /** Let go of the data folder: the lock goes, if it is still this process's. */
+  function release() {
+    if (!locked) return;
+    locked = false;
+    try { if (fs.readFileSync(lockFile, "utf8").trim() === String(process.pid)) fs.unlinkSync(lockFile); } catch {}
+  }
+  /** Stop the hook endpoint and release the lock. */
+  function close(cb) {
+    release();
+    if (hookServer.listening) hookServer.close(() => cb && cb());
+    else if (cb) cb();
+  }
+
+  return { dir, hookFile, lockFile, knownSessions, getQueue, dequeue, sweep, hookServer, listen, release, close };
 }
 
 module.exports = { createService, kindOf, writeAtomic, TTL_MS, REASONS };

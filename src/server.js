@@ -710,10 +710,13 @@ function createServer(opts = {}) {
   const store = opts.store || createStore(opts.dataDir);
   const log = opts.log || ((...a) => console.log(new Date().toISOString(), ...a));
   // The seams to the background service (service.js), called in-process: its
-  // session records, its waiting list, and taking one off that list. The tests
-  // pass their own; otherwise the service keeps them in the data folder.
-  const stubbed = opts.knownSessions && opts.getQueue && opts.dequeue;
-  const service = opts.service || (stubbed ? null : createService({ dir: store.dir, log }));
+  // session records, its waiting list, and taking one off that list. Only start()
+  // creates a service; a server built any other way is handed one, or all three
+  // seams, so it never touches the data folder's records by itself.
+  const service = opts.service || null;
+  if (!service && !(opts.knownSessions && opts.getQueue && opts.dequeue)) {
+    throw new Error("createServer needs a service, or knownSessions, getQueue and dequeue");
+  }
   const deps = {
     knownSessions: opts.knownSessions || service.knownSessions,
     getQueue: opts.getQueue || service.getQueue,
@@ -1142,8 +1145,9 @@ function createServer(opts = {}) {
     if (!e) return json(res, 404, { error: "unknown_session" }, cors);
     const q = (deps.getQueue() || []).find((x) => x && (String(x.id) === String(e.bridge_id) || (x.sid && String(x.sid) === String(e.session_id))));
     if (!q || !SEEN_CLEARS.has(String(q.reason || ""))) return json(res, 200, { ok: true, cleared: false }, cors);
-    deps.dequeue(String(q.id), q.sid ? String(q.sid) : "");
-    return json(res, 200, { ok: true, cleared: true }, cors);
+    // Another phone, or expiry, may have taken it off first.
+    const removed = deps.dequeue(String(q.id), q.sid ? String(q.sid) : "");
+    return json(res, 200, { ok: true, cleared: removed > 0 }, cors);
   }
 
   // ---- starting sessions through Superset ----
@@ -1306,4 +1310,13 @@ function start(opts = {}) {
 
 module.exports = { start, createServer, tidyScreen, cleanText, KEYS, liveState, claudeItems, describeTool, codexStep, shellLabel, sessionInfo, sessionRoot, fileMeta, mentions };
 
-if (require.main === module) start();
+if (require.main === module) {
+  let app;
+  try { app = start(); } catch (err) {
+    console.error(err.code === "ELOCKED" ? err.message : err.stack || err);
+    process.exit(1);
+  }
+  // Leave the lock behind only after a crash; a stale lock is taken over anyway.
+  process.on("exit", () => app.service.release());
+  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(0));
+}

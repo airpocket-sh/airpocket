@@ -10,6 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const { createServer, tidyScreen, cleanText, liveState, claudeItems, shellLabel, codexStep, sessionInfo, sessionRoot } = require("../src/server");
 const { createStore } = require("../src/store");
+const { createService } = require("../src/service");
 const { portsFrom } = require("../src/ports");
 const { othersOn, serveLines } = require("../src/cli");
 
@@ -118,6 +119,7 @@ fs.writeFileSync(path.join(dir, "projects", "-Users-x-Files", FILES + ".jsonl"),
 let fileBase = "";
 
 const calls = { superset: [], dequeue: [] };
+let removes = 1;                                  // what the stand-in dequeue reports it took off
 
 const app = createServer({
   store, log: () => {}, hostLabel: "Test-Mac", claudeProjects: path.join(dir, "projects"), codexHome: path.join(dir, "codex"),
@@ -133,7 +135,7 @@ const app = createServer({
     if (args[1] === "read") return JSON.stringify({ terminalId: term, cols: 80, rows: 24, text: term === "term-2" ? LIVE_SCREEN : term === "term-3" ? CODEX_SCREEN : term === "term-4" ? STAGED_SCREEN : "hello   \n" + "─".repeat(40) + "\n❯ " });
     return "{}";
   },
-  dequeue: (id, sid) => { calls.dequeue.push([id, sid]); return 1; },
+  dequeue: (id, sid) => { calls.dequeue.push([id, sid]); return removes; },
 });
 
 let base;
@@ -487,6 +489,10 @@ test("seen: opening a finished or idle session clears it; a question stays", asy
   const b = await req("POST", "/api/seen", { headers: auth(), body: { id: CLAUDE } });
   assert.equal(b.json.cleared, false, "reason 'input' is a real question");
   assert.equal(calls.dequeue.length, before + 1);
+  removes = 0;
+  const c = await req("POST", "/api/seen", { headers: auth(), body: { id: CLAUDE2 } });
+  assert.equal(c.json.cleared, false, "nothing was taken off (another phone or expiry got there first), so it says so");
+  removes = 1;
   const s = (await req("GET", "/api/sessions", { headers: auth() })).json.sessions;
   assert.equal(s.find((x) => x.id === CLAUDE2).reason, "finished");
 });
@@ -627,11 +633,21 @@ test("files: a session's folder must be a real folder inside home, not home itse
   assert.equal(sessionRoot(path.join(HOME, ".superset/worktrees/p"), HOME), fs.realpathSync(path.join(HOME, ".superset/worktrees/p")), "Superset workspaces are fine");
 });
 
+test("a server is handed its service; it never makes one by itself", () => {
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-data-"));
+  try {
+    assert.throws(() => createServer({ store: createStore(data), log: () => {} }), /needs a service/);
+    assert.throws(() => createServer({ store: createStore(data), knownSessions: () => [], getQueue: () => [] }), /needs a service/);
+    assert.deepEqual(fs.readdirSync(data), [], "and it wrote nothing");
+  } finally { fs.rmSync(data, { recursive: true, force: true }); }
+});
+
 test("with no stubs: hook events put a session on the list, make it wait, and clear it", async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-data-"));
   const own = createStore(data);
   const bare = createServer({ store: own, log: () => {}, superset: async () => { throw new Error("no Superset here"); },
-    claudeProjects: path.join(data, "none"), codexHome: path.join(data, "none") });
+    service: createService({ dir: data }), claudeProjects: path.join(data, "none"), codexHome: path.join(data, "none") });
+  assert.ok(!fs.existsSync(path.join(data, "hook.json")), "no hook.json before the hook endpoint listens");
   const hookPort = await new Promise((ok) => bare.service.listen(0, ok));
   await new Promise((ok) => bare.server.listen(0, "127.0.0.1", ok));
   const at = `http://127.0.0.1:${bare.server.address().port}`;
@@ -678,7 +694,7 @@ test("with no stubs: hook events put a session on the list, make it wait, and cl
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(data, "queue.json"), "utf8")).queue, []);
   } finally {
     bare.server.close();
-    bare.service.hookServer.close();
+    bare.service.close();
     fs.rmSync(data, { recursive: true, force: true });
   }
 });
