@@ -48,7 +48,12 @@ env = {k: v for k, v in os.environ.items()
 env.update(TERM="xterm-256color", COLUMNS="120", LINES="40")
 args = [CLAUDE, "--setting-sources", "project", "--settings", json.dumps(settings), "--model", "haiku"]
 
-screen = pyte.Screen(120, 40)
+class Screen(pyte.Screen):
+    # Claude asks the terminal who it is and where the cursor is; unanswered,
+    # the first keys typed are taken for the answer.
+    def write_process_input(self, data): os.write(fd, data.encode())
+
+screen = Screen(120, 40)
 stream = pyte.ByteStream(screen)
 pid, fd = pty.fork()
 if pid == 0:
@@ -83,11 +88,13 @@ def wait_state(pred, secs, what):
     print(f"[{time.time() - t0:5.1f}s] TIMED OUT waiting for: {what}; last: {json.dumps(s)}")
     return None
 def say(msg):
-    os.write(fd, msg.encode()); pump(0.8); os.write(fd, CR.encode())
+    wait_screen(r"(?m)^❯ *$|^❯ Try ", 30)                  # an empty prompt box
+    for ch in msg: os.write(fd, ch.encode()); pump(0.02)   # key by key, so it isn't taken for a paste
+    pump(0.5); os.write(fd, CR.encode())
 
 ok = {}
 try:
-    if not wait_screen(r"(?i)trust|❯|>", 30): raise SystemExit("Claude didn't start")
+    if not wait_screen(r"(?im)do you trust|^❯", 30): raise SystemExit("Claude didn't start")
     if re.search(r"(?i)do you trust", text()):
         os.write(fd, ESC.encode()); raise SystemExit("the folder isn't trusted; not answering the prompt")
     s = wait_state(lambda s: s and not s["phone"]["waiting"], 20, "started, on the list")

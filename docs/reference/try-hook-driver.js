@@ -11,9 +11,14 @@ const http = require("http");
 const { start } = require("../../src/server");
 
 const dir = process.argv[2];
-const app = start({ dataDir: dir, port: 0, filePort: 0, hookPort: 0, log: () => {},
+const t0 = Date.now();
+const note = (...a) => process.stderr.write(`[${((Date.now() - t0) / 1000).toFixed(1)}s] ${a.join(" ")}\n`);
+const quietApi = /^(GET|POST) \/api\//;                    // the polling below, every 300 ms
+const app = start({ dataDir: dir, port: 0, filePort: 0, hookPort: 0, log: (...a) => { if (!quietApi.test(a.join(" "))) note("airpocket:", ...a); },
   superset: async () => { throw new Error("no Superset in this trial"); },
   claudeProjects: path.join(dir, "no-projects"), codexHome: path.join(dir, "no-codex") });
+// Each hook call as it lands: the event and the answer, never the body.
+app.service.hookServer.on("request", (req, res) => res.on("finish", () => note("hook", req.url, res.statusCode)));
 
 const get = (p, body, token) => new Promise((resolve, reject) => {
   const data = body ? Buffer.from(JSON.stringify(body)) : null;
