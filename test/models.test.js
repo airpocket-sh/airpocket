@@ -132,16 +132,22 @@ test("Codex's session file: turn_context, then settings changed between turns wi
   assert.deepEqual(codexContext(null, next), next);
 });
 
-test("what the phone shows: the session's own file first, the screen for the rest", () => {
+test("what the phone shows: the session's own file first, the screen for the rest, and for Claude's mode", () => {
   const { nameOf } = createModels(homes({ cache: fixture("codex-models_cache.json") }));
-  assert.deepEqual(mergeInfo("claude", { model: "claude-fable-5-1", effort: "xhigh", mode: "bypassPermissions" }, { effort: "low", mode: "plan mode" }, nameOf),
-    { model: "claude-fable-5-1", name: "Fable 5.1", effort: "xhigh", mode: "bypass permissions" });
-  assert.deepEqual(mergeInfo("claude", {}, { model: "Opus 5", effort: "medium" }, nameOf), { model: "Opus 5", name: "Opus 5", effort: "medium", mode: "default" },
-    "no transcript: the screen, and no mode line on it means the default mode");
+  assert.deepEqual(mergeInfo("claude", { model: "claude-fable-5-1", effort: "xhigh", mode: "bypassPermissions" }, { effort: "low" }, nameOf),
+    { model: "claude-fable-5-1", name: "Fable 5.1", effort: "xhigh", mode: "bypass permissions" }, "/effort and /model are in the transcript at once");
+  assert.equal(mergeInfo("claude", { mode: "bypassPermissions" }, { mode: "plan mode" }, nameOf).mode, "plan mode",
+    "Shift+Tab reaches the transcript only with the next prompt: the screen's mode line wins");
+  assert.equal(mergeInfo("claude", { mode: "auto" }, { mode: "default" }, nameOf).mode, "default", "a footer with no mode line is the default mode");
+  assert.deepEqual(mergeInfo("claude", {}, { model: "Opus 5", effort: "medium" }, nameOf), { model: "Opus 5", name: "Opus 5", effort: "medium" },
+    "no transcript: the screen; a picker over the footer says nothing about the mode");
   assert.deepEqual(mergeInfo("claude", { model: "claude-opus-5" }, null, nameOf), { model: "claude-opus-5", name: "Opus 5" }, "no screen: no guess at the mode");
   assert.deepEqual(mergeInfo("codex", { model: "gpt-9-nova", effort: "xhigh", mode: "plan", access: "full access", fast: false }, { model: "gpt-9-mini", fast: true }, nameOf),
-    { model: "gpt-9-nova", name: "GPT-9-Nova", effort: "xhigh", mode: "plan", access: "full access" });
-  assert.deepEqual(mergeInfo("codex", { model: "gpt-9-mini" }, { effort: "low", fast: true }, nameOf), { model: "gpt-9-mini", name: "GPT-9-Mini", effort: "low", fast: true });
+    { model: "gpt-9-mini", name: "GPT-9-Mini", effort: "xhigh", fast: true, mode: "plan", access: "full access" },
+    "Codex writes a /model or /fast into its file only when the next turn starts: its status line is newer");
+  assert.deepEqual(mergeInfo("codex", { model: "gpt-9-mini", fast: true }, { model: "gpt-9-mini", effort: "low" }, nameOf), { model: "gpt-9-mini", name: "GPT-9-Mini", effort: "low" },
+    "a status line without \"fast\": fast mode is off");
+  assert.deepEqual(mergeInfo("codex", { model: "gpt-9-mini", fast: true }, {}, nameOf), { model: "gpt-9-mini", name: "GPT-9-Mini", fast: true }, "no status line: the file");
   assert.deepEqual(["default", "plan", "acceptEdits", "bypassPermissions", "auto"].map(claudeMode), ["default", "plan mode", "accept edits", "bypass permissions", "auto mode"]);
 });
 
@@ -218,6 +224,25 @@ test("read-only sessions still show model, effort, mode and working or idle, fro
     d = (await s.get("/api/screen?id=" + CODEX_DONE)).json;
     assert.equal(d.live.state, "idle", "the file knows the turn finished, whatever the hooks last said");
     assert.deepEqual([d.info.model, d.info.effort, d.info.access], ["gpt-9-mini", "medium", "asks first"]);
+  } finally { s.close(); }
+});
+
+test("Codex: settings from before a long tail are found, reading back for them alone", async () => {
+  const h = homes({ cache: fixture("codex-models_cache.json") });
+  const ID = "01a0b000-0000-7000-8000-00000000eeee";
+  const head = fixture("codex-rollout.jsonl").split("\n").slice(0, 3);          // session_meta, task_started, turn_context
+  const big = J({ timestamp: "2026-09-15T09:00:02.000Z", type: "response_item", payload: { type: "function_call_output", output: "z".repeat(200000) } });
+  const step = (i) => J({ timestamp: "2026-09-15T09:10:00.000Z", type: "event_msg", payload: { type: "item_completed", thread_id: ID, turn_id: "t1",
+    item: { type: "AgentMessage", id: "m" + i, phase: "commentary", content: [{ type: "Text", text: "step " + i }] } } });
+  const day = path.join(h.codexHome, "sessions", "2026", "09", "15");
+  fs.mkdirSync(day, { recursive: true });
+  const file = path.join(day, `rollout-2026-09-15T09-00-00-${ID}.jsonl`);
+  fs.writeFileSync(file, [...head, ...Array(30).fill(big), ...Array.from({ length: 45 }, (_, i) => step(i))].join("\n") + "\n");
+  const s = await serve([{ session_id: ID, bridge_id: "codex:" + ID, agent: "codex", title: "long", transcript: file, pid: process.pid, started: ME, last_seen: 1e10 }], h, "");
+  try {
+    const d = (await s.get("/api/screen?id=" + ID)).json;
+    assert.ok(d.items.length >= 40, "the tail holds the conversation");
+    assert.deepEqual(d.info, { model: "gpt-9-mini", name: "GPT-9-Mini", effort: "medium", access: "asks first" }, "the turn_context 6 MB back");
   } finally { s.close(); }
 });
 

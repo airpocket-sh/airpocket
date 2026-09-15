@@ -493,7 +493,7 @@
           ...list.map((m) => chip(m.name || m.id, on(m), () => run("model", m.id, "Model: " + (m.name || m.id) + ". Claude also makes it the default for new sessions."))),
           chip("More…", false, () => run("model", undefined, "The model picker is open below"))]));
         const efforts = (offered && offered.claude && offered.claude.efforts) || ["low", "medium", "high", "xhigh", "max"];
-        secs.push(sec("Effort", info.effort || "", efforts.map((x) => chip(x, info.effort === x, () => run("effort", x, "Effort: " + x)))));
+        secs.push(sec("Effort", info.effort || "", efforts.map((x) => chip(x, info.effort === x, () => run("effort", x, "Effort: " + x + ". Claude also makes it the default for new sessions of this model.")))));
         secs.push(sec("Permission mode", info.mode || "", [
           chip("Next mode", false, () => { closeSheet(); press("stab", "Switched mode"); }),
           chip("Plan", /plan/.test(info.mode || ""), () => run("plan", undefined, "Plan mode")),

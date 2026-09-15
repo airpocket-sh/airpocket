@@ -563,6 +563,8 @@ test("session info from the screen: Claude's own markers, never a custom status 
     "  ⏵⏵ bypass permissions on (shift+tab to cycle)", "                      ◐ medium · /effort"].join("\n"));
   assert.deepEqual(claude, { effort: "medium", mode: "bypass permissions" }, "a status line's model and context are not read");
   assert.deepEqual(sessionInfo("claude", "❯\n  ⏸ plan mode on (shift+tab to cycle)").mode, "plan mode");
+  assert.equal(sessionInfo("claude", "❯ \n  ? for shortcuts                ● high · /effort").mode, "default", "the footer without a mode line");
+  assert.equal(sessionInfo("claude", " Select model\n ❯ 1. Opus 5\n   2. Sonnet 5").mode, undefined, "a picker hides the footer: no guess");
   assert.deepEqual(sessionInfo("claude", " ✻ Welcome\n   Fable 5.1 with xhigh effort · Claude Max\n❯ "), { model: "Fable 5.1", effort: "xhigh" }, "Claude's own banner");
   const codex = sessionInfo("codex", "› Ask Codex to do anything\n  gpt-6-astra xhigh fast · ~/x · title");
   assert.deepEqual(codex, { model: "gpt-6-astra", effort: "xhigh", fast: true });

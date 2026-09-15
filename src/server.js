@@ -587,6 +587,8 @@ function sessionInfo(agent, text) {
   if (m) info.effort = m[1]; else if (banner) info.effort = banner[2];
   m = /⏵⏵\s*(.+?)\s+on\b/.exec(joined) || /⏸\s*(plan mode)\s+on\b/.exec(joined);
   if (m) info.mode = clip(m[1], 30);
+  // The footer under the prompt box is there (its effort marker or shortcut hint) with no mode line: the default mode.
+  else if (/·\s*\/effort\b|\? for shortcuts/.test(joined)) info.mode = "default";
   return info;
 }
 
@@ -600,23 +602,31 @@ function claudeMode(m) {
  * What the phone shows a session runs with. The session's own file comes first
  * (Claude's transcript, Codex's session file), so it is there for read-only
  * sessions too; the screen, when there is one, fills what the file doesn't say.
- * `name` is the model's readable name.
+ * Except where the file is late. Claude's permission mode: Shift+Tab changes
+ * it without a word in the transcript until the next prompt, so while the
+ * screen shows its footer, the screen says which mode it is. Codex's model,
+ * effort and fast mode: it writes changed settings to its file only as the next
+ * turn starts, so its status line, when there is one, is newer. (Claude's
+ * /model and /effort are in the transcript at once.) `name` is the model's
+ * readable name.
  */
 function mergeInfo(agent, recorded, screen, nameOf) {
   const r = recorded || {}, s = screen || {};
+  const codex = agent === "codex";
   const info = {};
-  const model = r.model || s.model;
+  const model = codex ? s.model || r.model : r.model || s.model;
   if (model) { info.model = model; info.name = nameOf(agent, model) || model; }
-  const effort = r.effort || s.effort;
+  const effort = codex ? s.effort || r.effort : r.effort || s.effort;
   if (effort) info.effort = effort;
-  if (agent === "codex") {
-    const fast = "fast" in r ? r.fast : s.fast;
+  if (codex) {
+    // The status line says "fast" whenever it is on.
+    const fast = s.model ? s.fast : r.fast;
     if (fast) info.fast = true;
     if (r.mode === "plan") info.mode = "plan";
     if (r.access) info.access = r.access;
     return info;
   }
-  const mode = r.mode ? claudeMode(r.mode) : s.mode || (screen ? "default" : "");
+  const mode = s.mode || (r.mode ? claudeMode(r.mode) : "");
   if (mode) info.mode = mode;
   return info;
 }
@@ -919,16 +929,60 @@ function createServer(opts = {}) {
       // A browser or MCP result can be a megabyte on one line, so a fixed tail
       // may hold only a handful of steps. Widen it until it holds enough.
       for (let window = TAIL_BYTES; ; window *= 2) {
-        s = { ino: st.ino, offset: Math.max(0, st.size - window), cut: st.size > window, items: [], running: null, n: 0 };
+        s = { ino: st.ino, start: Math.max(0, st.size - window), offset: Math.max(0, st.size - window), cut: st.size > window, items: [], running: null, n: 0 };
         readOn(s, file, st.size);
         if (s.items.length >= 40 || window >= st.size || window >= CODEX_WINDOW_MAX) break;
       }
+      // A long turn can push its turn_context out of the tail: look further back, for the settings only.
+      if (s.start > 0 && !(s.ctx && s.ctx.model && s.ctx.access)) s.ctx = codexSettingsBefore(file, s.start, s.ctx);
       rollouts.set(file, s);
       if (rollouts.size > 24) rollouts.delete(rollouts.keys().next().value);
     } else if (st.size > s.offset) {
       readOn(s, file, st.size);
     }
     return s;
+  }
+  /**
+   * The settings in the part of a Codex file before `end`: its last turn_context
+   * and any thread_settings_applied after it, found reading backwards, at most
+   * CODEX_WINDOW_MAX. Only lines that say they are settings are parsed. What the
+   * tail said (`newer`) wins wherever it says something.
+   */
+  function codexSettingsBefore(file, end, newer) {
+    const found = [];
+    const stop = Math.max(0, end - CODEX_WINDOW_MAX);
+    const fd = fs.openSync(file, "r");
+    try {
+      let pos = end, carry = Buffer.alloc(0), done = false;
+      while (pos > stop && !done) {
+        const from = Math.max(stop, pos - MB);
+        const chunk = Buffer.alloc(pos - from);
+        fs.readSync(fd, chunk, 0, chunk.length, from);
+        pos = from;
+        let buf = Buffer.concat([chunk, carry]);
+        if (pos > stop) {                                   // the first line may have begun further back
+          const nl = buf.indexOf(10);
+          if (nl < 0) { carry = buf; continue; }
+          carry = buf.subarray(0, nl);
+          buf = buf.subarray(nl + 1);
+        }
+        const lines = buf.toString("utf8").split("\n");
+        for (let k = lines.length - 1; k >= 0 && !done; k--) {
+          const head = lines[k].slice(0, 300);
+          if (/"type"\s*:\s*"turn_context"/.test(head)) { found.push(lines[k]); done = true; }
+          else if (/"type"\s*:\s*"thread_settings_applied"/.test(head)) found.push(lines[k]);
+        }
+      }
+    } finally { fs.closeSync(fd); }
+    let ctx = null;
+    for (const line of found.reverse()) {
+      try {
+        const d = JSON.parse(line);
+        ctx = codexContext(d.type === "turn_context" ? d.payload : d.payload && d.payload.thread_settings, ctx);
+      } catch {}
+    }
+    if (!ctx) return newer || null;
+    return newer ? { ...ctx, ...Object.fromEntries(Object.entries(newer).filter(([, v]) => v !== "")) } : ctx;
   }
   function readOn(s, file, size) {
     const buf = Buffer.alloc(size - s.offset);
