@@ -156,14 +156,34 @@ status line.
 
 ## Where the code stands
 
-- Step 4 is merged (PR #1): `src/server.js` (phone API + file-only server),
-  `src/store.js`, `src/cli.js` (`airpocket pair|devices|revoke|serve|unserve|status`),
-  `src/ports.js` (47871/47872, public 443/8443 until step 13, `AIRPOCKET_*`
-  variables), `src/service.js` (stand-ins), `src/public/`, `test/server.test.js`.
-- The server reaches the service through three seams passed to
-  `createServer()`: `knownSessions()`, `getQueue()`, `service(method, path, body)`.
-  Step 5 replaces the stand-ins; keep a test that builds `createServer()` with
-  no stubs.
+- Steps 4 and 5 are merged (PR #1, PR #2). `npm start` runs one process:
+  the service with its hook endpoint, the phone server and the file-only
+  server, all on 127.0.0.1.
+- `src/service.js`: session records (`sessions/<id>.json`) and the waiting list
+  (`queue.json`) in the data folder (`~/Library/Application Support/Airpocket`
+  or `$AIRPOCKET_DIR`); folders 0700, files 0600, every write whole
+  (temp file, fsync, rename). One service per data folder: `airpocket.lock`
+  holds the pid; a second one throws `ELOCKED` and writes nothing.
+- Hook endpoint on 127.0.0.1:47873 (`AIRPOCKET_HOOK_PORT`), never published.
+  `hook.json` = `{ port, secret }`, 0600, written only once it listens, new
+  secret every start. `POST /hook/session | enqueue | dequeue | touch` with
+  `Authorization: Bearer <secret>` and a JSON body naming the session:
+  `session_id, agent (claude|codex), cwd, title, branch, note, account, pid,
+  terminal, workspace` (empty fields keep the old value). `enqueue` needs
+  `reason`: finished | waiting for you | needs permission | needs input |
+  needs a response. `dequeue` needs `why`: prompt | end. Refused: Origin
+  header, non-loopback Host, wrong secret, non-JSON, bodies over 16 KB.
+- Waiting-list rules: finished = done, 20 minutes; the rest = input, 60
+  minutes; one entry per session; a gone process leaves the list and the
+  records; records not heard from in a day are forgotten.
+- `createServer()` needs `opts.service` or all three seams (`knownSessions`,
+  `getQueue`, `dequeue`); only `start()` creates a service. "Seen" dequeues
+  in-process and clears only finished and waiting-for-you entries.
+- The Codex desktop-daemon link is gone: a session without a terminal is
+  read-only on the phone.
+- Carried into step 6: pid reuse (store the process start time with the pid,
+  in records and in the lock) and the stale-lock race (rename the stale lock
+  aside, link the new one into place), from the PR #2 review.
 
 ## Decisions waiting for Öncel (proposed defaults)
 
