@@ -71,6 +71,18 @@ function processAlive(pid, started, startOf = startTimeOf) {
 }
 
 /**
+ * Stricter than processAlive, for typing into a terminal: yes only when the pid
+ * exists and its start time was read and matches the one recorded. No pid, no
+ * recorded start time, or a ps that can't answer: no. When an agent exits, its
+ * terminal falls back to a shell, and a guess here would type into that shell.
+ */
+function stillRunning(pid, started, startOf = startTimeOf) {
+  const p = pidOf(pid);
+  if (!p || !(Number.isSafeInteger(started) && started > 0) || !pidExists(p)) return false;
+  return startOf(p) === started;
+}
+
+/**
  * The agent a hook runs for: its parent, or the first parent that isn't a
  * shell (Claude Code and Codex run hooks through one). { pid, started }, or
  * zeros when it can't be told.
@@ -88,4 +100,4 @@ function agentProcess(ppid = process.ppid) {
   return { pid: 0, started: 0 };
 }
 
-module.exports = { parseLstart, startTimes, startTimeOf, pidExists, processAlive, agentProcess, pidOf };
+module.exports = { parseLstart, startTimes, startTimeOf, pidExists, processAlive, stillRunning, agentProcess, pidOf };
