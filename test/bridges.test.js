@@ -20,7 +20,6 @@ const CR = String.fromCharCode(13);
 const TAB = String.fromCharCode(9);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-bridges-"));
 const ME = { pid: process.pid, started: startTimeOf(process.pid) };
-test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 // What each key must reach the program as, whichever bridge carries it.
 const KEY_BYTES = { up: ESC + "[A", down: ESC + "[B", right: ESC + "[C", left: ESC + "[D", tab: TAB, stab: ESC + "[Z",
@@ -32,7 +31,6 @@ const TRICKY = "a;b $(id) `id` #{pane_id} ~ -l -- \\; end;";
 const SOCK = path.join(dir, "fake.sock");
 const sockServer = net.createServer();
 const sockReady = new Promise((r) => sockServer.listen(SOCK, r));
-test.after(() => sockServer.close());
 
 // ---- stand-ins -------------------------------------------------------------------
 
@@ -169,7 +167,12 @@ async function until(fn, ms = 4000) {
 }
 const q = (s) => "'" + s + "'";
 let realRecord = null;
-test.after(() => { if (realRecord) { try { tmuxHere("kill-server"); } catch {} } });
+// The tmux server first, while its socket is still there to reach it; then the folder.
+test.after(() => {
+  if (TMUX && fs.existsSync(RSOCK)) { try { tmuxHere("kill-server"); } catch {} }
+  sockServer.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
 
 contract("tmux (real, private socket)", async () => {
   fs.writeFileSync(LOG, "");
