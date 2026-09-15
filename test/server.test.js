@@ -8,7 +8,7 @@ const http = require("http");
 const os = require("os");
 const fs = require("fs");
 const path = require("path");
-const { createServer, tidyScreen, cleanText, liveState, claudeItems, chatFromCodex, shellLabel, codexStep, sessionInfo, sessionRoot } = require("../src/server");
+const { createServer, tidyScreen, cleanText, liveState, claudeItems, shellLabel, codexStep, sessionInfo, sessionRoot } = require("../src/server");
 const { createStore } = require("../src/store");
 const { portsFrom } = require("../src/ports");
 const { othersOn, serveLines } = require("../src/cli");
@@ -117,11 +117,7 @@ fs.writeFileSync(path.join(dir, "projects", "-Users-x-Files", FILES + ".jsonl"),
 ].join("\n"));
 let fileBase = "";
 
-const calls = { superset: [], service: [] };
-const pending = [
-  { id: 7, method: "item/commandExecution/requestApproval", params: { command: "rm -rf build", threadId: CODEX } },
-  { id: "q1", method: "item/tool/requestUserInput", params: { questions: [{ id: "which", header: "Pick", question: "Which?", options: [{ label: "A" }, { label: "B" }] }] } },
-];
+const calls = { superset: [], dequeue: [] };
 
 const app = createServer({
   store, log: () => {}, hostLabel: "Test-Mac", claudeProjects: path.join(dir, "projects"), codexHome: path.join(dir, "codex"),
@@ -137,14 +133,7 @@ const app = createServer({
     if (args[1] === "read") return JSON.stringify({ terminalId: term, cols: 80, rows: 24, text: term === "term-2" ? LIVE_SCREEN : term === "term-3" ? CODEX_SCREEN : term === "term-4" ? STAGED_SCREEN : "hello   \n" + "─".repeat(40) + "\n❯ " });
     return "{}";
   },
-  service: async (method, p, body) => {
-    calls.service.push({ method, p, body });
-    if (p.startsWith("/codex/thread")) return { status: 200, json: { thread: { cwd: "/x/u" }, pending,
-      turns: [{ items: [{ id: "i2", type: "agentMessage", text: "done" }] }, { items: [{ id: "i1", type: "userMessage", content: [{ text: "go" }] }] }] } };
-    if (p === "/codex/turn" || p === "/codex/answer") return { status: 200, json: null, text: "ok" };
-    if (p.startsWith("/dequeue")) return { status: 200, json: null, text: "ok" };
-    return { status: 404, json: null, text: "" };
-  },
+  dequeue: (id, sid) => { calls.dequeue.push([id, sid]); return 1; },
 });
 
 let base;
@@ -220,7 +209,7 @@ test("sessions come back merged with the queue, the one that needs you first", a
   assert.equal(s[0].note, "Claude is waiting");
   assert.equal(s[0].account, "info");
   assert.equal(s[0].via, "terminal");
-  assert.equal(s.find((x) => x.id === CODEX).via, "codex");
+  assert.equal(s.find((x) => x.id === CODEX).via, null, "a Codex thread with no terminal is read-only");
   assert.equal(s.find((x) => x.id === PLAIN).via, null);
   assert.ok(!("workspace" in s[0]) && !("terminal" in s[0]), "terminal ids never leave the Mac");
 });
@@ -258,26 +247,18 @@ test("keys are an allow-list: digits and Esc without Enter, Enter alone", async 
   for (const key of ["ctrl-c", "", "__proto__", "constructor", 1]) {
     assert.equal((await req("POST", "/api/key", { headers: auth(), body: { id: CLAUDE, key } })).status, 400, String(key));
   }
-  assert.equal((await req("POST", "/api/key", { headers: auth(), body: { id: CODEX, key: "1" } })).status, 409, "no keys for daemon threads");
+  assert.equal((await req("POST", "/api/key", { headers: auth(), body: { id: CODEX, key: "1" } })).status, 409, "no keys without a terminal");
 });
 
-test("codex: transcript in order, whole messages only, answers checked against what is pending", async () => {
+test("codex without a terminal is read-only: nothing to type into, no approvals to answer", async () => {
+  const n = calls.superset.length;
   const r = await req("GET", "/api/screen?id=" + CODEX, { headers: auth() });
-  assert.equal(r.json.kind, "chat");
-  assert.deepEqual(r.json.items.map((i) => i.type), ["user", "agent"]);
-  assert.equal(r.json.pending[0].command, "rm -rf build");
-
-  assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: CODEX, text: "next", submit: false } })).status, 400);
-  assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: CODEX, text: "next" } })).status, 200);
-  assert.deepEqual(calls.service.at(-1), { method: "POST", p: "/codex/turn", body: { threadId: CODEX, text: "next" } });
-
-  assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "7", decision: "accept" } })).status, 200);
-  assert.deepEqual(calls.service.at(-1).body, { id: 7, result: { decision: "accept" } }, "the original numeric id is forwarded");
-  assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "7", decision: "yolo" } })).status, 400);
-  assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "99", decision: "accept" } })).status, 404);
-  assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "q1", answers: { which: "B", extra: "x" } } })).status, 200);
-  assert.deepEqual(calls.service.at(-1).body, { id: "q1", result: { answers: { which: { answers: ["B"] } } } }, "only the asked question is answered");
-  assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "q1", answers: {} } })).status, 400);
+  assert.equal(r.status, 409, "no terminal and no session file: nothing to show");
+  const sent = await req("POST", "/api/send", { headers: auth(), body: { id: CODEX, text: "next" } });
+  assert.equal(sent.status, 409);
+  assert.match(sent.json.message, /read-only/);
+  assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "7", decision: "accept" } })).status, 404, "there is no answer route any more");
+  assert.equal(calls.superset.length, n, "nothing reached Superset");
 });
 
 test("CORS only for tailnet and loopback origins; bodies must be small JSON", async () => {
@@ -366,12 +347,11 @@ test("claudeItems copes with an empty or broken tail", () => {
 });
 
 test("codex citations become the file's name", () => {
-  const [item] = chatFromCodex([{ id: "x", type: "agent", text: 'Made it: :codex-file-citation{path="/Users/x/out/report.pdf" purpose="output"}' }]);
+  const item = codexStep({ id: "x", type: "AgentMessage", content: [{ type: "Text", text: 'Made it: :codex-file-citation{path="/Users/x/out/report.pdf" purpose="output"}' }] });
   assert.equal(item.text, "Made it: `report.pdf`");
 });
 
-test("codex in a terminal: steps come from the session file mid-turn, without the service", async () => {
-  const before = calls.service.length;
+test("codex in a terminal: steps come from the session file mid-turn", async () => {
   const r = await req("GET", "/api/screen?id=" + CODEX_T, { headers: auth() });
   assert.equal(r.json.kind, "chat");
   assert.deepEqual(r.json.items.map((i) => [i.type, i.name || "", i.label || i.text]), [
@@ -385,7 +365,6 @@ test("codex in a terminal: steps come from the session file mid-turn, without th
   assert.equal(r.json.items[1].aside, true, "running narration is marked");
   assert.equal(r.json.items[3].error, true, "a failed command is marked");
   assert.ok(!/SECRET/.test(r.body), "no output, file content, arguments, results or context leaves the Mac");
-  assert.equal(calls.service.length, before, "a terminal session does not wait on the service");
   assert.deepEqual([r.json.live.state, r.json.live.verb, r.json.live.staged], ["working", "Working…", ""],
     "the prompt from history above is not 'typed, not sent'");
 
@@ -468,7 +447,7 @@ test("controls: fixed slash commands, typed then submitted, only when the prompt
   assert.equal((await req("POST", "/api/command", { headers: auth(), body: { id: CLAUDE2, cmd: "compact" } })).json.error, "menu_open");
   assert.equal((await req("POST", "/api/command", { headers: auth(), body: { id: CLAUDE3, cmd: "compact" } })).json.error, "typed_text");
   assert.equal((await req("POST", "/api/command", { headers: auth(), body: { id: CODEX_T, cmd: "permissions" } })).json.error, "busy");
-  assert.equal((await req("POST", "/api/command", { headers: auth(), body: { id: CODEX, cmd: "model" } })).status, 409, "daemon threads have no terminal");
+  assert.equal((await req("POST", "/api/command", { headers: auth(), body: { id: CODEX, cmd: "model" } })).status, 409, "no terminal, no controls");
   assert.ok(calls.superset.slice(n).every((a) => a[1] === "read"), "refused commands typed nothing");
 });
 
@@ -501,13 +480,13 @@ test("menus: Codex descriptions come apart from the option", () => {
 
 test("seen: opening a finished or idle session clears it; a question stays", async () => {
   QUEUE.push({ id: "session_02", sid: CLAUDE2, kind: "done", reason: "finished" });
-  const before = calls.service.length;
+  const before = calls.dequeue.length;
   const a = await req("POST", "/api/seen", { headers: auth(), body: { id: CLAUDE2 } });
   assert.equal(a.json.cleared, true);
-  assert.equal(calls.service.at(-1).p, "/dequeue?id=session_02&sid=" + CLAUDE2);
+  assert.deepEqual(calls.dequeue.at(-1), ["session_02", CLAUDE2], "dequeued in-process, by entry and session");
   const b = await req("POST", "/api/seen", { headers: auth(), body: { id: CLAUDE } });
   assert.equal(b.json.cleared, false, "reason 'input' is a real question");
-  assert.equal(calls.service.length, before + 1);
+  assert.equal(calls.dequeue.length, before + 1);
   const s = (await req("GET", "/api/sessions", { headers: auth() })).json.sessions;
   assert.equal(s.find((x) => x.id === CLAUDE2).reason, "finished");
 });
@@ -648,39 +627,66 @@ test("files: a session's folder must be a real folder inside home, not home itse
   assert.equal(sessionRoot(path.join(HOME, ".superset/worktrees/p"), HOME), fs.realpathSync(path.join(HOME, ".superset/worktrees/p")), "Superset workspaces are fine");
 });
 
-test("without a service: records and the waiting list come from Airpocket's own folder; service calls are 'not available'", async () => {
+test("with no stubs: hook events put a session on the list, make it wait, and clear it", async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-data-"));
-  const DAEMON = "0199aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee", OLD = "bbbbbbbb-0000-0000-0000-000000000000";
-  fs.mkdirSync(path.join(data, "sessions"));
-  const rec = (id, extra) => fs.writeFileSync(path.join(data, "sessions", id + ".json"), J({ session_id: id, title: "t", agent: "claude", last_seen: now, ...extra }));
-  rec(DAEMON, { bridge_id: "codex:" + DAEMON, agent: "codex" });
-  rec(OLD, { last_seen: now - 2 * 86400 });                                   // older than a day
-  fs.writeFileSync(path.join(data, "sessions", "junk.json"), "{ not json");
-  fs.writeFileSync(path.join(data, "queue.json"), J({ queue: [{ id: "codex:" + DAEMON, sid: DAEMON, kind: "done", reason: "finished" }] }));
   const own = createStore(data);
   const bare = createServer({ store: own, log: () => {}, superset: async () => { throw new Error("no Superset here"); },
     claudeProjects: path.join(data, "none"), codexHome: path.join(data, "none") });
+  const hookPort = await new Promise((ok) => bare.service.listen(0, ok));
   await new Promise((ok) => bare.server.listen(0, "127.0.0.1", ok));
   const at = `http://127.0.0.1:${bare.server.address().port}`;
+  const { port, secret } = JSON.parse(fs.readFileSync(path.join(data, "hook.json"), "utf8"));
+  assert.equal(port, hookPort, "hook.json tells the hooks where to call");
+  const hook = (event, body, headers = { Authorization: "Bearer " + secret }) =>
+    req("POST", "/hook/" + event, { at: `http://127.0.0.1:${hookPort}`, headers, body });
+  const ID = "0199aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee";
   try {
     const t = (await req("POST", "/api/pair", { at, body: { code: own.newCode().code } })).json.token;
-    const s = (await req("GET", "/api/sessions", { at, headers: auth(t) })).json.sessions;
-    assert.deepEqual(s.map((x) => [x.id, x.waiting, x.via]), [[DAEMON, true, "codex"]], "a day-old record and a broken one are left out");
-    const sent = await req("POST", "/api/send", { at, headers: auth(t), body: { id: DAEMON, text: "hi" } });
-    assert.equal(sent.status, 502);
-    assert.match(sent.json.message, /service isn't running/);
-    assert.equal((await req("GET", "/api/screen?id=" + DAEMON, { at, headers: auth(t) })).status, 409);
-    assert.equal((await req("POST", "/api/seen", { at, headers: auth(t), body: { id: DAEMON } })).json.cleared, false);
-    assert.equal((await req("POST", "/api/answer", { at, headers: auth(t), body: { id: DAEMON, request: "1", decision: "accept" } })).status, 502);
+    const list = async () => (await req("GET", "/api/sessions", { at, headers: auth(t) })).json.sessions
+      .map((x) => ({ id: x.id, title: x.title, waiting: x.waiting, kind: x.kind, reason: x.reason, note: x.note, via: x.via }));
+    const seen = async () => (await req("POST", "/api/seen", { at, headers: auth(t), body: { id: ID } })).json.cleared;
+    assert.deepEqual(await list(), []);
+
+    // Wrong or missing secrets change nothing.
+    const body = { session_id: ID, agent: "claude", cwd: "/Users/x/proj", pid: process.pid, terminal: "term-9", workspace: "ws-9" };
+    assert.equal((await hook("session", body, {})).status, 401, "no secret");
+    assert.equal((await hook("session", body, { Authorization: "Bearer " + "A".repeat(43) })).status, 401, "wrong secret");
+    assert.equal((await hook("session", body, { Authorization: secret })).status, 401, "the secret without Bearer");
+    assert.deepEqual(await list(), []);
+
+    assert.equal((await hook("session", body)).status, 204);
+    assert.deepEqual(await list(), [{ id: ID, title: "proj", waiting: false, kind: null, reason: "", note: "", via: "terminal" }], "on the list");
+
+    await hook("enqueue", { session_id: ID, reason: "finished", message: "All done." });
+    assert.deepEqual((await list())[0], { id: ID, title: "proj", waiting: true, kind: "done", reason: "finished", note: "All done.", via: "terminal" }, "waiting");
+    await hook("dequeue", { session_id: ID, why: "prompt", note: "next thing" });
+    assert.equal((await list())[0].waiting, false, "a new prompt clears it");
+
+    await hook("enqueue", { session_id: ID, reason: "waiting for you" });
+    assert.equal(await seen(), true);
+    assert.equal((await list())[0].waiting, false, "seen clears 'waiting for you'");
+    await hook("enqueue", { session_id: ID, reason: "finished" });
+    assert.equal(await seen(), true);
+    assert.equal((await list())[0].waiting, false, "seen clears 'finished'");
+
+    await hook("enqueue", { session_id: ID, reason: "needs permission", message: "Run rm?" });
+    assert.equal(await seen(), false);
+    assert.deepEqual((await list())[0].kind, "input", "a question stays after seen");
+
+    await hook("dequeue", { session_id: ID, why: "end" });
+    assert.deepEqual(await list(), [], "session end clears it and forgets the session");
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(data, "queue.json"), "utf8")).queue, []);
   } finally {
     bare.server.close();
+    bare.service.hookServer.close();
     fs.rmSync(data, { recursive: true, force: true });
   }
 });
 
-test("ports: 47871 for the app and 47872 for files by default, moved together", () => {
-  assert.deepEqual(portsFrom({}), { app: 47871, file: 47872, publicApp: 443, publicFile: 8443 });
+test("ports: 47871 for the app, 47872 for files, 47873 for hooks by default, moved together", () => {
+  assert.deepEqual(portsFrom({}), { app: 47871, file: 47872, hook: 47873, publicApp: 443, publicFile: 8443 });
   assert.equal(portsFrom({ AIRPOCKET_PORT: "48000" }).file, 48001);
+  assert.equal(portsFrom({ AIRPOCKET_PORT: "48000" }).hook, 48002);
   assert.equal(portsFrom({ AIRPOCKET_PORT: "x", AIRPOCKET_FILE_PORT: "99999" }).file, 47872, "nonsense falls back to the default");
 });
 

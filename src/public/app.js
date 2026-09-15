@@ -252,7 +252,7 @@
 
   function renderSession(host, id) {
     document.body.classList.add("in-session");
-    const st = { view: prefs.view === "terminal" ? "terminal" : "chat", sig: "", items: [], pending: [], meta: null, kind: null,
+    const st = { view: prefs.view === "terminal" ? "terminal" : "chat", sig: "", items: [], meta: null, kind: null,
                  open: new Set(), chat: null, blocks: new Map(), openFile: (f) => openFile(host, id, f) };
     const feed = h("div");
     const screen = h("div", { class: "screen" + (prefs.wrap ? "" : " nowrap") });
@@ -291,7 +291,6 @@
 
     api(host, "/api/sessions").then((d) => {
       st.meta = (d.sessions || []).find((x) => x.id === id) || null;
-      if (st.meta && st.meta.via === "codex") composer.classList.add("codex");
       // You opened it, so a finished turn is read. The Mac leaves real questions on the list.
       if (st.meta && st.meta.waiting) api(host, "/api/seen", { method: "POST", body: { id } }).catch(() => {});
       if (st.meta && !st.meta.via) { composer.hidden = true; document.body.classList.remove("in-session"); }
@@ -312,7 +311,7 @@
           if (feed.firstChild !== screen || feed.childNodes.length > 1) feed.replaceChildren(screen);
           st.chat = null;
         } else if (d.items) {
-          st.items = d.items; st.pending = d.pending || []; st.sig = d.sig;
+          st.items = d.items; st.sig = d.sig;
           redraw();
         }
         ui.setLive(d.live);
@@ -336,7 +335,7 @@
 
   // The conversation as keyed blocks. A poll that brings one new step adds one
   // node; everything already on screen stays put, so reading and scrolling are
-  // never interrupted, and a half-typed answer in an approval card survives.
+  // never interrupted.
   function drawChat(feed, host, id, st, redraw) {
     const blocks = [];                                  // [key, content signature, make]
     const items = st.items || [];
@@ -369,7 +368,6 @@
       }
     }
     if (!blocks.length) blocks.push(["empty", "", () => h("div", { class: "empty", text: "No messages yet." })]);
-    for (const p of st.pending || []) blocks.push(["p:" + p.id, JSON.stringify(p), () => approvalCard(host, id, p)]);
 
     if (!st.chat || feed.firstChild !== st.chat) {
       st.chat = h("div", { class: "chat" });
@@ -417,58 +415,7 @@
     return box;
   }
 
-  function approvalCard(host, id, p) {
-    const card = h("div", { class: "approval" });
-    const reply = async (payload, buttons) => {
-      buttons.forEach((b) => { b.disabled = true; });
-      try {
-        await api(host, "/api/answer", { method: "POST", body: { id, request: p.id, ...payload } });
-        toast("Answered");
-        refreshSoon(400);
-      } catch (err) {
-        toast(err.message, true);
-        buttons.forEach((b) => { b.disabled = false; });
-      }
-    };
-    if (p.kind === "question") {
-      card.append(h("b", { text: "Codex has a question" }));
-      const picked = {};
-      for (const q of p.questions || []) {
-        card.append(h("div", { class: "c", text: [q.header, q.question].filter(Boolean).join(" · ") }));
-        const opts = h("div", { class: "row2" });
-        for (const label of q.options || []) {
-          const b = h("button", { class: "btn ghost", text: label });
-          b.addEventListener("click", () => {
-            picked[q.id] = label;
-            opts.querySelectorAll("button").forEach((x) => x.classList.toggle("sel", x === b));
-          });
-          opts.append(b);
-        }
-        card.append(opts);
-        if (q.free) card.append(h("input", { type: q.secret ? "password" : "text", placeholder: "Your answer",
-          oninput: (e) => { picked[q.id] = e.target.value; } }));
-      }
-      const submit = h("button", { class: "btn", text: "Answer" });
-      submit.addEventListener("click", () => reply({ answers: Object.fromEntries((p.questions || []).map((q) => [q.id, picked[q.id] ?? ""])) }, [submit]));
-      card.append(h("div", { class: "row2" }, submit));
-      return card;
-    }
-    card.append(h("b", { text: { files: "Codex wants to change files", permissions: "Codex wants extra permissions" }[p.kind] || "Codex wants to run a command" }));
-    if (p.command) card.append(h("div", { class: "c", text: p.command }));
-    if (p.reason) card.append(h("div", { class: "note", text: p.reason }));
-    const yes = h("button", { class: "btn", text: "Approve" });
-    const always = h("button", { class: "btn ghost", text: "For this session" });
-    const no = h("button", { class: "btn ghost", text: "Decline" });
-    const all = [yes, always, no];
-    yes.addEventListener("click", () => reply({ decision: "accept" }, all));
-    always.addEventListener("click", () => reply({ decision: "acceptForSession" }, all));
-    no.addEventListener("click", () => reply({ decision: "decline" }, all));
-    card.append(h("div", { class: "row2" }, yes, always, no));
-    return card;
-  }
-
   function buildComposer(host, id) {
-    composer.classList.remove("codex");
     const press = async (k, label, ask) => {
       if (ask && !window.confirm(ask)) return;
       try {

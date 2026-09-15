@@ -1,9 +1,10 @@
 "use strict";
-// Where Airpocket listens. Both servers bind 127.0.0.1 only; `airpocket serve`
-// publishes them inside the tailnet with `tailscale serve`, never `funnel`.
+// Where Airpocket listens. Every server binds 127.0.0.1 only; `airpocket serve`
+// publishes the first two inside the tailnet with `tailscale serve`, never `funnel`.
 //
 //   47871  the app and its API
 //   47872  the file-only origin: two-minute links to one PDF or page
+//   47873  the hook endpoint: this Mac's own hooks only, never published
 //
 // The tailnet HTTPS ports are what the phone sees. They are provisional until
 // the public ports are settled (build step 13).
@@ -15,6 +16,7 @@ function portsFrom(env = {}) {
   return {
     app,
     file: num(env.AIRPOCKET_FILE_PORT, app + 1),
+    hook: num(env.AIRPOCKET_HOOK_PORT, app + 2),
     publicApp: num(env.AIRPOCKET_PUBLIC_PORT, 443),
     publicFile: num(env.AIRPOCKET_PUBLIC_FILE_PORT, 8443),
   };
