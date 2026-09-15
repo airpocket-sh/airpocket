@@ -7,7 +7,7 @@
 //
 //   POST /api/pair      six-digit code from `airpocket pair` -> device token
 //   GET  /api/hello     which Mac is this
-//   GET  /api/sessions  every session this Mac knows, the waiting ones marked
+//   GET  /api/sessions  every session this Mac knows, the waiting ones marked, and what each allows
 //   GET  /api/screen    one session: its conversation, live state, or terminal screen
 //   POST /api/send      type text into a session, with or without Enter
 //   POST /api/key       one of a few fixed keys: digits, arrows, Tab, Enter, Esc
@@ -19,23 +19,23 @@
 // Everything except pairing and the static app needs `Authorization: Bearer
 // <device token>`. There are no cookies, so there is nothing for another site to
 // ride on. The phone never names a terminal or a workspace: it names a session
-// id, and the terminal is looked up here in Airpocket's own records. A second
-// server, on the next port, is the file-only origin (see "files" below). A
-// session with no terminal to type into is read-only.
+// id, and the terminal is looked up here in Airpocket's own records. It is
+// reached through a bridge (bridges.js): a Superset terminal or a tmux pane. A
+// session with neither, or whose agent has exited, is read-only. A second
+// server, on the next port, is the file-only origin (see "files" below).
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
-const { execFile } = require("child_process");
 const { createStore } = require("./store");
 const { PORTS } = require("./ports");
 const { createService, transcriptPath } = require("./service");
 const { processAlive } = require("./proc");
 const { SECRET_CONTENT } = require("./secrets");
+const { createBridges, KEYS, runFile, runSuperset, runTmux, findTmux, supersetInstalled } = require("./bridges");
 
 const PUBLIC = path.join(__dirname, "public");
-const SUPERSET = path.join(os.homedir(), ".superset", "bin", "superset");
 
 const MAX_BODY = 32 * 1024;
 const MAX_TEXT = 8000;
@@ -46,7 +46,6 @@ const SESSION_ID = /^[A-Za-z0-9_-]{6,100}$/;
 const BEARER = /^Bearer ([A-Za-z0-9_-]{32,128})$/;
 const JSON_TYPE = /^application\/json(\s*;.*)?$/i;
 const ORIGIN_OK = /^(https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net|http:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?)$/i;
-const ESC = String.fromCharCode(27);
 const BRAILLE = new RegExp("[" + String.fromCharCode(0x2800) + "-" + String.fromCharCode(0x28ff) + "]", "g");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // What Codex shows, greyed out, in an empty prompt box (older versions rotate examples).
@@ -60,18 +59,6 @@ const SUBCOMMANDS = new Set(["git", "npm", "pnpm", "yarn", "bun", "npx", "cargo"
 
 /** Drop control characters (codes 0-31 and 127) from anything typed on the phone. */
 const stripControl = (s) => Array.from(String(s)).filter((ch) => { const c = ch.charCodeAt(0); return c > 31 && c !== 127; }).join("");
-
-// The only keys the phone can press. Digits pick an option in a prompt without
-// pressing Enter; Enter submits whatever is typed; Esc interrupts a turn.
-const KEYS = Object.freeze({
-  // Arrows and Tab move through a picker on screen; Shift+Tab cycles Claude's permission mode.
-  up: { text: ESC + "[A", submit: false }, down: { text: ESC + "[B", submit: false },
-  right: { text: ESC + "[C", submit: false }, left: { text: ESC + "[D", submit: false },
-  tab: { text: String.fromCharCode(9), submit: false }, stab: { text: ESC + "[Z", submit: false },
-  ...Object.fromEntries(["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => [d, { text: d, submit: false }])),
-  enter: { text: "", submit: true },
-  esc: { text: ESC, submit: false },
-});
 
 // ------------------------------------------------------------ controls ---
 // The Controls sheet names a command; the Mac picks the exact text from this
@@ -695,16 +682,6 @@ function alive(pid, started) {
   return !!pid && processAlive(pid, started || 0);
 }
 
-// --------------------------------------------------------------- superset ---
-
-function runFile(file, args, timeout = 15000) {
-  return new Promise((resolve, reject) => {
-    execFile(file, args, { timeout, maxBuffer: 4 * 1024 * 1024 }, (err, out, errOut) =>
-      err ? reject(new Error(String(errOut || err.message).trim().slice(0, 300))) : resolve(out));
-  });
-}
-function runSuperset(args, o = {}) { return runFile(SUPERSET, args, o.timeout || 15000); }
-
 // ----------------------------------------------------------------- server ---
 
 function createServer(opts = {}) {
@@ -726,6 +703,8 @@ function createServer(opts = {}) {
     // for all sessions, so a poll of the list costs one ps call at most.
     isLive: opts.isLive || (service ? service.isLive : (e) => alive(e.pid, e.started)),
     superset: opts.superset || runSuperset,
+    // New sessions start through Superset only; without it the phone hides "New".
+    hasSuperset: opts.hasSuperset || (opts.superset ? () => true : supersetInstalled),
     store,
     log,
     hostLabel: opts.hostLabel || os.hostname().replace(/\.local$/i, ""),
@@ -747,13 +726,23 @@ function createServer(opts = {}) {
     return url;
   });
 
+  // The terminals: a Superset terminal or a tmux pane, behind one interface.
+  deps.bridges = createBridges({
+    superset: deps.superset,
+    tmux: opts.tmux || runTmux,
+    hasTmux: opts.hasTmux || (opts.tmux ? () => true : () => !!findTmux()),
+    uid: opts.uid,
+    alive: opts.agentAlive,
+    gap: opts.typeGap,
+  });
+
   // Several polls of one terminal within a second share a single read.
   const reads = new Map();
-  function readTerminal(workspace, terminal, fresh) {
-    const key = workspace + "/" + terminal;
+  function readTerminal(bridge, fresh) {
+    const key = bridge.key;
     const hit = reads.get(key);
     if (!fresh && hit && Date.now() - hit.at < 900) return hit.promise;
-    const promise = deps.superset(["terminals", "read", "--workspace", workspace, "--terminal", terminal, "--json"]);
+    const promise = bridge.read();
     reads.set(key, { at: Date.now(), promise });
     promise.catch(() => reads.delete(key));
     return promise;
@@ -873,7 +862,8 @@ function createServer(opts = {}) {
       if (!e || !e.session_id || seen.has(String(e.session_id))) continue;
       seen.add(String(e.session_id));
       const q = byId.get(String(e.bridge_id)) || byId.get("sid:" + e.session_id);
-      const terminal = !!(e.workspace && e.terminal);
+      const live = deps.isLive(e);
+      const can = deps.bridges.caps(e, live);
       out.push({
         id: String(e.session_id),
         title: String(e.title || path.basename(e.cwd || "") || "session"),
@@ -882,10 +872,11 @@ function createServer(opts = {}) {
         branch: String(e.branch || ""),
         note: String((q && q.message) || e.note || "").slice(0, 240),
         lastSeen: e.last_seen || 0,
-        live: deps.isLive(e),
+        live,
         waiting: !!q,
         kind: q ? (q.kind || "input") : null,
-        via: terminal ? "terminal" : null,               // null: read-only on the phone
+        via: can.bridge ? "terminal" : null,             // null: no terminal to show or type into
+        can,                                             // which bridge, and what the phone may do with it
         reason: q ? String(q.reason || "") : "",
       });
     }
@@ -897,8 +888,13 @@ function createServer(opts = {}) {
     if (typeof id !== "string" || !SESSION_ID.test(id)) return null;
     return (deps.knownSessions() || []).find((e) => e && String(e.session_id) === id) || null;
   }
-  const typeInto = (e, text, submit) => deps.superset(["terminals", "send", "--workspace", e.workspace,
-    "--terminal", e.terminal, "--text", text, ...(submit ? [] : ["--no-submit"])]);
+  /** The bridge to type into for this request, or null after answering why not. */
+  async function writableOr409(e, res, cors) {
+    const w = await deps.bridges.writable(e);
+    if (w.bridge) return w.bridge;
+    json(res, w.error === "unreachable" ? 502 : 409, { error: w.error, message: w.message }, cors);
+    return null;
+  }
 
   async function pair(res, body, cors) {
     const r = deps.store.useCode(body.code);
@@ -925,12 +921,13 @@ function createServer(opts = {}) {
     if (!e) return json(res, 404, { error: "unknown_session", message: "That session is gone." }, cors);
     const view = url.searchParams.get("view") === "terminal" ? "terminal" : "chat";
     const since = String(url.searchParams.get("sig") || "");
-    const terminal = !!(e.workspace && e.terminal);
+    const bridge = deps.bridges.of(e);
+    const terminal = !!bridge;
     const agent = e.agent === "codex" || String(e.bridge_id || "").startsWith("codex:") ? "codex" : "claude";
 
     let text = null, live = null;
     if (terminal) {
-      try { text = tidyScreen(JSON.parse(await readTerminal(e.workspace, e.terminal)).text, { codex: agent === "codex" }); }
+      try { text = tidyScreen(await readTerminal(bridge), { codex: agent === "codex" }); }
       catch { if (view === "terminal") return json(res, 502, { error: "read_failed", message: "Couldn't read that terminal. It may have been closed." }, cors); }
       if (text !== null) live = liveState(text);
     }
@@ -949,11 +946,11 @@ function createServer(opts = {}) {
         if (!live && s.running) live = { state: "working", verb: "Working…", elapsed: elapsedSince(s.running), menu: null, staged: "" };
       }
     }
-    if (!terminal && items === null) return json(res, 409, { error: "no_route", message: "This session isn't in a Superset terminal, so it can't be reached from here." }, cors);
+    if (!terminal && items === null) return json(res, 409, { error: "no_route", message: "This session isn't in a Superset or tmux terminal, so it can't be reached from here." }, cors);
 
     if (items) items = filesFor(e, items).items;
     const sig = items ? digest(JSON.stringify(items)) : "";
-    const out = { kind: items ? "chat" : "terminal", agent, sig, live, at: Date.now() };
+    const out = { kind: items ? "chat" : "terminal", agent, sig, live, can: deps.bridges.caps(e, deps.isLive(e)), at: Date.now() };
     if (terminal && text !== null) out.info = sessionInfo(agent, text, ctx);
     if (items && sig !== since) out.items = items;
     if (view === "terminal" || !items) out.text = text ?? "";
@@ -967,11 +964,10 @@ function createServer(opts = {}) {
     if (text === null || !text.trim()) return json(res, 400, { error: "empty", message: "Nothing to send." }, cors);
     if (text.length > MAX_TEXT) return json(res, 400, { error: "too_long", message: `Keep it under ${MAX_TEXT} characters.` }, cors);
     const submit = body.submit !== false;
-    if (e.workspace && e.terminal) {
-      await typeInto(e, text, submit);
-      return json(res, 200, { ok: true, via: "terminal", submitted: submit }, cors);
-    }
-    return json(res, 409, { error: "no_route", message: "This session isn't in a terminal Airpocket can type into, so it's read-only here." }, cors);
+    const bridge = await writableOr409(e, res, cors);
+    if (!bridge) return res.statusCode;
+    await bridge.type(text, submit);
+    return json(res, 200, { ok: true, via: "terminal", submitted: submit }, cors);
   }
 
   async function pressKey(res, body, cors) {
@@ -979,8 +975,9 @@ function createServer(opts = {}) {
     if (!e) return json(res, 404, { error: "unknown_session", message: "That session is gone." }, cors);
     const key = typeof body.key === "string" && Object.hasOwn(KEYS, body.key) ? KEYS[body.key] : null;
     if (!key) return json(res, 400, { error: "bad_key" }, cors);
-    if (!(e.workspace && e.terminal)) return json(res, 409, { error: "no_route", message: "Keys work for terminal sessions only." }, cors);
-    await typeInto(e, key.text, key.submit);
+    const bridge = await writableOr409(e, res, cors);
+    if (!bridge) return res.statusCode;
+    await bridge.press(key);
     return json(res, 200, { ok: true }, cors);
   }
 
@@ -1141,22 +1138,23 @@ function createServer(opts = {}) {
   async function command(res, body, cors) {
     const e = find(body.id);
     if (!e) return json(res, 404, { error: "unknown_session", message: "That session is gone." }, cors);
-    if (!(e.workspace && e.terminal)) return json(res, 409, { error: "no_route", message: "Controls work for sessions in a Superset terminal." }, cors);
     const agent = agentOf(e);
     const table = COMMANDS[agent];
     const make = typeof body.cmd === "string" && Object.hasOwn(table, body.cmd) ? table[body.cmd] : null;
     if (!make) return json(res, 400, { error: "bad_command" }, cors);
     const text = make(body.arg == null || body.arg === "" ? undefined : String(body.arg));
     if (!text) return json(res, 400, { error: "bad_arg" }, cors);
+    const bridge = await writableOr409(e, res, cors);
+    if (!bridge) return res.statusCode;
     let live;
-    try { live = liveState(tidyScreen(JSON.parse(await readTerminal(e.workspace, e.terminal, true)).text, { codex: agent === "codex" })); }
+    try { live = liveState(tidyScreen(await readTerminal(bridge, true), { codex: agent === "codex" })); }
     catch { return json(res, 502, { error: "read_failed", message: "Couldn't read that terminal." }, cors); }
     if (live.menu) return json(res, 409, { error: "menu_open", message: "Answer the question on screen first." }, cors);
     if (live.staged) return json(res, 409, { error: "typed_text", message: "There's unsent text in its box. Send or clear it first." }, cors);
     if (live.state === "working") return json(res, 409, { error: "busy", message: "It's working. Wait for it to finish, or press Esc first." }, cors);
-    await typeInto(e, text, false);
+    await bridge.type(text, false);
     await wait(300);                        // let the slash-command list catch up before Enter
-    await typeInto(e, "", true);
+    await bridge.type("", true);
     return json(res, 200, { ok: true, sent: text }, cors);
   }
 
@@ -1195,12 +1193,15 @@ function createServer(opts = {}) {
     };
     return options;
   }
+  const noSuperset = (res, cors) => json(res, 409, { error: "no_superset", message: "New sessions start through Superset, and it isn't installed on this Mac." }, cors);
   async function newOptions(res, cors) {
+    if (!deps.hasSuperset()) return noSuperset(res, cors);
     let o;
     try { o = await loadOptions(); } catch { return json(res, 502, { error: "superset_failed", message: "Couldn't ask Superset for its projects." }, cors); }
     return json(res, 200, { projects: o.projects, workspaces: o.workspaces, agents: o.agents, models: MODELS, efforts: EFFORTS }, cors);
   }
   async function newSession(res, body, cors) {
+    if (!deps.hasSuperset()) return noSuperset(res, cors);
     let o;
     try { o = await loadOptions(); } catch { return json(res, 502, { error: "superset_failed", message: "Couldn't ask Superset for its projects." }, cors); }
     const agent = o.agents.find((a) => a.id === body.agent);
@@ -1263,8 +1264,10 @@ function createServer(opts = {}) {
     deps.store.touch(device.id);
 
     if (req.method === "GET") {
-      if (p === "/api/hello") return json(res, 200, { host: deps.hostLabel, device: device.name }, cors);
-      if (p === "/api/sessions") return json(res, 200, { host: deps.hostLabel, sessions: list() }, cors);
+      // What this Mac can do beyond its sessions: start new ones (through Superset only).
+      const can = () => ({ start: !!deps.hasSuperset() });
+      if (p === "/api/hello") return json(res, 200, { host: deps.hostLabel, device: device.name, can: can() }, cors);
+      if (p === "/api/sessions") return json(res, 200, { host: deps.hostLabel, can: can(), sessions: list() }, cors);
       if (p === "/api/screen") return screen(res, url, cors);
       if (p === "/api/new/options") return newOptions(res, cors);
       if (p === "/api/files") return listFiles(res, url, cors);

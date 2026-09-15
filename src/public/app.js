@@ -60,6 +60,8 @@
   if (!Array.isArray(hosts)) hosts = [];
   const prefs = load(PREFS_KEY, { wrap: true });
   const saveHosts = () => keep(HOSTS_KEY, hosts);
+  // Macs that can start a session (Superset is there), as their last list said.
+  const startable = new Set();
 
   // ---- api -------------------------------------------------------------------
   async function api(host, path, { method = "GET", body, timeout = 9000, signal } = {}) {
@@ -182,7 +184,7 @@
     startPoll(async () => {
       spin(true);
       const results = await Promise.all(hosts.map(async (host) => {
-        try { const d = await api(host, "/api/sessions"); return { host, sessions: d.sessions || [], label: d.host }; }
+        try { const d = await api(host, "/api/sessions"); return { host, sessions: d.sessions || [], label: d.host, can: d.can || null }; }
         catch (err) { return { host, err }; }
       }));
       spin(false);
@@ -199,6 +201,7 @@
       if (r.err) { errs.push(r); continue; }
       if (r.label && !r.host.name) { r.host.name = r.label; saveHosts(); }
       for (const s of r.sessions) all.push({ ...s, host: r.host });
+      if (!r.can || r.can.start) startable.add(r.host.id); else startable.delete(r.host.id);
     }
     const waiting = all.filter((s) => s.waiting);
     const open = all.filter((s) => !s.waiting && s.live);
@@ -218,7 +221,8 @@
           onclick: () => { prefs.showEarlier = !showEarlier; keep(PREFS_KEY, prefs); drawList(results); } },
         "Earlier", h("span", { class: "n", text: String(earlier.length) }), h("span", { class: "chev" + (showEarlier ? " open" : "") }, icon("down", 16))) : null,
       showEarlier ? earlier.map((s) => row(s, multi)) : null,
-      h("button", { class: "fab", onclick: () => go("#/new") }, icon("plus", 20), "New"),
+      // New sessions start through Superset: no button when no Mac here has it.
+      hosts.some((x) => startable.has(x.id)) ? h("button", { class: "fab", onclick: () => go("#/new") }, icon("plus", 20), "New") : null,
     ].flat().filter(Boolean));
   }
 
@@ -293,7 +297,7 @@
       st.meta = (d.sessions || []).find((x) => x.id === id) || null;
       // You opened it, so a finished turn is read. The Mac leaves real questions on the list.
       if (st.meta && st.meta.waiting) api(host, "/api/seen", { method: "POST", body: { id } }).catch(() => {});
-      if (st.meta && !st.meta.via) { composer.hidden = true; document.body.classList.remove("in-session"); }
+      if (st.meta && st.meta.can) ui.setCan(st.meta.can);
       drawBar();
     }).catch(() => {});
 
@@ -316,6 +320,7 @@
         }
         ui.setLive(d.live);
         ui.setInfo(d.info, d.agent);
+        if (d.can) ui.setCan(d.can);
         if (stick) toBottom(false);
         else if (document.documentElement.scrollHeight > height + 2) newer.hidden = false;
         first = false;
@@ -416,6 +421,8 @@
   }
 
   function buildComposer(host, id) {
+    // What this session allows (the Mac's list and each poll say); what it doesn't is hidden.
+    let can = { read: true, send: true, keys: true, controls: true, why: "" };
     const press = async (k, label, ask) => {
       if (ask && !window.confirm(ask)) return;
       try {
@@ -456,12 +463,15 @@
     const shortModel = (m) => (m ? String(m).replace(/\s*\(1M context\)/i, " 1M") : "");
     function openSheet() {
       closeSheet();
+      if (!can.controls && !can.keys) return;
       const info = cur.info || {};
       const chip = (label, on, fn) => h("button", { class: "chipbtn" + (on ? " on" : ""), onclick: fn }, label);
       const sec = (title, note, kids) => h("div", { class: "sec" },
         h("div", { class: "st" }, h("b", { text: title }), note ? h("span", { text: note }) : null), h("div", { class: "chips" }, kids));
       const secs = [];
-      if (cur.agent === "codex") {
+      if (!can.controls) {
+        // Keys only: the slash-command sections below need Controls.
+      } else if (cur.agent === "codex") {
         secs.push(sec("Model and effort", [info.model, info.effort].filter(Boolean).join(" · "), [
           chip("Choose…", false, () => run("model", undefined, "The model picker is open below")),
           chip("Fast mode", !!info.fast, () => run("fast", undefined, info.fast ? "Fast mode off" : "Fast mode on"))]));
@@ -489,10 +499,10 @@
           chip("Rewind…", false, () => run("rewind", undefined, "Pick a point below")),
           chip("Clear", false, () => run("clear", undefined, "Cleared", "Start fresh in this terminal? The conversation stays saved and can be resumed."))]));
       }
-      secs.push(sec("Keys", "for whatever is on screen",
+      if (can.keys) secs.push(sec("Keys", "for whatever is on screen",
         [["1", "1"], ["2", "2"], ["3", "3"], ["Enter", "enter"], ["Esc", "esc"], ["↑", "up"], ["↓", "down"], ["←", "left"], ["→", "right"], ["Tab", "tab"], ["⇧Tab", "stab"]]
           .map(([l, k]) => chip(l, false, () => press(k, "Pressed " + l)))));
-      secs.push(sec("Message box", "", [chip("Type it without sending", false, () => { closeSheet(); submit(false); })]));
+      if (can.send) secs.push(sec("Message box", "", [chip("Type it without sending", false, () => { closeSheet(); submit(false); })]));
       const summary = [shortModel(info.model), info.effort, info.fast ? "fast" : "", info.mode && info.mode !== "default" ? info.mode : "", info.access || ""]
         .filter(Boolean).join(" · ");
       sheetEl = h("div", { class: "sheet-back", onclick: (ev) => { if (ev.target === sheetEl) closeSheet(); } },
@@ -530,13 +540,31 @@
       }
     };
     sendBtn.addEventListener("click", () => submit(true));
-    composer.replaceChildren(h("div", { class: "status" }, liveEl, infoEl, stopBtn, ctlBtn), menuEl, h("div", { class: "cm" }, box, sendBtn));
+    const statusEl = h("div", { class: "status" }, liveEl, infoEl, stopBtn, ctlBtn);
+    const cmEl = h("div", { class: "cm" }, box, sendBtn);
+    const roEl = h("div", { class: "ro", hidden: true });
+    composer.replaceChildren(statusEl, menuEl, cmEl, roEl);
     composer.hidden = false;
     if (window.ResizeObserver) {
       new ResizeObserver(() => document.body.style.setProperty("--composer-h", composer.offsetHeight + "px")).observe(composer);
     }
 
     return {
+      // Only what this session allows shows: no terminal hides the status line, no
+      // running agent hides the message box, keys and Controls. The Mac checks again on every write.
+      setCan(c) {
+        const next = { read: !!c.read, send: !!c.send, keys: !!c.keys, controls: !!c.controls, why: String(c.why || "") };
+        if (JSON.stringify(next) === JSON.stringify(can)) return;
+        can = next;
+        statusEl.hidden = !can.read;
+        cmEl.hidden = !can.send;
+        ctlBtn.hidden = !(can.controls || can.keys);
+        if (!can.keys) stopBtn.hidden = true;
+        roEl.hidden = can.send;
+        roEl.textContent = can.send ? "" : ["Read-only here.", can.why].filter(Boolean).join(" ");
+        if (!can.controls && !can.keys) closeSheet();
+        menuEl.dataset.sig = "";                        // redraw the on-screen question with or without its buttons
+      },
       // What the session runs with; a tap opens Controls.
       setInfo(info, agent) {
         cur = { info: info || null, agent: agent || cur.agent };
@@ -559,8 +587,8 @@
           : live.menu ? "Asking you to choose"
           : live.staged ? "Typed, not sent: " + live.staged
           : "Waiting for you";
-        stopBtn.hidden = !working;
-        const sig = live.menu ? JSON.stringify(live.menu) : "";
+        stopBtn.hidden = !working || !can.keys;
+        const sig = live.menu ? JSON.stringify([live.menu, can.keys]) : "";
         if (menuEl.dataset.sig !== sig) {
           menuEl.dataset.sig = sig;
           if (!live.menu) {
@@ -568,7 +596,7 @@
             menuEl.replaceChildren();
           } else {
             const parts = [live.menu.question ? h("div", { class: "q", text: live.menu.question }) : null,
-              ...live.menu.options.map((o) => h("button", { class: o.cur ? "cur" : "", onclick: () => press(String(o.n), "Chose " + o.n) },
+              ...live.menu.options.map((o) => h("button", { class: o.cur ? "cur" : "", disabled: !can.keys, onclick: () => press(String(o.n), "Chose " + o.n) },
                 h("b", { text: o.n + "." }), h("span", { class: "ml", text: o.label }), o.hint ? h("span", { class: "md", text: o.hint }) : null))];
             menuEl.replaceChildren(...parts.filter(Boolean));
             menuEl.hidden = false;
@@ -661,7 +689,10 @@
   // ---- new session (Superset) --------------------------------------------------------
   function renderNew() {
     setBar({ back: "#/", title: "New session", sub: "Starts in Superset on the Mac" });
-    let host = hosts.find((x) => x.id === prefs.newHost) || hosts[0];
+    // Only Macs with Superset can start one. Before any list has said, offer them all.
+    const able = hosts.filter((x) => startable.has(x.id));
+    const choices = able.length ? able : hosts;
+    let host = choices.find((x) => x.id === prefs.newHost) || choices[0];
     const form = h("div", { class: "form" });
     view.replaceChildren(form);
     const sel = (opts, value) => {
@@ -691,8 +722,8 @@
     }
     function draw(o) {
       const projects = (o.projects || []).slice().sort((a, b) => a.name.localeCompare(b.name));
-      const hostSel = hosts.length > 1 ? sel(hosts.map((x) => [x.id, x.name]), host.id) : null;
-      if (hostSel) hostSel.addEventListener("change", () => { host = hosts.find((x) => x.id === hostSel.value) || host; prefs.newHost = host.id; keep(PREFS_KEY, prefs); load(); });
+      const hostSel = choices.length > 1 ? sel(choices.map((x) => [x.id, x.name]), host.id) : null;
+      if (hostSel) hostSel.addEventListener("change", () => { host = choices.find((x) => x.id === hostSel.value) || host; prefs.newHost = host.id; keep(PREFS_KEY, prefs); load(); });
       if (!projects.length) { form.replaceChildren(...[hostSel ? field("Mac", wrapSel(hostSel)) : null, h("p", { text: "No Superset projects on this Mac." })].filter(Boolean)); return; }
       const projSel = sel(projects.map((p) => [p.id, p.name]), prefs.newProject);
       const whereSel = h("select");

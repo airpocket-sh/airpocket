@@ -127,6 +127,7 @@ main { padding: 2px 8px calc(var(--bottom) + 28px); }
 .key:active { background: var(--surface-hover); }
 .key.stop { flex: 1.35; color: var(--danger); }
 .cm { display: flex; gap: 8px; align-items: flex-end; }
+.ro { padding: 6px 4px 2px; font-size: 13px; color: var(--muted); }
 textarea, input {
   font: 16px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;   /* 16px stops iOS zooming */
   color: var(--text); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: 12px;
