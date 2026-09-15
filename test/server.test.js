@@ -11,7 +11,7 @@ const path = require("path");
 const { createServer, tidyScreen, cleanText, liveState, claudeItems, chatFromCodex, shellLabel, codexStep, sessionInfo, sessionRoot } = require("../src/server");
 const { createStore } = require("../src/store");
 const { portsFrom } = require("../src/ports");
-const { othersOn } = require("../src/cli");
+const { othersOn, serveLines } = require("../src/cli");
 
 const ESC = String.fromCharCode(27);
 const BELL = String.fromCharCode(7);
@@ -694,6 +694,11 @@ test("serve never takes a tailnet port that publishes something else, and unserv
   assert.deepEqual(othersOn({}, 443, ours), []);
   assert.deepEqual(othersOn({ TCP: { 443: { TCPForward: "127.0.0.1:22" } } }, 443, ours), ["tcp 127.0.0.1:22"]);
   assert.deepEqual(othersOn({ Web: { "m:443": { Handlers: { "/": { Path: "/srv" } } } } }, 443, ours), ["something else"]);
+  // `airpocket status` says which ports are Airpocket's and which belong to something else.
+  const [app, files] = serveLines(status);
+  assert.match(app, /^https 443 .*taken by http:\/\/127\.0\.0\.1:47821$/);
+  assert.match(files, /^https 8443 .*published for Airpocket$/);
+  assert.match(serveLines({})[0], /not published$/);
 });
 
 test("nothing in the app points at the private tool it came from", () => {

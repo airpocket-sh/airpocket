@@ -69,6 +69,16 @@ function othersOn(status, port, target) {
   return others;
 }
 const publishedOn = (status, port) => !!(status && status.TCP && status.TCP[String(port)]);
+/** One line per Airpocket port: published for Airpocket, taken by something else, or not published. */
+function serveLines(status) {
+  return TARGETS.map((t) => {
+    const others = othersOn(status, t.public, t.target);
+    const ours = Object.entries((status && status.Web) || {}).some(([hostPort, conf]) => hostPort.endsWith(":" + t.public) &&
+      Object.values((conf && conf.Handlers) || {}).some((h) => String((h && h.Proxy) || "").replace(/\/+$/, "") === t.target));
+    const state = others.length ? "taken by " + others.join(", ") : ours ? "published for Airpocket" : "not published";
+    return `https ${String(t.public).padEnd(5)} -> ${t.target.replace("http://", "")}  ${state}`;
+  });
+}
 function localUp() {
   return new Promise((resolve) => {
     const req = http.get({ host: "127.0.0.1", port: PORTS.app, path: "/manifest.webmanifest", timeout: 2000 }, (res) => {
@@ -148,7 +158,10 @@ async function main([cmd, arg]) {
       const url = tailnetAddress(bin);
       console.log(`airpocket      ${up ? "running on 127.0.0.1:" + PORTS.app : "not answering on 127.0.0.1:" + PORTS.app}`);
       console.log(`tailscale      ${bin ? (url ? "signed in as " + url.replace("https://", "") : "installed, not signed in") : "not installed"}`);
-      if (bin) { try { console.log("\n" + execFileSync(bin, ["serve", "status"], { encoding: "utf8", timeout: 8000 }).trim()); } catch {} }
+      if (bin) {
+        const st = serveStatus(bin);
+        console.log(st ? serveLines(st).map((l) => "  " + l).join("\n") : "  couldn't read what Tailscale publishes here");
+      }
       console.log(`paired phones  ${store.devices().length}`);
       break;
     }
@@ -158,6 +171,6 @@ async function main([cmd, arg]) {
   }
 }
 
-module.exports = { othersOn };
+module.exports = { othersOn, serveLines };
 
 if (require.main === module) main(process.argv.slice(2));
