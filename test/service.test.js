@@ -11,6 +11,8 @@ const { createService, takeLock } = require("../src/service");
 const { startTimeOf, processAlive, parseLstart } = require("../src/proc");
 const { start, createServer } = require("../src/server");
 const { createStore } = require("../src/store");
+const { createBridges } = require("../src/bridges");
+const net = require("net");
 
 const MIN = 60000;
 const ID = "11111111-2222-4333-8444-555555555555";
@@ -368,6 +370,69 @@ test("the transcript path is kept only when it is that session's .jsonl, by an a
     await t.hook("enqueue", { session_id: ID2, reason: "finished", message: "Key: sk-" + "d".repeat(30) });
     assert.equal(t.svc.getQueue().find((q) => q.sid === ID2).message, "", "nor a message");
   } finally { await t.close(); }
+});
+
+// A session resumed elsewhere (`claude --resume`, `-c`, `codex resume`) keeps its
+// id but runs in a new process. Its old terminal may hold only a shell by now.
+async function resumeRig() {
+  const t = await setup();
+  const sock = path.join(t.dir, "tmux.sock");
+  const sockServer = net.createServer();
+  await new Promise((ok) => sockServer.listen(sock, ok));
+  const typed = { tmux: [], superset: [] };
+  // The fresh liveness check stands in for ps here: the pids are made up.
+  const bridges = createBridges({ tmux: async (a) => { typed.tmux.push(a); return a.includes("capture-pane") ? "7921\n$ " : "7921 0\n"; },
+    superset: async (a) => { typed.superset.push(a); return "{}"; }, hasTmux: () => true, alive: (pid) => !t.dead.has(pid), gap: () => 0 });
+  const rec = () => t.svc.knownSessions().find((r) => r.session_id === ID);
+  const inTmux = { session_id: ID, agent: "claude", cwd: "/Users/x/proj", pid: 8008, started: 1000, pane: "%0", tmux: sock, tmux_pid: 7921 };
+  return { t, sock, typed, bridges, rec, inTmux, close: async () => { sockServer.close(); await t.close(); } };
+}
+
+test("a session resumed in Superset types into Superset, never into the tmux pane it left", async () => {
+  const r = await resumeRig();
+  try {
+    await r.t.hook("session", r.inTmux);
+    r.t.dead.add(8008);                                  // the agent exits; nothing reads the list in between
+    await r.t.hook("session", { session_id: ID, agent: "claude", cwd: "/Users/x/proj", pid: 7909, started: 2000,
+                                pane: "", tmux: "", terminal: "term-1", workspace: "ws-1" });
+    const e = r.rec();
+    assert.deepEqual([e.pid, e.started, e.pane, e.tmux, e.tmux_pid, e.workspace, e.terminal], [7909, 2000, "", "", 0, "ws-1", "term-1"],
+      "where it runs comes from the new process only");
+    assert.equal(r.bridges.of(e).name, "superset");
+    const w = await r.bridges.writable(e);
+    await w.bridge.type("echo typed-from-the-phone", true);
+    assert.equal(r.typed.superset.length, 1, "it went to the Superset terminal");
+    assert.deepEqual(r.typed.tmux, [], "nothing reached the old pane");
+  } finally { await r.close(); }
+});
+
+test("a session resumed outside any terminal Airpocket knows is read-only", async () => {
+  const r = await resumeRig();
+  try {
+    await r.t.hook("session", { ...r.inTmux, terminal: "term-9", workspace: "ws-9" });
+    r.t.dead.add(8008);
+    await r.t.hook("session", { session_id: ID, agent: "claude", cwd: "/Users/x/proj", pid: 7909, started: 2000, pane: "", tmux: "" });
+    const e = r.rec();
+    assert.deepEqual([e.pane, e.tmux, e.tmux_pid, e.workspace, e.terminal], ["", "", 0, "", ""], "Terminal.app: none of the old five");
+    assert.equal(r.bridges.of(e), null);
+    assert.equal((await r.bridges.writable(e)).error, "no_route");
+    assert.deepEqual(r.bridges.caps(e, true), { bridge: null, read: false, send: false, keys: false, controls: false,
+      why: "It isn't in a Superset or tmux terminal." });
+    assert.deepEqual([r.typed.tmux, r.typed.superset], [[], []]);
+  } finally { await r.close(); }
+});
+
+test("where a session runs is kept for the same process, and for a hook that names no process", async () => {
+  const r = await resumeRig();
+  try {
+    await r.t.hook("session", r.inTmux);
+    await r.t.hook("touch", { session_id: ID, pid: 8008, started: 1000 });
+    assert.deepEqual([r.rec().pane, r.rec().tmux, r.rec().tmux_pid], ["%0", r.sock, 7921], "the same pid and start time");
+    await r.t.hook("touch", { session_id: ID, note: "no pid" });
+    assert.deepEqual([r.rec().pid, r.rec().started, r.rec().pane, r.rec().tmux_pid], [8008, 1000, "%0", 7921], "old pid and old place, together");
+    await r.t.hook("touch", { session_id: ID, pid: 8008, started: 5000 });
+    assert.deepEqual([r.rec().started, r.rec().pane, r.rec().tmux, r.rec().tmux_pid], [5000, "", "", 0], "a reused pid is another process");
+  } finally { await r.close(); }
 });
 
 test("a lock held by another running process is respected", () => {
