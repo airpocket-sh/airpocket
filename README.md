@@ -27,7 +27,7 @@ account and no relay.
 
 ## Security in one paragraph
 
-Windsock listens on 127.0.0.1 and is published only inside your tailnet. Each
+Airpocket listens on 127.0.0.1 and is published only inside your tailnet. Each
 phone gets its own token for a one-time pairing code; the Mac keeps only
 hashes. The phone never sends a file path or command text: it names a session
 and an action, and the Mac looks up the rest in its own records. Files are
