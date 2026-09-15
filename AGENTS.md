@@ -90,6 +90,23 @@ status line.
   sessions. `/effort <low|medium|high|xhigh|max>` (the bare picker is a
   slider). Shift+Tab cycles modes; the mode line reads `⏵⏵ <mode> on`; the
   effort marker `◐ medium · /effort`; an empty box may show `Try "…"`.
+- **`/effort` and `/model` write the user's real settings.** `/effort low`
+  saves `modelSettings.<model>.effortLevel` in `~/.claude/settings.json`
+  ("saved as your default for new sessions"), even with `--setting-sources
+  project`. Never run either in a trial or a test against a real Claude.
+- **What a Claude transcript records**: each reply's `message.model`
+  (`<synthetic>` for an API error) and top-level `effort`; the permission
+  mode on each prompt (`permissionMode`) and in a `permission-mode` entry
+  rewritten with the session's metadata (`mode` is something else: "normal").
+  `/model` and `/effort` output lands at once ("Set model to `Fable 5.1` …
+  with `xhigh` effort", "Set effort level to low (…)"). Shift+Tab does not:
+  the new mode reaches the transcript with the next prompt. Turn ends:
+  `system/turn_duration`, `system/stop_hook_summary`, `[Request interrupted`.
+- **Model lists**: Claude Code's own catalog is
+  `~/.claude/cache/model-catalog/<id>-cc.json` (`catalog.config.models[]`:
+  `id`, `name`, `thinking.effort_options`). Codex's is
+  `$CODEX_HOME/models_cache.json`; its picker shows `visibility: "list"`
+  only, ordered by `priority`, with `supported_reasoning_levels`.
 - **Codex**: for terminal-hosted threads the app-server daemon reports a
   running turn as "interrupted" with only the prompt. Read the session file
   instead: `~/.codex/sessions/YYYY/MM/DD/rollout-<time>-<thread>.jsonl`
@@ -99,7 +116,11 @@ status line.
   until it holds enough steps. The TUI draws braille dots (U+2800 to U+28FF)
   over its lower rows: strip them. Menus use `›` as the cursor, descriptions
   after two or more spaces. `/model` and `/permissions` open numbered pickers;
-  `/fast` and `/plan` exist.
+  `/fast` and `/plan` exist. Settings changed between turns go into the file
+  (`thread_settings_applied`: model, reasoning_effort, service_tier
+  "priority" = fast, approval_policy, permission_profile, collaboration_mode)
+  only as the next turn starts, a few ms before its `task_started`; until
+  then only the status line shows them.
 - **Tailscale**: run the CLI by its real path
   (`/Applications/Tailscale.app/Contents/MacOS/Tailscale`); through the
   `/usr/local/bin` symlink it aborts. From a launchd process `status --json`
