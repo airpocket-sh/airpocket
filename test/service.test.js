@@ -7,7 +7,8 @@ const http = require("http");
 const os = require("os");
 const fs = require("fs");
 const path = require("path");
-const { createService } = require("../src/service");
+const { createService, takeLock } = require("../src/service");
+const { startTimeOf, processAlive, parseLstart } = require("../src/proc");
 const { start } = require("../src/server");
 
 const MIN = 60000;
@@ -186,7 +187,7 @@ test("one service per data folder: a second one refuses, writes nothing, and the
     const snapshot = () => Object.fromEntries(["hook.json", "queue.json", "airpocket.lock", path.join("sessions", ID + ".json")]
       .map((f) => [f, fs.readFileSync(path.join(t.dir, f), "utf8")]));
     const before = snapshot();
-    assert.equal(before["airpocket.lock"], String(process.pid));
+    assert.equal(before["airpocket.lock"], `${process.pid} ${startTimeOf(process.pid)}`, "the lock names this process: pid and start time");
     assert.throws(() => createService({ dir: t.dir }), (err) => err.code === "ELOCKED" && /already running/.test(err.message));
     assert.throws(() => start({ dataDir: t.dir, port: 0, filePort: 0, hookPort: 0, log: () => {} }), { code: "ELOCKED" }, "npm start refuses too");
     assert.deepEqual(snapshot(), before, "hook.json, the waiting list, the record and the lock are untouched");
@@ -200,11 +201,15 @@ test("one service per data folder: a second one refuses, writes nothing, and the
 test("a lock left by a process that is gone, or an empty one, is taken over; hook.json waits for listen", async () => {
   const { spawnSync } = require("child_process");
   const gone = spawnSync(process.execPath, ["-e", ""]).pid;          // ran and exited: its pid is free
-  for (const content of [String(gone), "", "not a pid"]) {
+  const own = startTimeOf(process.pid);
+  // Gone; empty; junk; an old-style pid-only lock of a gone process; this very
+  // pid with another start time (the pid was reused: the service that wrote it is gone).
+  for (const content of [String(gone), "", "not a pid", `${gone} 1700000000`, `${process.pid} ${own - 3600}`]) {
     const dir = tempDir();
     fs.writeFileSync(path.join(dir, "airpocket.lock"), content);
     const svc = createService({ dir });
-    assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), String(process.pid), JSON.stringify(content));
+    assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), `${process.pid} ${own}`, JSON.stringify(content));
+    assert.deepEqual(fs.readdirSync(dir).filter((n) => n !== "airpocket.lock" && n !== "sessions"), [], "nothing left aside");
     assert.ok(!fs.existsSync(path.join(dir, "hook.json")), "nothing tells the hooks about a service that isn't listening");
     const port = await new Promise((ok) => svc.listen(0, ok));
     assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).port, port);
@@ -230,4 +235,111 @@ test("one process: start() runs the phone server, the file server and the hooks,
     app.service.release();
     await Promise.all(servers.map((s) => new Promise((ok) => s.close(ok))));
   }
+});
+
+test("a process is its pid and its start time: a reused pid is someone else", () => {
+  const own = startTimeOf(process.pid);
+  assert.ok(own > 1700000000, "this process's start time");
+  assert.equal(parseLstart("Tue Sep 15 20:04:54 2026"), Math.floor(new Date(2026, 8, 15, 20, 4, 54).getTime() / 1000));
+  assert.equal(parseLstart("yesterday"), 0);
+  assert.equal(processAlive(process.pid, own), true);
+  assert.equal(processAlive(process.pid, own - 60), false, "same pid, started at another time: not the same process");
+  assert.equal(processAlive(process.pid, 0), true, "no start time recorded: the pid alone");
+  const { spawnSync } = require("child_process");
+  assert.equal(processAlive(spawnSync(process.execPath, ["-e", ""]).pid, 0), false, "gone");
+});
+
+test("a reused pid can't keep a dead session alive, on the list or waiting", async () => {
+  const dir = tempDir();
+  const svc = createService({ dir });                           // the real process table
+  const port = await new Promise((ok) => svc.listen(0, ok));
+  const secret = JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).secret;
+  const hook = (event, body) => call(port, "/hook/" + event, body, { Authorization: "Bearer " + secret });
+  const own = startTimeOf(process.pid);
+  const [LIVE, DEAD, OLD] = [ID, ID2, "77777777-8888-4999-aaaa-bbbbbbbbbbbb"];
+  try {
+    // This process's pid, as reported by a session that is running: alive.
+    await hook("enqueue", { session_id: LIVE, reason: "finished", pid: process.pid, started: own });
+    // The same pid as reported by a session that ended long ago: the pid has since
+    // been handed to this process, which must not keep that session on the list.
+    await hook("enqueue", { session_id: DEAD, reason: "needs permission", pid: process.pid, started: own - 3600 });
+    // A record from before start times were kept: the pid is all there is.
+    await hook("session", { session_id: OLD, pid: process.pid });
+    assert.deepEqual(svc.knownSessions().map((r) => r.session_id).sort(), [LIVE, OLD].sort());
+    assert.deepEqual(svc.getQueue().map((q) => [q.sid, q.started]), [[LIVE, own]]);
+    assert.ok(!fs.existsSync(path.join(dir, "sessions", DEAD + ".json")));
+    // A new pid never inherits the old pid's start time.
+    await hook("touch", { session_id: LIVE, pid: 4242 });
+    const r = JSON.parse(fs.readFileSync(path.join(dir, "sessions", LIVE + ".json"), "utf8"));
+    assert.deepEqual([r.pid, r.started], [4242, 0]);
+  } finally { await new Promise((ok) => svc.close(ok)); }
+});
+
+test("the transcript path is kept only when it is that session's .jsonl, by an absolute path", async () => {
+  const t = await setup();
+  const CODEX = "0199aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee";
+  const rec = (sid) => t.svc.knownSessions().find((r) => r.session_id === sid);
+  try {
+    for (const bad of ["relative/" + ID + ".jsonl", "/x/" + ID + ".json", "/x/" + ID2 + ".jsonl", "/x/" + ID + ".jsonl\n", "/etc/passwd", 7]) {
+      await t.hook("session", { session_id: ID, agent: "claude", transcript: bad });
+      assert.equal(rec(ID).transcript, "", JSON.stringify(bad));
+    }
+    await t.hook("session", { session_id: ID, transcript: "/Users/x/work-config/projects/-p/" + ID + ".jsonl" });
+    assert.equal(rec(ID).transcript, "/Users/x/work-config/projects/-p/" + ID + ".jsonl");
+    await t.hook("touch", { session_id: ID, transcript: "/x/" + ID2 + ".jsonl" });
+    assert.equal(rec(ID).transcript, "/Users/x/work-config/projects/-p/" + ID + ".jsonl", "a bad one never replaces a good one");
+    await t.hook("session", { session_id: CODEX, agent: "codex", transcript: "/x/" + CODEX + ".jsonl" });
+    assert.equal(rec(CODEX).transcript, "", "Codex's are rollout files");
+    await t.hook("session", { session_id: CODEX, agent: "codex", transcript: `/c/sessions/2026/09/15/rollout-2026-09-15T10-00-00-${CODEX}.jsonl` });
+    assert.equal(rec(CODEX).transcript, `/c/sessions/2026/09/15/rollout-2026-09-15T10-00-00-${CODEX}.jsonl`);
+    await t.hook("session", { session_id: ID2, pane: "%12", tmux: "/private/tmp/tmux-501/default" });
+    await t.hook("touch", { session_id: ID2, pane: "12; kill", tmux: "relative" });
+    assert.deepEqual([rec(ID2).pane, rec(ID2).tmux], ["%12", "/private/tmp/tmux-501/default"], "tmux pane ids only, absolute socket paths only");
+  } finally { await t.close(); }
+});
+
+test("a lock held by another running process is respected", () => {
+  const dir = tempDir();
+  // The test runner that started this file: alive, with its own start time.
+  fs.writeFileSync(path.join(dir, "airpocket.lock"), `${process.ppid} ${startTimeOf(process.ppid)}`);
+  assert.throws(() => createService({ dir }), { code: "ELOCKED" });
+  assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), `${process.ppid} ${startTimeOf(process.ppid)}`);
+  assert.deepEqual(fs.readdirSync(dir), ["airpocket.lock"], "and nothing else was written");
+});
+
+test("two services that find the same stale lock at once: the second to move it puts the winner's back", () => {
+  const dir = tempDir();
+  const file = path.join(dir, "airpocket.lock");
+  fs.writeFileSync(file, "999999 5");                          // a service long gone
+  const running = new Set(["111 1000", "222 2000"]);
+  const alive = (pid, started) => running.has(`${pid} ${started}`);
+  // A judges the lock stale; before A moves it, B does the same, moves it aside
+  // and links its own. A then moves B's lock aside instead of the stale one.
+  let bTook = false;
+  assert.throws(() => takeLock(file, "111 1000", { alive, onStale: () => { takeLock(file, "222 2000", { alive }); bTook = true; } }),
+    { code: "ELOCKED" }, "A sees what it moved wasn't the stale lock, puts it back, and gives way");
+  assert.ok(bTook, "B took the folder");
+  assert.equal(fs.readFileSync(file, "utf8"), "222 2000", "B's lock is in place");
+  assert.deepEqual(fs.readdirSync(dir), ["airpocket.lock"], "nothing left aside");
+  // Before this fix, A unlinked what it judged stale, which by then was B's lock,
+  // and both ran.
+});
+
+test("six services started at the same moment over a stale lock: one runs, five refuse", async () => {
+  const { spawn, spawnSync } = require("child_process");
+  const dir = tempDir();
+  fs.writeFileSync(path.join(dir, "airpocket.lock"), `${spawnSync(process.execPath, ["-e", ""]).pid} 5`);
+  const at = Date.now() + 1500;                               // every child waits for this moment, then goes
+  const code = `const { createService } = require(${JSON.stringify(path.join(__dirname, "..", "src", "service"))});
+    while (Date.now() < ${at}) {}
+    try { createService({ dir: process.argv[1] }); process.stdout.write("ok"); setTimeout(() => {}, 1500); }
+    catch (e) { process.stdout.write(e.code || e.message); }`;
+  const outs = await Promise.all(Array.from({ length: 6 }, () => new Promise((ok) => {
+    const c = spawn(process.execPath, ["-e", code, dir]);
+    let out = "";
+    c.stdout.on("data", (d) => (out += d));
+    c.on("close", () => ok(out));
+  })));
+  assert.deepEqual(outs.sort(), ["ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ok"]);
+  assert.deepEqual(fs.readdirSync(dir).filter((n) => n.startsWith("airpocket.lock")), ["airpocket.lock"], "no lock copies left behind");
 });
