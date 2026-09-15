@@ -77,7 +77,8 @@ Build
 
 Prove it, then launch
 13. Öncel switches his own Macs over for a few days; the private tool's phone
-    part retires (the panel stays private).
+    part retires (the panel stays private). Phones pair with Airpocket fresh:
+    it is a separate app with its own tokens, and nothing carries over.
 14. Fresh-Mac test from the README alone: Superset and tmux, Claude and Codex,
     a second Mac, a real iPhone including a PDF.
 15. Launch material: README with screenshots, a short demo video, FAQ, first
