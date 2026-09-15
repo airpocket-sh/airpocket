@@ -60,7 +60,7 @@ Build
 5. [done, PR #2] The background service replacing the desktop panel: session registry and
    waiting list (expiry, seen). Done when sessions appear, wait and clear with
    no panel.
-6. One hook for Claude and Codex: start, prompt, finished, question, end,
+6. [done, PR #3] One hook for Claude and Codex: start, prompt, finished, question, end,
    where the transcript lives, which terminal. Done when sessions from several
    accounts land in one list.
 7. Terminal bridges: Superset, tmux, then own-terminal mode; read-only without

@@ -125,7 +125,11 @@ status line.
   untrusted folder shows a trust prompt: Codex's default answer is Yes and
   writes a trust entry to `~/.codex/config.toml` (remove it), Claude's is
   "No, exit". Start Claude with `--settings '{"remoteControlAtStartup":false}'`
-  so it does not register a Remote Control session.
+  so it does not register a Remote Control session. Add
+  `--setting-sources project` so Öncel's own hooks (and the private tool)
+  never hear of it. Answer the terminal's queries (subclass `pyte.Screen`,
+  write `write_process_input` back to the pty) and type key by key:
+  unanswered, Claude takes the first keys for the answer and prompts are lost.
 
 ## Testing
 
@@ -156,34 +160,65 @@ status line.
 
 ## Where the code stands
 
-- Steps 4 and 5 are merged (PR #1, PR #2). `npm start` runs one process:
-  the service with its hook endpoint, the phone server and the file-only
-  server, all on 127.0.0.1.
+- Steps 4, 5 and 6 are merged (PR #1, #2, #3). `npm start` runs one
+  process: the service with its hook endpoint, the phone server and the
+  file-only server, all on 127.0.0.1. 67 tests.
 - `src/service.js`: session records (`sessions/<id>.json`) and the waiting list
   (`queue.json`) in the data folder (`~/Library/Application Support/Airpocket`
   or `$AIRPOCKET_DIR`); folders 0700, files 0600, every write whole
   (temp file, fsync, rename). One service per data folder: `airpocket.lock`
-  holds the pid; a second one throws `ELOCKED` and writes nothing.
+  holds `"<pid> <start time>"`, written to a temp file and linked into place;
+  a stale lock is renamed aside, and a live one moved by mistake is put
+  back. A second service throws `ELOCKED` and writes nothing.
 - Hook endpoint on 127.0.0.1:47873 (`AIRPOCKET_HOOK_PORT`), never published.
   `hook.json` = `{ port, secret }`, 0600, written only once it listens, new
   secret every start. `POST /hook/session | enqueue | dequeue | touch` with
   `Authorization: Bearer <secret>` and a JSON body naming the session:
-  `session_id, agent (claude|codex), cwd, title, branch, note, account, pid,
-  terminal, workspace` (empty fields keep the old value). `enqueue` needs
+  `session_id, agent (claude|codex), cwd, transcript, title, branch, note,
+  account, pid, started, terminal, workspace, pane, tmux` (empty fields keep
+  the old value; a new pid never keeps the old start time). `enqueue` needs
   `reason`: finished | waiting for you | needs permission | needs input |
   needs a response. `dequeue` needs `why`: prompt | end. Refused: Origin
   header, non-loopback Host, wrong secret, non-JSON, bodies over 16 KB.
+  `transcript` is kept only if absolute and named after that session
+  (`<id>.jsonl` for Claude, `rollout-…-<id>.jsonl` for Codex); `pane` must be
+  `%<n>`, `tmux` (the socket) absolute. Note and message snippets that match
+  the key/token patterns (`src/secrets.js`, shared with the file viewer) are
+  dropped.
+- `src/hook.js` (`node src/hook.js claude|codex`): the one hook. Reads
+  `hook.json` every run; silent, 1.5 s limit, always exit 0, nothing when the
+  service is down. Claude: SessionStart → session, UserPromptSubmit →
+  dequeue prompt, Stop → finished, Notification permission / idle /
+  elicitation → needs permission / waiting for you / needs a response (other
+  notifications touch), SessionEnd → dequeue end; subagent events (with
+  `agent_id`) ignored. Codex: the same plus PermissionRequest → needs
+  permission ("Wants to use <tool>", never the input) and Interrupt →
+  dequeue prompt. Sends the agent's pid (first non-shell parent) and start
+  time, the branch read from `.git`, the Claude account email from
+  `$CLAUDE_CONFIG_DIR`, else the transcript's config folder, else
+  `~/.claude.json` (only `.claude.json`, only `oauthAccount.emailAddress`).
+  Not installed anywhere yet: that is step 10.
+- `src/proc.js`: a process is its pid plus its start time (`ps -o lstart`,
+  batched). A pid that exists is that process unless a start time was read
+  and differs; one that can't be read proves nothing, so the session stays.
+  The service caches one `ps` call per second; the phone's list asks it
+  through `service.isLive(record)`.
 - Waiting-list rules: finished = done, 20 minutes; the rest = input, 60
   minutes; one entry per session; a gone process leaves the list and the
   records; records not heard from in a day are forgotten.
 - `createServer()` needs `opts.service` or all three seams (`knownSessions`,
   `getQueue`, `dequeue`); only `start()` creates a service. "Seen" dequeues
-  in-process and clears only finished and waiting-for-you entries.
+  in-process and clears only finished and waiting-for-you entries. Chats are
+  read from the recorded transcript path (re-checked at use by real path),
+  then from `~/.claude/projects` or `$CODEX_HOME/sessions`.
 - The Codex desktop-daemon link is gone: a session without a terminal is
   read-only on the phone.
-- Carried into step 6: pid reuse (store the process start time with the pid,
-  in records and in the lock) and the stale-lock race (rename the stale lock
-  aside, link the new one into place), from the PR #2 review.
+- `docs/reference/try-hook.py` (+ `try-hook-driver.js`): the end-to-end trial
+  with a real, throwaway Claude session against a throwaway Airpocket. Needs
+  `pyte`. Passed 9/9 at step 6.
+- Open: Codex has not been tried end to end with a real session (do it at
+  step 10, when hooks are installed). Denying a Claude permission with Esc
+  leaves "needs permission" until the next prompt (no hook fires).
 
 ## Decisions waiting for Öncel (proposed defaults)
 
