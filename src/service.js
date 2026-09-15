@@ -24,8 +24,10 @@
 //   POST /hook/touch     it is still there
 //
 // Every body names the session ({ session_id, agent, cwd, transcript, title,
-// branch, note, account, pid, started, terminal, workspace, pane, tmux }); a
-// field left out or empty keeps what was recorded before.
+// branch, note, account, pid, started, terminal, workspace, pane, tmux, tmux_pid }); a
+// field left out or empty keeps what was recorded before. Except where the session
+// runs (terminal, workspace, pane, tmux, tmux_pid): a hook from another process
+// (a resumed session) sets all five, and empty stays empty.
 //
 // What it keeps, in Airpocket's data folder (folders 0700, files 0600, every
 // file written whole to a temporary name and renamed into place, so a crash
@@ -244,6 +246,12 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     const cwd = absPath(b.cwd) || prev.cwd || "";
     // A new pid comes with its own start time, never with the old pid's.
     const pid = pidOf(b.pid);
+    // The terminal belongs to the process. A hook from another process (the session
+    // resumed with `claude --resume`, `-c` or `codex resume`, or a reused pid) says
+    // where the session runs now, and an empty field there means "not in tmux or
+    // Superset": nothing is kept from the old terminal, whose shell may be all that's left.
+    const moved = !!pid && (pid !== prev.pid || (!!startOf(b.started) && startOf(b.started) !== prev.started));
+    const place = (v, old) => v || (moved ? "" : old || "");
     const r = {
       session_id: sid,
       bridge_id: (agent === "codex" ? "codex:" : "local:") + sid,
@@ -256,10 +264,12 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
       account: text(b.account, 200) || prev.account || "",
       pid: pid || prev.pid || 0,
       started: pid ? startOf(b.started) : prev.started || 0,
-      terminal: terminalId(b.terminal) || prev.terminal || "",
-      workspace: terminalId(b.workspace) || prev.workspace || "",
-      pane: (typeof b.pane === "string" && TMUX_PANE.test(b.pane) ? b.pane : "") || prev.pane || "",
-      tmux: absPath(b.tmux) || prev.tmux || "",
+      terminal: place(terminalId(b.terminal), prev.terminal),
+      workspace: place(terminalId(b.workspace), prev.workspace),
+      pane: place(typeof b.pane === "string" && TMUX_PANE.test(b.pane) ? b.pane : "", prev.pane),
+      tmux: place(absPath(b.tmux), prev.tmux),
+      // The tmux server the pane is on: it comes with its socket, never kept from another one.
+      tmux_pid: absPath(b.tmux) ? pidOf(b.tmux_pid) : moved ? 0 : prev.tmux_pid || 0,
       last_seen: Math.floor(now() / 1000),
     };
     records.set(sid, r);

@@ -127,7 +127,7 @@ test("claude, through the real hook: start, prompt, finished, permission, idle, 
     assert.deepEqual(r && { ...r, last_seen: 0 }, {
       session_id: CLAUDE_ID, bridge_id: "local:" + CLAUDE_ID, agent: "claude", cwd: w.repo, transcript: w.transcript, title: "shop",
       branch: "feature/x", note: "", account: "main@example.com", pid: process.pid, started: OWN_START,
-      terminal: "term-7", workspace: "ws-7", pane: "%3", tmux: "/private/tmp/tmux-501/default", last_seen: 0,
+      terminal: "term-7", workspace: "ws-7", pane: "%3", tmux: "/private/tmp/tmux-501/default", tmux_pid: 123, last_seen: 0,
     }, "the record: the agent's pid is the hook's parent, with its start time");
     assert.deepEqual(waiting(), []);
 

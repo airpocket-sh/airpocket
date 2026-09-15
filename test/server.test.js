@@ -5,6 +5,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("http");
+const net = require("net");
 const os = require("os");
 const fs = require("fs");
 const path = require("path");
@@ -13,6 +14,8 @@ const { createStore } = require("../src/store");
 const { createService } = require("../src/service");
 const { portsFrom } = require("../src/ports");
 const { othersOn, serveLines } = require("../src/cli");
+const { startTimeOf } = require("../src/proc");
+const ME = startTimeOf(process.pid);          // the stand-in sessions' agent is this test process
 
 const ESC = String.fromCharCode(27);
 const BELL = String.fromCharCode(7);
@@ -26,10 +29,10 @@ const SESS = [
   { session_id: PLAIN, bridge_id: "local:" + PLAIN, title: "plain", agent: "claude", last_seen: now - 120 },
   { session_id: CODEX, bridge_id: "codex:" + CODEX, title: "u", account: "", agent: "codex", pid: 0, last_seen: now - 60, terminal: "", workspace: "" },
   { session_id: CLAUDE, bridge_id: "session_01ABC", title: "SEO Research", account: "info@example.com", branch: "main",
-    note: "hi", agent: "claude", pid: process.pid, last_seen: now, terminal: "term-1", workspace: "ws-1" },
+    note: "hi", agent: "claude", pid: process.pid, started: ME,last_seen: now, terminal: "term-1", workspace: "ws-1" },
 ];
 const CLAUDE2 = "11111111-2222-3333-4444-555555555555";
-SESS.push({ session_id: CLAUDE2, bridge_id: "session_02", title: "Chat", agent: "claude", pid: process.pid, last_seen: now - 5, terminal: "term-2", workspace: "ws-2" });
+SESS.push({ session_id: CLAUDE2, bridge_id: "session_02", title: "Chat", agent: "claude", pid: process.pid, started: ME,last_seen: now - 5, terminal: "term-2", workspace: "ws-2" });
 const LIVE_SCREEN = "some output\n✽ Fermenting… (3m 28s · ↓ 15.0k tokens)\n Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and don't ask again\n   3. No, and tell Claude what to do differently (esc)\n";
 const proj = path.join(dir, "projects", "-Users-x-Chat");
 fs.mkdirSync(proj, { recursive: true });
@@ -52,7 +55,7 @@ fs.writeFileSync(path.join(proj, CLAUDE2 + ".jsonl"), [
 // A Codex session in a Superset terminal, mid-turn. Its session file already has
 // the steps so far; the screen has Codex's dot animation over the prompt line.
 const CODEX_T = "01a0a069-1fef-7a71-b5f1-1db10d06b25c";
-SESS.push({ session_id: CODEX_T, bridge_id: "codex:" + CODEX_T, title: "PM", agent: "codex", pid: process.pid, last_seen: now - 3, terminal: "term-3", workspace: "ws-3" });
+SESS.push({ session_id: CODEX_T, bridge_id: "codex:" + CODEX_T, title: "PM", agent: "codex", pid: process.pid, started: ME,last_seen: now - 3, terminal: "term-3", workspace: "ws-3" });
 const D1 = String.fromCharCode(0x2801), D2 = String.fromCharCode(0x2840);
 const BRAILLE_RE = new RegExp("[" + String.fromCharCode(0x2800) + "-" + String.fromCharCode(0x28ff) + "]");
 const CODEX_SCREEN = ["› Can you combine everything into a PDF?", "", "• Working (3s • esc to interrupt)",
@@ -82,9 +85,22 @@ fs.writeFileSync(rollout, [
 // Superset's own lists, and a session with text typed but not sent.
 const PROJ = "11111111-aaaa-4aaa-8aaa-111111111111", WS = "22222222-bbbb-4bbb-8bbb-222222222222";
 const CLAUDE3 = "33333333-4444-5555-6666-777777777777";
-SESS.push({ session_id: CLAUDE3, bridge_id: "session_03", title: "Typed", agent: "claude", pid: process.pid, last_seen: now - 8, terminal: "term-4", workspace: "ws-4" });
+SESS.push({ session_id: CLAUDE3, bridge_id: "session_03", title: "Typed", agent: "claude", pid: process.pid, started: ME,last_seen: now - 8, terminal: "term-4", workspace: "ws-4" });
 const STAGED_SCREEN = "output\n❯ half typed thought\n  default | Opus 5 | context: 12%";
 const QUEUE = [{ id: "session_01ABC", sid: CLAUDE, kind: "input", reason: "input", message: "Claude is waiting" }];
+
+// A session in a tmux pane (a real socket file, a stand-in tmux), and one whose
+// agent has exited: its pid now has another start time.
+const TMUXS = "66666666-7777-8888-9999-000000000000", GONE = "77777777-8888-9999-aaaa-bbbbbbbbbbbb";
+const TMUX_OLD = "88888888-9999-aaaa-bbbb-cccccccccccc";
+const TMUX_SOCK = path.join(dir, "tmux.sock"), TMUX_SERVER = 4343;
+const sockServer = net.createServer().listen(TMUX_SOCK);
+SESS.push({ session_id: TMUXS, bridge_id: "local:" + TMUXS, title: "In tmux", agent: "claude", pid: process.pid, started: ME, last_seen: now - 10, pane: "%7", tmux: TMUX_SOCK, tmux_pid: TMUX_SERVER });
+// Yesterday's session on the same pane id, from a tmux server that has since restarted.
+SESS.push({ session_id: TMUX_OLD, bridge_id: "local:" + TMUX_OLD, title: "Old tmux", agent: "claude", pid: process.pid, started: ME - 60, last_seen: now - 12, pane: "%7", tmux: TMUX_SOCK, tmux_pid: 1111 });
+SESS.push({ session_id: GONE, bridge_id: "local:" + GONE, title: "Ended", agent: "claude", pid: process.pid, started: ME - 60, last_seen: now - 11, terminal: "term-9", workspace: "ws-9" });
+const TMUX_SCREEN = "tmux output   \n❯ ";
+let supersetHere = true;
 
 // Files: a project under a stand-in home, and a session that wrote, read and mentioned things there.
 const HOME = path.join(dir, "home"), ROOT = path.join(HOME, "proj");
@@ -105,7 +121,7 @@ fs.symlinkSync(path.join(HOME, "outside.md"), path.join(ROOT, "link.md"));
 fs.linkSync(path.join(HOME, "outside.md"), path.join(ROOT, "hard.md"));
 fs.symlinkSync(path.join(ROOT, "notes.md"), path.join(ROOT, "alias.pdf"));
 const FILES = "44444444-5555-6666-7777-888888888888";
-SESS.push({ session_id: FILES, bridge_id: "session_04", title: "Files", agent: "claude", pid: process.pid, last_seen: now - 9, cwd: ROOT });
+SESS.push({ session_id: FILES, bridge_id: "session_04", title: "Files", agent: "claude", pid: process.pid, started: ME,last_seen: now - 9, cwd: ROOT });
 fs.mkdirSync(path.join(dir, "projects", "-Users-x-Files"), { recursive: true });
 const said = "Saved `out/report.pdf`, the [page](page.html), `pic.png`, `.env`, `prod.key`, `api-keys.txt`, `../outside.md`, `" + path.join(HOME, "outside.md") +
   "`, `link.md`, `hard.md`, `alias.pdf`, `data.sqlite`, `sub/.hidden/x.md`, `node_modules/x/readme.md`, `keyfile.md`, `later.md`, " +
@@ -118,7 +134,7 @@ fs.writeFileSync(path.join(dir, "projects", "-Users-x-Files", FILES + ".jsonl"),
 ].join("\n"));
 let fileBase = "";
 
-const calls = { superset: [], dequeue: [] };
+const calls = { superset: [], dequeue: [], tmux: [] };
 let removes = 1;                                  // what the stand-in dequeue reports it took off
 
 const app = createServer({
@@ -136,7 +152,16 @@ const app = createServer({
     return "{}";
   },
   dequeue: (id, sid) => { calls.dequeue.push([id, sid]); return removes; },
+  hasSuperset: () => supersetHere,
+  tmux: async (args) => {
+    calls.tmux.push(args);
+    if (args.includes("capture-pane")) return `${TMUX_SERVER}\n${TMUX_SCREEN}`;
+    if (args[3] === "display-message") return `${TMUX_SERVER} 0\n`;
+    return "";
+  },
+  typeGap: () => 0,
 });
+test.after(() => sockServer.close());
 
 let base;
 test.before(() => new Promise((ok) => app.server.listen(0, "127.0.0.1", () => {
@@ -261,6 +286,79 @@ test("codex without a terminal is read-only: nothing to type into, no approvals 
   assert.match(sent.json.message, /read-only/);
   assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "7", decision: "accept" } })).status, 404, "there is no answer route any more");
   assert.equal(calls.superset.length, n, "nothing reached Superset");
+});
+
+test("a tmux session: read with capture-pane, typed with send-keys, keys by tmux name, Controls too", async () => {
+  const list = (await req("GET", "/api/sessions", { headers: auth() })).json;
+  assert.deepEqual(list.can, { start: true });
+  const s = list.sessions.find((x) => x.id === TMUXS);
+  assert.deepEqual(s.can, { bridge: "tmux", read: true, send: true, keys: true, controls: true, why: "" });
+  assert.equal(s.via, "terminal");
+  assert.equal(list.sessions.find((x) => x.id === CLAUDE).can.bridge, "superset");
+  assert.deepEqual(list.sessions.find((x) => x.id === PLAIN).can, { bridge: null, read: false, send: false, keys: false, controls: false,
+    why: "It isn't in a Superset or tmux terminal." });
+  assert.ok(!JSON.stringify(list).includes(TMUX_SOCK) && !JSON.stringify(list).includes("%7"), "socket and pane never leave the Mac");
+  const n = calls.superset.length;
+  const r = await req("GET", "/api/screen?id=" + TMUXS, { headers: auth() });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.kind, "terminal");
+  assert.equal(r.json.text, "tmux output\n❯");
+  assert.equal(r.json.can.bridge, "tmux");
+  assert.deepEqual(calls.tmux.at(-1), ["-u", "-S", TMUX_SOCK, "display-message", "-p", "-t", "%7", "#{pid}", ";", "capture-pane", "-p", "-t", "%7"]);
+  calls.tmux.length = 0;
+  assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: TMUXS, text: "a\nb;" } })).status, 200);
+  assert.deepEqual(calls.tmux.map((a) => a.slice(3)), [["display-message", "-p", "-t", "%7", "#{pid} #{pane_in_mode}"],
+    ["send-keys", "-t", "%7", "-l", "--", "a b\\;"], ["send-keys", "-t", "%7", "Enter"]]);
+  await req("POST", "/api/key", { headers: auth(), body: { id: TMUXS, key: "esc" } });
+  assert.deepEqual(calls.tmux.at(-1).slice(3), ["send-keys", "-t", "%7", "Escape"]);
+  await req("POST", "/api/key", { headers: auth(), body: { id: TMUXS, key: "2" } });
+  assert.deepEqual(calls.tmux.at(-1).slice(3), ["send-keys", "-t", "%7", "-l", "--", "2"]);
+  calls.tmux.length = 0;
+  const c = await req("POST", "/api/command", { headers: auth(), body: { id: TMUXS, cmd: "effort", arg: "high" } });
+  assert.equal(c.status, 200);
+  assert.deepEqual(calls.tmux.map((a) => a[3]), ["display-message", "display-message", "send-keys", "send-keys"], "checked, looked, typed, Enter");
+  assert.ok(calls.tmux[1].includes("capture-pane"), "the look is the screen");
+  assert.deepEqual(calls.tmux.slice(-2).map((a) => a.slice(3)), [["send-keys", "-t", "%7", "-l", "--", "/effort high"], ["send-keys", "-t", "%7", "Enter"]]);
+  assert.equal(calls.superset.length, n, "nothing went to Superset");
+});
+
+test("an old tmux session whose server restarted shows nothing of the pane that took its id", async () => {
+  const chat = await req("GET", "/api/screen?id=" + TMUX_OLD, { headers: auth() });
+  assert.equal(chat.status, 200);
+  assert.deepEqual([chat.json.text, chat.json.live, chat.json.info], ["", null, undefined], "no screen, no live state, no model line from someone else's pane");
+  const term = await req("GET", "/api/screen?id=" + TMUX_OLD + "&view=terminal", { headers: auth() });
+  assert.equal(term.status, 502, "like a closed terminal");
+  assert.ok(!JSON.stringify([chat.json, term.json]).includes("tmux output"));
+});
+
+test("an ended agent's terminal is read-only: the phone is told, and nothing is typed", async () => {
+  const s = (await req("GET", "/api/sessions", { headers: auth() })).json.sessions.find((x) => x.id === GONE);
+  assert.equal(s.live, false);
+  assert.deepEqual([s.can.bridge, s.can.read, s.can.send, s.can.keys, s.can.controls], ["superset", true, false, false, false]);
+  assert.match(s.can.why, /exited/);
+  const n = calls.superset.length;
+  for (const [p, body] of [["/api/send", { id: GONE, text: "hi" }], ["/api/key", { id: GONE, key: "enter" }], ["/api/command", { id: GONE, cmd: "compact" }]]) {
+    const r = await req("POST", p, { headers: auth(), body });
+    assert.equal(r.status, 409, p);
+    assert.equal(r.json.error, "ended", p);
+  }
+  assert.equal(calls.superset.length, n, "nothing reached its terminal, not even a read");
+});
+
+test("new sessions need Superset: without it the Mac says so, and nothing runs", async () => {
+  supersetHere = false;
+  try {
+    assert.deepEqual((await req("GET", "/api/sessions", { headers: auth() })).json.can, { start: false });
+    assert.deepEqual((await req("GET", "/api/hello", { headers: auth() })).json.can, { start: false });
+    const n = calls.superset.length;
+    const o = await req("GET", "/api/new/options", { headers: auth() });
+    assert.equal(o.status, 409);
+    assert.equal(o.json.error, "no_superset");
+    assert.equal((await req("POST", "/api/new", { headers: auth(), body: { agent: "claude", prompt: "x", workspace: WS } })).status, 409);
+    assert.equal(calls.superset.length, n);
+  } finally {
+    supersetHere = true;
+  }
 });
 
 test("CORS only for tailnet and loopback origins; bodies must be small JSON", async () => {
@@ -422,7 +520,7 @@ test("codex: browser, MCP, image and helper-agent steps get a short label, never
 
 test("codex: a tail full of huge tool results is widened until it holds the conversation", async () => {
   const id = CODEX_T.slice(0, -1) + "d";
-  SESS.push({ session_id: id, bridge_id: "codex:" + id, title: "big", agent: "codex", pid: process.pid, last_seen: now, terminal: "term-3", workspace: "ws-3" });
+  SESS.push({ session_id: id, bridge_id: "codex:" + id, title: "big", agent: "codex", pid: process.pid, started: ME,last_seen: now, terminal: "term-3", workspace: "ws-3" });
   const big = "y".repeat(1024 * 1024);
   const lines = [finished({ type: "UserMessage", id: "bu", content: [{ type: "text", text: "start here" }] })];
   for (let i = 0; i < 6; i++) lines.push(finished({ type: "McpToolCall", id: "bm" + i, server: "node_repl", tool: "js", arguments: {}, result: { content: [{ type: "text", text: big }] }, status: "completed" }));
@@ -478,6 +576,10 @@ test("menus: Codex descriptions come apart from the option", () => {
   const m = liveState("  Select Model and Effort\n› 1. gpt-5.6-sol (current)  Latest frontier model.\n  2. gpt-6-astra            Most capable.\n  Press enter to confirm");
   assert.deepEqual(m.menu.options.map((o) => [o.label, o.hint]), [["gpt-5.6-sol (current)", "Latest frontier model."], ["gpt-6-astra", "Most capable."]]);
   assert.equal(liveState('❯ Try "refactor app.js"\n  ? for shortcuts').staged, "", "Claude's grey suggestion is not typed text");
+  // Claude marks earlier prompts with ❯ too: under an empty box they are history, not typed text.
+  const after = ["❯ Reply with just the word pong.", "", "⏺ pong", "", "✻ Baked for 1s", "", "─".repeat(40), "❯ ", "─".repeat(40), "  ⏸ manual mode on · ? for shortcuts"].join("\n");
+  assert.equal(liveState(tidyScreen(after)).staged, "", "an empty box under an earlier prompt");
+  assert.equal(liveState(tidyScreen(after.replace("❯ \n", "❯ next one\n"))).staged, "next one");
 });
 
 test("seen: opening a finished or idle session clears it; a question stays", async () => {
@@ -664,7 +766,7 @@ test("with no stubs: hook events put a session on the list, make it wait, and cl
     assert.deepEqual(await list(), []);
 
     // Wrong or missing secrets change nothing.
-    const body = { session_id: ID, agent: "claude", cwd: "/Users/x/proj", pid: process.pid, terminal: "term-9", workspace: "ws-9" };
+    const body = { session_id: ID, agent: "claude", cwd: "/Users/x/proj", pid: process.pid, started: ME,terminal: "term-9", workspace: "ws-9" };
     assert.equal((await hook("session", body, {})).status, 401, "no secret");
     assert.equal((await hook("session", body, { Authorization: "Bearer " + "A".repeat(43) })).status, 401, "wrong secret");
     assert.equal((await hook("session", body, { Authorization: secret })).status, 401, "the secret without Bearer");
