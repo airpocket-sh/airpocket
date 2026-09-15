@@ -271,7 +271,17 @@ test("Controls and New offer the agents' own lists, and take nothing else", asyn
   const h = homes({ catalog: fixture("claude-model-catalog.json"), cache: fixture("codex-models_cache.json") });
   const inTerminal = { session_id: CLAUDE_T, bridge_id: "local:" + CLAUDE_T, agent: "claude", title: "t", pid: process.pid, started: ME, last_seen: 1e10,
                        terminal: "term-1", workspace: "ws-1" };
-  const s = await serve([inTerminal], h, "❯ \n  ⏵⏵ accept edits on (shift+tab to cycle)");
+  // Two more in terminals, whose transcripts say which model they run.
+  const proj = path.join(h.claudeDir, "projects", "-p");
+  fs.mkdirSync(proj, { recursive: true });
+  const running = (sid, model, term) => {
+    const transcript = path.join(proj, sid + ".jsonl");
+    fs.writeFileSync(transcript, J({ type: "assistant", uuid: "a", timestamp: "2026-09-15T10:00:00.000Z", message: { model, role: "assistant", content: [{ type: "text", text: "ok" }] } }) + "\n");
+    return { session_id: sid, bridge_id: "local:" + sid, agent: "claude", title: model, transcript, pid: process.pid, started: ME, last_seen: 1e10, terminal: term, workspace: "ws-1" };
+  };
+  const LYRA = "0c0ffee0-1111-4222-8333-888888888888", WREN = "0c0ffee0-1111-4222-8333-999999999999";
+  const s = await serve([inTerminal, running(LYRA, "claude-lyra-6-1", "term-2"), running(WREN, "claude-wren-5-20260101", "term-3")], h,
+    "❯ \n  ⏵⏵ accept edits on (shift+tab to cycle)");
   try {
     const m = (await s.get("/api/models")).json;
     assert.deepEqual([m.claude.from, m.codex.from], ["claude code", "codex"]);
@@ -285,6 +295,15 @@ test("Controls and New offer the agents' own lists, and take nothing else", asyn
       assert.equal((await s.post("/api/command", { id: CLAUDE_T, cmd: "model", arg })).json.error, "bad_arg", arg);
     }
     assert.deepEqual(sent(), ["/model claude-nova-6", "/model default"], "only names from the list are typed");
+
+    // Effort: only a level the session's model takes, and the phone is offered that same list.
+    assert.deepEqual((await s.get("/api/screen?id=" + LYRA)).json.efforts, ["low", "high"]);
+    assert.deepEqual((await s.get("/api/screen?id=" + WREN)).json.efforts, [], "a model without effort levels: no Effort chips");
+    assert.deepEqual((await s.get("/api/screen?id=" + CLAUDE_T)).json.efforts, ["low", "medium", "high", "max"], "model unknown: any level on Claude Code's list");
+    const effort = async (id, arg) => (await s.post("/api/command", { id, cmd: "effort", arg })).status;
+    assert.deepEqual([await effort(LYRA, "high"), await effort(LYRA, "medium"), await effort(WREN, "low"), await effort(CLAUDE_T, "max"), await effort(CLAUDE_T, "xhigh")],
+      [200, 400, 400, 200, 400]);
+    assert.deepEqual(sent().slice(2), ["/effort high", "/effort max"]);
 
     const o = (await s.get("/api/new/options")).json;
     assert.deepEqual(o.models.codex.map((x) => x.id), ["gpt-9-mini", "gpt-9-nova", "gpt-9-tiny"]);

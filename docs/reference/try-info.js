@@ -11,8 +11,7 @@
 // terminal Airpocket can't reach:
 //
 //   after a reply, the model and effort come from the transcript, on both;
-//   what a typed slash command looks like before Enter (then cleared, never
-//   run); Shift+Tab (does the transcript hear of it, and what the phone shows);
+//   Shift+Tab (does the transcript hear of it, and what the phone shows);
 //   read-only: "working" while a turn runs and "idle" after, from the hooks, and
 //   the new mode once the next prompt is recorded; /exit -> gone.
 //
@@ -69,7 +68,6 @@ const replies = (d) => (d.items || []).filter((it) => it.type === "agent").map((
 const ready = async (id) => { const d = await screen("app", id); return d.live && d.live.state === "idle" && !d.live.menu && !d.live.staged ? d : null; };
 const show = (label, d) => say(`   ${label}:`, JSON.stringify(d.info || null), "live:", d.live ? d.live.state + (d.live.elapsed ? " " + d.live.elapsed : "") : null);
 const count = (file, re) => { try { return fs.readFileSync(file, "utf8").split("\n").filter((l) => re.test(l)).length; } catch { return -1; } };
-const pane = () => tmux("list-panes", "-F", "#{pane_id}").trim();
 const showScreen = (label, n = 10) => { say(`   ${label}:`); for (const l of tmux("capture-pane", "-p").trimEnd().split("\n").slice(-n)) say("   |", l); };
 
 // The user's own Claude settings must come out of this untouched.
@@ -111,23 +109,12 @@ const settingsBefore = mtime();
     show("with a screen", d); show("read-only", b);
     ok["model and effort from the transcript, read-only too"] = !!(b.info && /^Sonnet \d/.test(b.info.name) && b.info.effort && b.info.model === d.info.model);
 
-    // /effort and /model are never run here: Claude saves them as the default for
-    // new sessions in the user's own settings (~/.claude/settings.json), whatever
-    // --setting-sources says. The transcript records them at once ("Set effort
-    // level to low (saved as your default for new sessions): …"); the tests cover
-    // reading that. What typing one shows, without Enter, then cleared:
+    // /effort and /model are never typed here, not even without Enter: Claude saves
+    // them as the default for new sessions in the user's own settings
+    // (~/.claude/settings.json), whatever --setting-sources says. The transcript
+    // records them at once ("Set effort level to low (saved as your default for new
+    // sessions): …"); the tests cover reading that.
     await until("an empty prompt box", () => ready(id), 30);
-    // Controls presses Enter 0.3 s after typing a command: what is on screen then, and a second later.
-    await api("app", "POST", "/api/send", { id, text: "/effort low", submit: false });
-    await sleep(300);
-    showScreen("typed /effort low, 0.3 s later (not sent)", 14);
-    await sleep(1000);
-    showScreen("1.3 s later", 6);
-    tmux("send-keys", "-t", pane(), "Escape");
-    await sleep(300);
-    tmux("send-keys", "-t", pane(), "C-u");
-    ok["the typed command is cleared, never run"] = !!(await until("an empty prompt box", () => ready(id), 10));
-    if (!ok["the typed command is cleared, never run"]) { showScreen("not cleared: stopping before anything presses Enter"); return; }
 
     const modeOnScreen = () => { const m = /⏵⏵\s*(.+?)\s+on\b|⏸\s*(plan mode)\s+on\b/.exec(tmux("capture-pane", "-p")); return m ? m[1] || m[2] : "default"; };
     const modesBefore = count(transcript(), /"type":"permission-mode"/);

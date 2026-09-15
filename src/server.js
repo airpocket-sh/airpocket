@@ -35,7 +35,7 @@ const { createService, transcriptPath } = require("./service");
 const { processAlive } = require("./proc");
 const { SECRET_CONTENT } = require("./secrets");
 const { createBridges, KEYS, runFile, runSuperset, runTmux, findTmux, supersetInstalled } = require("./bridges");
-const { createModels, CLAUDE_EFFORTS } = require("./models");
+const { createModels } = require("./models");
 
 const PUBLIC = path.join(__dirname, "public");
 
@@ -70,7 +70,8 @@ const plain = (text) => () => text;
 const COMMANDS = Object.freeze({
   claude: {
     model: (a, lists) => (a === undefined ? "/model" : a === "default" || lists.claude.models.some((m) => m.id === a) ? "/model " + a : null),
-    effort: (a) => (CLAUDE_EFFORTS.includes(a) ? "/effort " + a : null),
+    // Only a level the session's model takes (effortsFor), from Claude Code's own list.
+    effort: (a, lists, efforts) => ((efforts || lists.claude.efforts).includes(a) ? "/effort " + a : null),
     fast: plain("/fast"), plan: plain("/plan"), compact: plain("/compact"), context: plain("/context"),
     usage: plain("/usage"), resume: plain("/resume"), rewind: plain("/rewind"), clear: plain("/clear"), status: plain("/status"),
   },
@@ -599,6 +600,17 @@ function claudeMode(m) {
 }
 
 /**
+ * The effort levels a Claude session may be set to: its current model's, from
+ * Claude Code's list (none for a model without effort levels, like Haiku), or
+ * any level on that list when the model isn't known or isn't on it.
+ */
+function effortsFor(lists, model) {
+  const m = String(model || "");
+  const hit = m ? lists.claude.models.find((x) => x.id === m || x.id === m.replace(/\[1m\]$/i, "") || x.name === m) : null;
+  return hit ? hit.efforts : lists.claude.efforts;
+}
+
+/**
  * What the phone shows a session runs with. The session's own file comes first
  * (Claude's transcript, Codex's session file), so it is there for read-only
  * sessions too; the screen, when there is one, fills what the file doesn't say.
@@ -1116,6 +1128,8 @@ function createServer(opts = {}) {
     const out = { kind: items ? "chat" : "terminal", agent, sig, live, can: deps.bridges.caps(e, deps.isLive(e)), at: Date.now() };
     const info = mergeInfo(agent, recorded, text !== null ? sessionInfo(agent, text) : null, deps.models.nameOf);
     if (Object.keys(info).length) out.info = info;
+    // The effort levels Controls may offer: the same list /api/command checks against.
+    if (agent === "claude" && out.can.controls) out.efforts = effortsFor(deps.models.lists(), info.model);
     if (items && sig !== since) out.items = items;
     if (view === "terminal" || !items) out.text = text ?? "";
     return json(res, 200, out, cors);
@@ -1306,7 +1320,15 @@ function createServer(opts = {}) {
     const table = COMMANDS[agent];
     const make = typeof body.cmd === "string" && Object.hasOwn(table, body.cmd) ? table[body.cmd] : null;
     if (!make) return json(res, 400, { error: "bad_command" }, cors);
-    const text = make(body.arg == null || body.arg === "" ? undefined : String(body.arg), deps.models.lists());
+    const lists = deps.models.lists();
+    let efforts;
+    if (agent === "claude") {
+      // The model it runs now, as its transcript says (the screen rarely shows it).
+      const file = transcriptFor(e);
+      const c = file ? chatItems(file) : null;
+      efforts = effortsFor(lists, c && c.info.model);
+    }
+    const text = make(body.arg == null || body.arg === "" ? undefined : String(body.arg), lists, efforts);
     if (!text) return json(res, 400, { error: "bad_arg" }, cors);
     const bridge = await writableOr409(e, res, cors);
     if (!bridge) return res.statusCode;
@@ -1510,7 +1532,7 @@ function start(opts = {}) {
 }
 
 module.exports = { start, createServer, tidyScreen, cleanText, KEYS, liveState, claudeItems, describeTool, codexStep, shellLabel, sessionInfo,
-  mergeInfo, claudeMode, codexContext, sessionRoot, fileMeta, mentions };
+  mergeInfo, claudeMode, codexContext, effortsFor, sessionRoot, fileMeta, mentions };
 
 if (require.main === module) {
   let app;

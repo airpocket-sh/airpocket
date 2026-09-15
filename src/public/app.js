@@ -319,7 +319,7 @@
           redraw();
         }
         ui.setLive(d.live);
-        ui.setInfo(d.info, d.agent);
+        ui.setInfo(d.info, d.agent, d.efforts);
         if (d.can) ui.setCan(d.can);
         if (stick) toBottom(false);
         else if (document.documentElement.scrollHeight > height + 2) newer.hidden = false;
@@ -492,8 +492,9 @@
         secs.push(sec("Model", info.name || info.model || "", [
           ...list.map((m) => chip(m.name || m.id, on(m), () => run("model", m.id, "Model: " + (m.name || m.id) + ". Claude also makes it the default for new sessions."))),
           chip("More…", false, () => run("model", undefined, "The model picker is open below"))]));
-        const efforts = (offered && offered.claude && offered.claude.efforts) || ["low", "medium", "high", "xhigh", "max"];
-        secs.push(sec("Effort", info.effort || "", efforts.map((x) => chip(x, info.effort === x, () => run("effort", x, "Effort: " + x + ". Claude also makes it the default for new sessions of this model.")))));
+        // The levels its current model takes, as the Mac checks them; none for a model without effort levels.
+        const efforts = cur.efforts || (offered && offered.claude && offered.claude.efforts) || ["low", "medium", "high", "xhigh", "max"];
+        if (efforts.length) secs.push(sec("Effort", info.effort || "", efforts.map((x) => chip(x, info.effort === x, () => run("effort", x, "Effort: " + x + ". Claude also makes it the default for new sessions of this model.")))));
         secs.push(sec("Permission mode", info.mode || "", [
           chip("Next mode", false, () => { closeSheet(); press("stab", "Switched mode"); }),
           chip("Plan", /plan/.test(info.mode || ""), () => run("plan", undefined, "Plan mode")),
@@ -576,8 +577,8 @@
         menuEl.dataset.sig = "";                        // redraw the on-screen question with or without its buttons
       },
       // What the session runs with; a tap opens Controls.
-      setInfo(info, agent) {
-        cur = { info: info || null, agent: agent || cur.agent };
+      setInfo(info, agent, efforts) {
+        cur = { info: info || null, agent: agent || cur.agent, efforts: Array.isArray(efforts) ? efforts : null };
         const i = info || {};
         const t = [i.name || shortModel(i.model), i.effort, i.fast ? "fast" : ""].filter(Boolean).join(" · ");
         infoEl.hidden = !t;
