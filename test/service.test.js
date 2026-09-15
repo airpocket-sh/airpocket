@@ -9,7 +9,8 @@ const fs = require("fs");
 const path = require("path");
 const { createService, takeLock } = require("../src/service");
 const { startTimeOf, processAlive, parseLstart } = require("../src/proc");
-const { start } = require("../src/server");
+const { start, createServer } = require("../src/server");
+const { createStore } = require("../src/store");
 
 const MIN = 60000;
 const ID = "11111111-2222-4333-8444-555555555555";
@@ -275,6 +276,69 @@ test("a reused pid can't keep a dead session alive, on the list or waiting", asy
   } finally { await new Promise((ok) => svc.close(ok)); }
 });
 
+test("a start time that can't be read proves nothing: sessions and waiting entries stay", async () => {
+  const { spawnSync } = require("child_process");
+  const dir = tempDir();
+  const svc = createService({ dir, readStarts: () => new Map() });   // ps failing or timing out, every time
+  const port = await new Promise((ok) => svc.listen(0, ok));
+  const secret = JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).secret;
+  const hook = (event, body) => call(port, "/hook/" + event, body, { Authorization: "Bearer " + secret });
+  try {
+    // A start time that, if it could be read, wouldn't match: unread, it must not count.
+    await hook("enqueue", { session_id: ID, reason: "needs permission", pid: process.pid, started: startTimeOf(process.pid) - 3600 });
+    for (let i = 0; i < 3; i++) {
+      assert.deepEqual(svc.knownSessions().map((r) => r.session_id), [ID], "still on the list, poll " + i);
+      assert.deepEqual(svc.getQueue().map((q) => q.reason), ["needs permission"], "still waiting, poll " + i);
+    }
+    assert.ok(fs.existsSync(path.join(dir, "sessions", ID + ".json")), "its record is kept");
+    assert.equal(svc.isLive(svc.knownSessions()[0]), true);
+    // A pid that is really gone still leaves: kill(pid, 0) says so, no ps needed.
+    await hook("session", { session_id: ID2, pid: spawnSync(process.execPath, ["-e", ""]).pid, started: 5 });
+    assert.deepEqual(svc.knownSessions().map((r) => r.session_id), [ID]);
+  } finally { await new Promise((ok) => svc.close(ok)); }
+});
+
+test("liveness costs one ps call per second, however many sessions and phone polls", async () => {
+  const dir = tempDir();
+  const own = startTimeOf(process.pid);
+  let clock = Date.parse("2026-09-15T10:00:00Z");
+  const reads = [];
+  const svc = createService({ dir, now: () => clock, readStarts: (pids) => { reads.push(pids.length); return new Map(pids.map((p) => [p, own])); } });
+  const hookPort = await new Promise((ok) => svc.listen(0, ok));
+  const secret = JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).secret;
+  const store = createStore(dir);
+  const app = createServer({ store, service: svc, log: () => {} });
+  await new Promise((ok) => app.server.listen(0, "127.0.0.1", ok));
+  const api = (method, p, body, token) => new Promise((resolve, reject) => {
+    const data = body ? Buffer.from(JSON.stringify(body)) : null;
+    const r = http.request({ host: "127.0.0.1", port: app.server.address().port, path: p, method,
+      headers: { ...(data ? { "Content-Type": "application/json", "Content-Length": data.length } : {}), ...(token ? { Authorization: "Bearer " + token } : {}) } },
+    (res) => { let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => resolve(JSON.parse(b))); });
+    r.on("error", reject);
+    r.end(data);
+  });
+  try {
+    for (let i = 0; i < 8; i++) {
+      const sid = `aaaaaaaa-0000-4000-8000-00000000000${i}`;
+      await call(hookPort, "/hook/session", { session_id: sid, pid: process.pid, started: own }, { Authorization: "Bearer " + secret });
+    }
+    const { token } = await api("POST", "/api/pair", { code: store.newCode().code });
+    reads.length = 0;
+    for (let i = 0; i < 5; i++) {
+      const { sessions } = await api("GET", "/api/sessions", null, token);
+      assert.equal(sessions.length, 8);
+      assert.ok(sessions.every((s) => s.live), "every session is live");
+    }
+    assert.equal(reads.length, 1, "five polls of eight sessions: one ps call");
+    clock += 1000;
+    await api("GET", "/api/sessions", null, token);
+    assert.equal(reads.length, 2, "and one more a second later");
+  } finally {
+    app.server.close();
+    await new Promise((ok) => svc.close(ok));
+  }
+});
+
 test("the transcript path is kept only when it is that session's .jsonl, by an absolute path", async () => {
   const t = await setup();
   const CODEX = "0199aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee";
@@ -295,6 +359,11 @@ test("the transcript path is kept only when it is that session's .jsonl, by an a
     await t.hook("session", { session_id: ID2, pane: "%12", tmux: "/private/tmp/tmux-501/default" });
     await t.hook("touch", { session_id: ID2, pane: "12; kill", tmux: "relative" });
     assert.deepEqual([rec(ID2).pane, rec(ID2).tmux], ["%12", "/private/tmp/tmux-501/default"], "tmux pane ids only, absolute socket paths only");
+    // The service screens snippets too, whatever sent them.
+    await t.hook("dequeue", { session_id: ID2, why: "prompt", note: "deploy with ghp_" + "c".repeat(36) });
+    assert.equal(rec(ID2).note, "", "a note that looks like a token is not stored");
+    await t.hook("enqueue", { session_id: ID2, reason: "finished", message: "Key: sk-" + "d".repeat(30) });
+    assert.equal(t.svc.getQueue().find((q) => q.sid === ID2).message, "", "nor a message");
   } finally { await t.close(); }
 });
 

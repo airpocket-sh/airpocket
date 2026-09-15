@@ -32,6 +32,7 @@ const { createStore } = require("./store");
 const { PORTS } = require("./ports");
 const { createService, transcriptPath } = require("./service");
 const { processAlive } = require("./proc");
+const { SECRET_CONTENT } = require("./secrets");
 
 const PUBLIC = path.join(__dirname, "public");
 const SUPERSET = path.join(os.homedir(), ".superset", "bin", "superset");
@@ -586,7 +587,6 @@ const FILE_KINDS = Object.freeze({
 const TEXT_SHOW = 512 * 1024;
 const DENY_NAME = /^(id_(rsa|dsa|ecdsa|ed25519)(\.pub)?|.*\.(pem|key|p8|p12|pfx|keychain(-db)?|kdbx|ovpn|mobileprovision|cer|crt|der|asc|gpg|jks|keystore)|.*(secret|credential|passw|private[-_. ]?key|api[-_. ]?key).*|(.*[._-])?env(\..*)?)$/i;
 // Text that looks like a credential never leaves, whatever the file is called.
-const SECRET_CONTENT = /-----BEGIN [A-Z ]*PRIVATE KEY-----|"private_key"\s*:|\bAKIA[0-9A-Z]{16}\b|\bsk-(ant-)?[A-Za-z0-9_-]{24,}|\bgh[pousr]_[A-Za-z0-9]{30,}|\bxox[abprs]-[A-Za-z0-9-]{20,}/;
 const FILE_SECRET = crypto.randomBytes(32);          // refs cannot be computed off the Mac, and change on restart
 const BOM = String.fromCharCode(0xfeff);
 
@@ -722,6 +722,9 @@ function createServer(opts = {}) {
     knownSessions: opts.knownSessions || service.knownSessions,
     getQueue: opts.getQueue || service.getQueue,
     dequeue: opts.dequeue || service.dequeue,
+    // Is a session's process there: the service's answer, from one cached ps call
+    // for all sessions, so a poll of the list costs one ps call at most.
+    isLive: opts.isLive || (service ? service.isLive : (e) => alive(e.pid, e.started)),
     superset: opts.superset || runSuperset,
     store,
     log,
@@ -879,7 +882,7 @@ function createServer(opts = {}) {
         branch: String(e.branch || ""),
         note: String((q && q.message) || e.note || "").slice(0, 240),
         lastSeen: e.last_seen || 0,
-        live: alive(e.pid, e.started),
+        live: deps.isLive(e),
         waiting: !!q,
         kind: q ? (q.kind || "input") : null,
         via: terminal ? "terminal" : null,               // null: read-only on the phone

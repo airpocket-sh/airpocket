@@ -103,6 +103,16 @@ test("plan: every event of both agents, and nothing for the rest", () => {
   assert.equal(P("claude", { hook_event_name: "Stop", last_assistant_message: "x".repeat(1000) }).message.length, 220, "clipped");
 });
 
+test("a prompt or reply that looks like a key or token is dropped whole, not clipped", () => {
+  const P = (agent, input) => plan(agent, input);
+  assert.equal(P("claude", { hook_event_name: "UserPromptSubmit", prompt: "use sk-ant-" + "a".repeat(40) + " for the API" }).note, "");
+  assert.equal(P("codex", { hook_event_name: "UserPromptSubmit", prompt: "x".repeat(200) + " ghp_" + "b".repeat(36) }).note, "", "even past the clip");
+  assert.equal(P("codex", { hook_event_name: "Stop", last_assistant_message: "Set AKIAABCDEFGHIJKLMNOP as the key." }).message, "");
+  assert.equal(P("claude", { hook_event_name: "Stop", last_assistant_message: "Here: -----BEGIN RSA PRIVATE KEY----- ..." }).message, "");
+  assert.equal(P("claude", { hook_event_name: "Notification", notification_type: "elicitation_dialog", message: "Paste xoxb-" + "1".repeat(24) }).message, "");
+  assert.equal(P("claude", { hook_event_name: "UserPromptSubmit", prompt: "fix the login page" }).note, "fix the login page", "ordinary text passes");
+});
+
 test("claude, through the real hook: start, prompt, finished, permission, idle, a question, end", async () => {
   const s = await service();
   const w = world();

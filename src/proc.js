@@ -56,16 +56,18 @@ function pidExists(pid) {
 
 /**
  * Is this the same process that was recorded? Without a pid there is nothing to
- * check, so yes. With a start time, the pid must also have started then: a
- * reused pid is a different process. `starts` is an optional map from a
- * batched startTimes() call.
+ * check, so yes. A pid that exists is that process unless its start time was
+ * read and differs: then the pid was reused. A start time that couldn't be read
+ * (ps failed or timed out) proves nothing, so the answer stays yes; a session
+ * is only ever dropped on real evidence. `startOf(pid)` reads a start time, 0
+ * when it can't; the service passes one backed by a batched, cached ps call.
  */
-function processAlive(pid, started, starts) {
+function processAlive(pid, started, startOf = startTimeOf) {
   if (!pid) return true;
   if (!pidExists(pid)) return false;
   if (!started) return true;
-  const t = starts && starts.has(pid) ? starts.get(pid) : startTimeOf(pid);
-  return t === started;
+  const t = startOf(pid);
+  return !t || t === started;
 }
 
 /**

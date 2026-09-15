@@ -47,6 +47,7 @@ const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
 const { processAlive, startTimes, startTimeOf, pidOf } = require("./proc");
+const { SECRET_CONTENT } = require("./secrets");
 
 const DAY_S = 24 * 3600;
 const TTL_MS = Object.freeze({ input: 60 * 60000, done: 20 * 60000 });
@@ -94,6 +95,8 @@ const text = (v, n) => {
   const t = stripControl(v.replace(/\s+/g, " ")).trim();
   return t.length > n ? t.slice(0, n - 1) + "…" : t;
 };
+/** A prompt or reply snippet: like text(), but one that looks like a key or token is dropped whole. */
+const snippet = (v, n) => (typeof v === "string" && SECRET_CONTENT.test(v) ? "" : text(v, n));
 const absPath = (v) => (typeof v === "string" && v.length <= 1024 && path.isAbsolute(v) && stripControl(v) === v ? v : "");
 const terminalId = (v) => (typeof v === "string" && TERMINAL_ID.test(v) ? v : "");
 const startOf = (v) => (Number.isSafeInteger(v) && v > 0 ? v : 0);
@@ -161,7 +164,7 @@ function takeLock(file, identity, seams = {}) {
   }
 }
 
-function createService({ dir, log = () => {}, now = Date.now, alive = processAlive } = {}) {
+function createService({ dir, log = () => {}, now = Date.now, alive = processAlive, readStarts = startTimes } = {}) {
   if (!dir) throw new Error("createService needs a data folder");
   const sessionsDir = path.join(dir, "sessions");
   const queueFile = path.join(dir, "queue.json");
@@ -201,23 +204,26 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
   const saveRecord = (r) => persist("a session", () => writeAtomic(path.join(sessionsDir, r.session_id + ".json"), JSON.stringify(r, null, 2)));
   const dropRecord = (sid) => { records.delete(sid); try { fs.unlinkSync(path.join(sessionsDir, sid + ".json")); } catch {} };
 
-  // When the recorded processes started, from one ps call, reused for a second:
-  // every phone poll sweeps.
-  let starts = { at: -Infinity, map: null };
-  function startsNow() {
-    if (alive !== processAlive) return null;
-    const t = Date.now();
-    if (t - starts.at < 1000) return starts.map;
-    const pids = [...records.values(), ...queue].filter((x) => x.pid && x.started).map((x) => x.pid);
-    starts = { at: t, map: startTimes(pids) };
-    return starts.map;
+  // When the recorded processes started: one ps call for all of them, reused for
+  // a second, since every phone poll sweeps and lists. A pid that call didn't
+  // cover is read on its own, once per second too. 0 means it couldn't be read.
+  let starts = { at: -Infinity, map: new Map() };
+  function startedAt(pid) {
+    const t = now();
+    if (t - starts.at >= 1000) {
+      const pids = [...records.values(), ...queue].filter((x) => x.pid && x.started).map((x) => x.pid);
+      starts = { at: t, map: readStarts(pids) };
+    }
+    if (!starts.map.has(pid)) starts.map.set(pid, readStarts([pid]).get(pid) || 0);
+    return starts.map.get(pid);
   }
+  const here = (x) => !x.pid || alive(x.pid, x.started || 0, startedAt);
+  /** Is a record's process still there? For the phone's list; false without a pid. */
+  const isLive = (r) => !!(r && r.pid) && here(r);
 
   /** Expired entries, gone processes and day-old records leave. Cheap enough to run on every read. */
   function sweep() {
     const t = now();
-    const map = startsNow();
-    const here = (x) => !x.pid || alive(x.pid, x.started || 0, map);
     let changed = false;
     for (const [sid, r] of records) {
       if (!here(r) || !(r.last_seen >= t / 1000 - DAY_S)) {
@@ -246,7 +252,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
       transcript: transcriptPath(b.transcript, sid, agent) || prev.transcript || "",
       title: text(b.title, 120) || prev.title || path.basename(cwd) || "session",
       branch: text(b.branch, 200) || prev.branch || "",
-      note: text(b.note, 120) || prev.note || "",
+      note: snippet(b.note, 120) || prev.note || "",
       account: text(b.account, 200) || prev.account || "",
       pid: pid || prev.pid || 0,
       started: pid ? startOf(b.started) : prev.started || 0,
@@ -298,7 +304,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
         return 204;
       case "enqueue": {
         if (!REASONS.has(b.reason)) return 400;
-        enqueue(upsert(b), b.reason, text(b.message, 220));
+        enqueue(upsert(b), b.reason, snippet(b.message, 220));
         return 204;
       }
       case "dequeue": {
@@ -394,7 +400,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     else if (cb) cb();
   }
 
-  return { dir, hookFile, lockFile, identity, knownSessions, getQueue, dequeue, sweep, hookServer, listen, release, close };
+  return { dir, hookFile, lockFile, identity, knownSessions, getQueue, dequeue, isLive, sweep, hookServer, listen, release, close };
 }
 
 module.exports = { createService, takeLock, transcriptPath, kindOf, writeAtomic, TTL_MS, REASONS };

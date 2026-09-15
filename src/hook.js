@@ -25,6 +25,7 @@ const path = require("path");
 const os = require("os");
 const http = require("http");
 const { agentProcess } = require("./proc");
+const { SECRET_CONTENT } = require("./secrets");
 
 const LIMIT_MS = 1500;
 const MAX_INPUT = 1024 * 1024;
@@ -34,6 +35,9 @@ const EMAIL = /^[^\s@]{1,100}@[^\s@]{1,150}$/;
 
 const str = (v) => (typeof v === "string" ? v : "");
 const clip = (v, n) => { const t = str(v).replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
+// A prompt or reply, clipped; dropped whole when anything in it looks like a
+// key or token, even past the clip (half a key is still half a key).
+const snippet = (v, n) => (SECRET_CONTENT.test(str(v)) ? "" : clip(v, n));
 
 /**
  * What an agent's event means for the waiting list: { event, ...fields } for the
@@ -45,11 +49,11 @@ function plan(agent, input) {
     if (input.agent_id) return null;                       // a subagent's event, not the session's
     switch (ev) {
       case "SessionStart": return { event: "session" };
-      case "UserPromptSubmit": return { event: "dequeue", why: "prompt", note: clip(input.prompt, 120) };
-      case "Stop": return { event: "enqueue", reason: "finished", message: clip(input.last_assistant_message, 220) };
+      case "UserPromptSubmit": return { event: "dequeue", why: "prompt", note: snippet(input.prompt, 120) };
+      case "Stop": return { event: "enqueue", reason: "finished", message: snippet(input.last_assistant_message, 220) };
       case "Notification": {
         const reason = { permission_prompt: "needs permission", idle_prompt: "waiting for you", elicitation_dialog: "needs a response" }[str(input.notification_type)];
-        return reason ? { event: "enqueue", reason, message: clip(input.message, 220) } : { event: "touch" };
+        return reason ? { event: "enqueue", reason, message: snippet(input.message, 220) } : { event: "touch" };
       }
       case "SessionEnd": return { event: "dequeue", why: "end" };
     }
@@ -57,8 +61,8 @@ function plan(agent, input) {
   }
   switch (ev) {
     case "SessionStart": return { event: "session" };
-    case "UserPromptSubmit": return { event: "dequeue", why: "prompt", note: clip(input.prompt, 120) };
-    case "Stop": return { event: "enqueue", reason: "finished", message: clip(input.last_assistant_message, 220) };
+    case "UserPromptSubmit": return { event: "dequeue", why: "prompt", note: snippet(input.prompt, 120) };
+    case "Stop": return { event: "enqueue", reason: "finished", message: snippet(input.last_assistant_message, 220) };
     case "PermissionRequest": {
       // The tool's name only: its input is a command line or a file's contents.
       const tool = /^[A-Za-z0-9_.:-]{1,60}$/.test(str(input.tool_name)) ? input.tool_name : "";
