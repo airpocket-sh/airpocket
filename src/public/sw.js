@@ -3,7 +3,7 @@
 // served it is asleep, and can reach whichever of your Macs is awake.
 // Network first: a reachable Mac always serves the current version.
 // The API is never cached: session data must be live or absent, never stale.
-const CACHE = "panel-shell-v6";
+const CACHE = "airpocket-shell-v1";
 const SHELL = ["/", "/app.js", "/app.css", "/md.js", "/manifest.webmanifest", "/icon-180.png", "/icon-512.png",
                "/agent-claude.png", "/agent-codex.png"];
 

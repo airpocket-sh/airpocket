@@ -1,6 +1,6 @@
 "use strict";
-// node --test mobile/test.js   (npm run mobile:test)
-// Starts the phone server with a stand-in panel and a stand-in Superset, and
+// npm test   (node --test)
+// Starts the server with a stand-in service and a stand-in Superset, and
 // checks each security promise the README makes.
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -8,12 +8,14 @@ const http = require("http");
 const os = require("os");
 const fs = require("fs");
 const path = require("path");
-const { createMobileServer, tidyScreen, cleanText, liveState, claudeItems, chatFromCodex, shellLabel, codexStep, sessionInfo, sessionRoot } = require("./server");
-const { createStore } = require("./store");
+const { createServer, tidyScreen, cleanText, liveState, claudeItems, chatFromCodex, shellLabel, codexStep, sessionInfo, sessionRoot } = require("../src/server");
+const { createStore } = require("../src/store");
+const { portsFrom } = require("../src/ports");
+const { othersOn } = require("../src/cli");
 
 const ESC = String.fromCharCode(27);
 const BELL = String.fromCharCode(7);
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), "panel-mobile-"));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-test-"));
 const store = createStore(dir);
 const now = Math.floor(Date.now() / 1000);
 const CLAUDE = "cb2d94c7-3e54-464a-8086-79db7d007c02";
@@ -76,21 +78,12 @@ fs.writeFileSync(rollout, [
   finished({ type: "Extension", id: "w1", kind: "web.search", query: "pdf tools", action: { type: "search", queries: ["pdf tools"] }, results: [{ snippet: "SECRET-RESULT" }] }),
 ].join("\n") + "\n" + FINAL.slice(0, 40));        // the last line is still being written
 
-// Superset's own lists, a session with text typed but not sent, and claude-accounts' files.
+// Superset's own lists, and a session with text typed but not sent.
 const PROJ = "11111111-aaaa-4aaa-8aaa-111111111111", WS = "22222222-bbbb-4bbb-8bbb-222222222222";
 const CLAUDE3 = "33333333-4444-5555-6666-777777777777";
 SESS.push({ session_id: CLAUDE3, bridge_id: "session_03", title: "Typed", agent: "claude", pid: process.pid, last_seen: now - 8, terminal: "term-4", workspace: "ws-4" });
 const STAGED_SCREEN = "output\n❯ half typed thought\n  default | Opus 5 | context: 12%";
 const QUEUE = [{ id: "session_01ABC", sid: CLAUDE, kind: "input", reason: "input", message: "Claude is waiting" }];
-const ACC = path.join(dir, "accounts");
-fs.mkdirSync(path.join(ACC, "bin"), { recursive: true });
-fs.writeFileSync(path.join(ACC, "bin", "claude-accounts"), "#!/bin/sh\n");
-fs.writeFileSync(path.join(ACC, "status-cache.json"), J({ active: "a@x.com", active_codex: "a@x.com-codex", accounts: {
-  "a@x.com": { provider: "anthropic", email: "a@x.com", org: "SECRET-ORG", oauthAccount: { token: "SECRET-TOKEN" },
-               limits: [{ label: "Session", percent: 6.4, resets_at: "2026-09-15T12:10:00Z" }, { label: "Week", percent: 140 }] },
-  "b@x.com": { provider: "anthropic", limits: [] },
-  "a@x.com-codex": { provider: "codex", plan: "pro", limits: [{ label: "Week", percent: 25 }] } } }));
-fs.writeFileSync(path.join(ACC, "state.json"), J({ active: "b@x.com", active_codex: "a@x.com-codex" }));
 
 // Files: a project under a stand-in home, and a session that wrote, read and mentioned things there.
 const HOME = path.join(dir, "home"), ROOT = path.join(HOME, "proj");
@@ -124,15 +117,14 @@ fs.writeFileSync(path.join(dir, "projects", "-Users-x-Files", FILES + ".jsonl"),
 ].join("\n"));
 let fileBase = "";
 
-const calls = { superset: [], panel: [], accounts: [] };
+const calls = { superset: [], service: [] };
 const pending = [
   { id: 7, method: "item/commandExecution/requestApproval", params: { command: "rm -rf build", threadId: CODEX } },
   { id: "q1", method: "item/tool/requestUserInput", params: { questions: [{ id: "which", header: "Pick", question: "Which?", options: [{ label: "A" }, { label: "B" }] }] } },
 ];
 
-const mobile = createMobileServer({
+const app = createServer({
   store, log: () => {}, hostLabel: "Test-Mac", claudeProjects: path.join(dir, "projects"), codexHome: path.join(dir, "codex"),
-  accountsHome: ACC, accounts: async (args) => { calls.accounts.push(args); return "{}"; },
   homeDir: HOME, fileBase: async () => fileBase, ticketMs: 1500,
   knownSessions: () => SESS,
   getQueue: () => QUEUE,
@@ -145,8 +137,8 @@ const mobile = createMobileServer({
     if (args[1] === "read") return JSON.stringify({ terminalId: term, cols: 80, rows: 24, text: term === "term-2" ? LIVE_SCREEN : term === "term-3" ? CODEX_SCREEN : term === "term-4" ? STAGED_SCREEN : "hello   \n" + "─".repeat(40) + "\n❯ " });
     return "{}";
   },
-  panel: async (method, p, body) => {
-    calls.panel.push({ method, p, body });
+  service: async (method, p, body) => {
+    calls.service.push({ method, p, body });
     if (p.startsWith("/codex/thread")) return { status: 200, json: { thread: { cwd: "/x/u" }, pending,
       turns: [{ items: [{ id: "i2", type: "agentMessage", text: "done" }] }, { items: [{ id: "i1", type: "userMessage", content: [{ text: "go" }] }] }] } };
     if (p === "/codex/turn" || p === "/codex/answer") return { status: 200, json: null, text: "ok" };
@@ -156,16 +148,16 @@ const mobile = createMobileServer({
 });
 
 let base;
-test.before(() => new Promise((ok) => mobile.server.listen(0, "127.0.0.1", () => {
-  base = `http://127.0.0.1:${mobile.server.address().port}`;
-  mobile.fileServer.listen(0, "127.0.0.1", () => { fileBase = `http://127.0.0.1:${mobile.fileServer.address().port}`; ok(); });
+test.before(() => new Promise((ok) => app.server.listen(0, "127.0.0.1", () => {
+  base = `http://127.0.0.1:${app.server.address().port}`;
+  app.fileServer.listen(0, "127.0.0.1", () => { fileBase = `http://127.0.0.1:${app.fileServer.address().port}`; ok(); });
 })));
-test.after(() => { mobile.server.close(); mobile.fileServer.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+test.after(() => { app.server.close(); app.fileServer.close(); fs.rmSync(dir, { recursive: true, force: true }); });
 
-function req(method, p, { body, headers = {}, raw } = {}) {
+function req(method, p, { body, headers = {}, raw, at = base } = {}) {
   return new Promise((resolve, reject) => {
     const data = raw !== undefined ? Buffer.from(raw) : body !== undefined ? Buffer.from(JSON.stringify(body)) : null;
-    const r = http.request(base + p, { method, headers: { ...(data ? { "Content-Type": "application/json", "Content-Length": data.length } : {}), ...headers } }, (res) => {
+    const r = http.request(at + p, { method, headers: { ...(data ? { "Content-Type": "application/json", "Content-Length": data.length } : {}), ...headers } }, (res) => {
       let b = "";
       res.on("data", (c) => (b += c));
       res.on("end", () => { let json = null; try { json = JSON.parse(b); } catch {} resolve({ status: res.statusCode, headers: res.headers, body: b, json }); });
@@ -185,7 +177,7 @@ test("the static app is served with a strict CSP; anything else is 404", async (
   assert.match(r.headers["content-security-policy"], /default-src 'none'.*script-src 'self'/);
   assert.equal(r.headers["x-frame-options"], "DENY");
   assert.equal(r.headers["cache-control"], "no-store");
-  for (const p of ["/../store.js", "/server.js", "/mobile/test.js", "/%2e%2e/package.json", "/sessions"]) {
+  for (const p of ["/../store.js", "/server.js", "/src/server.js", "/test/server.test.js", "/%2e%2e/package.json", "/sessions"]) {
     assert.equal((await req("GET", p)).status, 404, p);
   }
 });
@@ -277,14 +269,14 @@ test("codex: transcript in order, whole messages only, answers checked against w
 
   assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: CODEX, text: "next", submit: false } })).status, 400);
   assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: CODEX, text: "next" } })).status, 200);
-  assert.deepEqual(calls.panel.at(-1), { method: "POST", p: "/codex/turn", body: { threadId: CODEX, text: "next" } });
+  assert.deepEqual(calls.service.at(-1), { method: "POST", p: "/codex/turn", body: { threadId: CODEX, text: "next" } });
 
   assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "7", decision: "accept" } })).status, 200);
-  assert.deepEqual(calls.panel.at(-1).body, { id: 7, result: { decision: "accept" } }, "the original numeric id is forwarded");
+  assert.deepEqual(calls.service.at(-1).body, { id: 7, result: { decision: "accept" } }, "the original numeric id is forwarded");
   assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "7", decision: "yolo" } })).status, 400);
   assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "99", decision: "accept" } })).status, 404);
   assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "q1", answers: { which: "B", extra: "x" } } })).status, 200);
-  assert.deepEqual(calls.panel.at(-1).body, { id: "q1", result: { answers: { which: { answers: ["B"] } } } }, "only the asked question is answered");
+  assert.deepEqual(calls.service.at(-1).body, { id: "q1", result: { answers: { which: { answers: ["B"] } } } }, "only the asked question is answered");
   assert.equal((await req("POST", "/api/answer", { headers: auth(), body: { id: CODEX, request: "q1", answers: {} } })).status, 400);
 });
 
@@ -378,8 +370,8 @@ test("codex citations become the file's name", () => {
   assert.equal(item.text, "Made it: `report.pdf`");
 });
 
-test("codex in a terminal: steps come from the session file mid-turn, without the panel", async () => {
-  const before = calls.panel.length;
+test("codex in a terminal: steps come from the session file mid-turn, without the service", async () => {
+  const before = calls.service.length;
   const r = await req("GET", "/api/screen?id=" + CODEX_T, { headers: auth() });
   assert.equal(r.json.kind, "chat");
   assert.deepEqual(r.json.items.map((i) => [i.type, i.name || "", i.label || i.text]), [
@@ -393,7 +385,7 @@ test("codex in a terminal: steps come from the session file mid-turn, without th
   assert.equal(r.json.items[1].aside, true, "running narration is marked");
   assert.equal(r.json.items[3].error, true, "a failed command is marked");
   assert.ok(!/SECRET/.test(r.body), "no output, file content, arguments, results or context leaves the Mac");
-  assert.equal(calls.panel.length, before, "a terminal session does not wait on the panel");
+  assert.equal(calls.service.length, before, "a terminal session does not wait on the service");
   assert.deepEqual([r.json.live.state, r.json.live.verb, r.json.live.staged], ["working", "Working…", ""],
     "the prompt from history above is not 'typed, not sent'");
 
@@ -509,13 +501,13 @@ test("menus: Codex descriptions come apart from the option", () => {
 
 test("seen: opening a finished or idle session clears it; a question stays", async () => {
   QUEUE.push({ id: "session_02", sid: CLAUDE2, kind: "done", reason: "finished" });
-  const before = calls.panel.length;
+  const before = calls.service.length;
   const a = await req("POST", "/api/seen", { headers: auth(), body: { id: CLAUDE2 } });
   assert.equal(a.json.cleared, true);
-  assert.equal(calls.panel.at(-1).p, "/dequeue?id=session_02&sid=" + CLAUDE2);
+  assert.equal(calls.service.at(-1).p, "/dequeue?id=session_02&sid=" + CLAUDE2);
   const b = await req("POST", "/api/seen", { headers: auth(), body: { id: CLAUDE } });
   assert.equal(b.json.cleared, false, "reason 'input' is a real question");
-  assert.equal(calls.panel.length, before + 1);
+  assert.equal(calls.service.length, before + 1);
   const s = (await req("GET", "/api/sessions", { headers: auth() })).json.sessions;
   assert.equal(s.find((x) => x.id === CLAUDE2).reason, "finished");
 });
@@ -544,19 +536,9 @@ test("new session: Superset lists without paths, argv built from checked values 
   assert.ok(calls.superset.slice(n).every((a) => a[1] === "list"), "nothing was started for a refused request");
 });
 
-test("accounts: usage and the live account, never credentials; switch only to an enrolled name", async () => {
-  const r = await req("GET", "/api/accounts", { headers: auth() });
-  assert.equal(r.json.available, true);
-  assert.equal(r.json.active, "b@x.com", "the switcher's own state wins");
-  assert.deepEqual(r.json.accounts.find((a) => a.name === "a@x.com").limits.map((l) => l.percent), [6, 100]);
-  assert.equal(r.json.accounts.find((a) => a.name === "a@x.com-codex").provider, "codex");
-  assert.ok(!/SECRET/.test(r.body));
-  assert.equal((await req("POST", "/api/accounts/switch", { headers: auth(), body: { name: "a@x.com" } })).status, 200);
-  assert.deepEqual(calls.accounts.at(-1), ["switch", "a@x.com"]);
-  for (const name of ["z@x.com", "-rf", "__proto__", "", 7]) {
-    assert.equal((await req("POST", "/api/accounts/switch", { headers: auth(), body: { name } })).status, 400, String(name));
-  }
-  assert.equal(calls.accounts.length, 1);
+test("the Accounts screen is gone: its routes answer 404", async () => {
+  assert.equal((await req("GET", "/api/accounts", { headers: auth() })).status, 404);
+  assert.equal((await req("POST", "/api/accounts/switch", { headers: auth(), body: { name: "a@x.com" } })).status, 404);
 });
 
 function get(u, headers = {}, method = "GET") {
@@ -664,4 +646,65 @@ test("files: a session's folder must be a real folder inside home, not home itse
   }
   fs.mkdirSync(path.join(HOME, ".superset/worktrees/p"), { recursive: true });
   assert.equal(sessionRoot(path.join(HOME, ".superset/worktrees/p"), HOME), fs.realpathSync(path.join(HOME, ".superset/worktrees/p")), "Superset workspaces are fine");
+});
+
+test("without a service: records and the waiting list come from Airpocket's own folder; service calls are 'not available'", async () => {
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-data-"));
+  const DAEMON = "0199aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee", OLD = "bbbbbbbb-0000-0000-0000-000000000000";
+  fs.mkdirSync(path.join(data, "sessions"));
+  const rec = (id, extra) => fs.writeFileSync(path.join(data, "sessions", id + ".json"), J({ session_id: id, title: "t", agent: "claude", last_seen: now, ...extra }));
+  rec(DAEMON, { bridge_id: "codex:" + DAEMON, agent: "codex" });
+  rec(OLD, { last_seen: now - 2 * 86400 });                                   // older than a day
+  fs.writeFileSync(path.join(data, "sessions", "junk.json"), "{ not json");
+  fs.writeFileSync(path.join(data, "queue.json"), J({ queue: [{ id: "codex:" + DAEMON, sid: DAEMON, kind: "done", reason: "finished" }] }));
+  const own = createStore(data);
+  const bare = createServer({ store: own, log: () => {}, superset: async () => { throw new Error("no Superset here"); },
+    claudeProjects: path.join(data, "none"), codexHome: path.join(data, "none") });
+  await new Promise((ok) => bare.server.listen(0, "127.0.0.1", ok));
+  const at = `http://127.0.0.1:${bare.server.address().port}`;
+  try {
+    const t = (await req("POST", "/api/pair", { at, body: { code: own.newCode().code } })).json.token;
+    const s = (await req("GET", "/api/sessions", { at, headers: auth(t) })).json.sessions;
+    assert.deepEqual(s.map((x) => [x.id, x.waiting, x.via]), [[DAEMON, true, "codex"]], "a day-old record and a broken one are left out");
+    const sent = await req("POST", "/api/send", { at, headers: auth(t), body: { id: DAEMON, text: "hi" } });
+    assert.equal(sent.status, 502);
+    assert.match(sent.json.message, /service isn't running/);
+    assert.equal((await req("GET", "/api/screen?id=" + DAEMON, { at, headers: auth(t) })).status, 409);
+    assert.equal((await req("POST", "/api/seen", { at, headers: auth(t), body: { id: DAEMON } })).json.cleared, false);
+    assert.equal((await req("POST", "/api/answer", { at, headers: auth(t), body: { id: DAEMON, request: "1", decision: "accept" } })).status, 502);
+  } finally {
+    bare.server.close();
+    fs.rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("ports: 47871 for the app and 47872 for files by default, moved together", () => {
+  assert.deepEqual(portsFrom({}), { app: 47871, file: 47872, publicApp: 443, publicFile: 8443 });
+  assert.equal(portsFrom({ AIRPOCKET_PORT: "48000" }).file, 48001);
+  assert.equal(portsFrom({ AIRPOCKET_PORT: "x", AIRPOCKET_FILE_PORT: "99999" }).file, 47872, "nonsense falls back to the default");
+});
+
+test("serve never takes a tailnet port that publishes something else, and unserve never removes it", () => {
+  const ours = "http://127.0.0.1:47871";
+  const status = { TCP: { 443: { HTTPS: true }, 8443: { HTTPS: true } }, Web: {
+    "mac.tail1234.ts.net:443": { Handlers: { "/": { Proxy: "http://127.0.0.1:47821" } } },
+    "mac.tail1234.ts.net:8443": { Handlers: { "/": { Proxy: "http://127.0.0.1:47872/" } } } } };
+  assert.deepEqual(othersOn(status, 443, ours), ["http://127.0.0.1:47821"]);
+  assert.deepEqual(othersOn(status, 8443, "http://127.0.0.1:47872"), [], "our own entry is ours");
+  assert.deepEqual(othersOn({}, 443, ours), []);
+  assert.deepEqual(othersOn({ TCP: { 443: { TCPForward: "127.0.0.1:22" } } }, 443, ours), ["tcp 127.0.0.1:22"]);
+  assert.deepEqual(othersOn({ Web: { "m:443": { Handlers: { "/": { Path: "/srv" } } } } }, 443, ours), ["something else"]);
+});
+
+test("nothing in the app points at the private tool it came from", () => {
+  const src = path.join(__dirname, "..", "src");
+  const files = [];
+  const walk = (d) => { for (const n of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, n.name); if (n.isDirectory()) walk(p); else if (!n.name.endsWith(".png")) files.push(p); } };
+  walk(src);
+  for (const f of files) {
+    const t = fs.readFileSync(f, "utf8");
+    for (const bad of [/4782[012]\b/, /claude-overlay/i, /claude-accounts/i, /accounts\.json/, /\/api\/accounts/, /joinvoicedata/i, /[OÖ]ncel/, /mobile:[a-z]/, /\bpanel\b/i]) {
+      assert.ok(!bad.test(t), `${path.relative(src, f)} matches ${bad}`);
+    }
+  }
 });

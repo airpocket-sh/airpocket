@@ -1,6 +1,6 @@
 {
-  "name": "Claude Panel",
-  "short_name": "Panel",
+  "name": "Airpocket",
+  "short_name": "Airpocket",
   "description": "Your Claude and Codex sessions, from every Mac, in one list.",
   "start_url": "/",
   "scope": "/",

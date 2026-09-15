@@ -1,24 +1,27 @@
 #!/usr/bin/env node
 "use strict";
-// Phone access, operator side. Run inside ~/Developer/claude-overlay/overlay:
+// Airpocket, operator side:
 //
-//   npm run mobile:pair              a six-digit code for one phone: ten minutes, five tries
-//   npm run mobile:devices           the phones paired with this Mac
-//   npm run mobile:revoke -- <id>    cut a phone off; its token stops working at once
-//   npm run mobile:serve             publish the phone server inside your tailnet
-//   npm run mobile:unserve           stop publishing it
-//   npm run mobile:status            is it running, is it published, at which address
+//   airpocket pair            a six-digit code for one phone: ten minutes, five tries
+//   airpocket devices         the phones paired with this Mac
+//   airpocket revoke <id>     cut a phone off; its token stops working at once
+//   airpocket serve           publish Airpocket inside your tailnet
+//   airpocket unserve         stop publishing it
+//   airpocket status          is it running, is it published, at which address
+//
+// During the build, run it from the repo as `node src/cli.js <command>`.
 const fs = require("fs");
 const http = require("http");
 const { execFileSync } = require("child_process");
 const { createStore } = require("./store");
+const { PORTS } = require("./ports");
 
-const PORT = Number(process.env.PANEL_MOBILE_PORT) || 47821;
-// The file-only origin (two-minute links to PDFs and pages) runs next to it and is
-// published on its own HTTPS port, so a file can never share the app's origin.
-const FILE_PORT = PORT + 1;
-const FILE_PUBLIC_PORT = 8443;
-const store = createStore();
+// The file-only origin (two-minute links to PDFs and pages) runs next to the app
+// and is published on its own HTTPS port, so a file can never share the app's origin.
+const TARGETS = [
+  { public: PORTS.publicApp, target: `http://127.0.0.1:${PORTS.app}` },
+  { public: PORTS.publicFile, target: `http://127.0.0.1:${PORTS.file}` },
+];
 
 // Run the CLI that ships inside the app bundle, by its real path. Called through
 // the /usr/local/bin/tailscale symlink it aborted with "bundleIdentifier is
@@ -37,26 +40,50 @@ function tailnetAddress(bin) {
   try {
     const st = JSON.parse(execFileSync(bin, ["status", "--json"], { encoding: "utf8", timeout: 8000 }));
     const dns = st && st.Self && st.Self.DNSName ? String(st.Self.DNSName).replace(/\.$/, "") : "";
-    return dns ? `https://${dns}` : null;
+    return dns ? `https://${dns}${PORTS.publicApp === 443 ? "" : ":" + PORTS.publicApp}` : null;
   } catch { return null; }
 }
+/** What `tailscale serve` already publishes on this Mac, or null when it can't say. */
+function serveStatus(bin) {
+  try { return JSON.parse(execFileSync(bin, ["serve", "status", "--json"], { encoding: "utf8", timeout: 8000 }).trim() || "{}"); }
+  catch { return null; }
+}
+/**
+ * What else is published on a tailnet port: every target there that is not ours.
+ * `serve` refuses such a port and `unserve` leaves it alone, so Airpocket never
+ * replaces or removes something another program published.
+ */
+function othersOn(status, port, target) {
+  const others = [];
+  for (const [hostPort, conf] of Object.entries((status && status.Web) || {})) {
+    if (!hostPort.endsWith(":" + port)) continue;
+    const handlers = Object.values((conf && conf.Handlers) || {});
+    if (!handlers.length) others.push("something else");
+    for (const h of handlers) {
+      const proxy = String((h && h.Proxy) || "").replace(/\/+$/, "");
+      if (proxy !== target) others.push(proxy || "something else");
+    }
+  }
+  const tcp = status && status.TCP ? status.TCP[String(port)] : null;
+  if (tcp && tcp.TCPForward) others.push("tcp " + tcp.TCPForward);
+  return others;
+}
+const publishedOn = (status, port) => !!(status && status.TCP && status.TCP[String(port)]);
 function localUp() {
   return new Promise((resolve) => {
-    const req = http.get({ host: "127.0.0.1", port: PORT, path: "/manifest.webmanifest", timeout: 2000 }, (res) => {
+    const req = http.get({ host: "127.0.0.1", port: PORTS.app, path: "/manifest.webmanifest", timeout: 2000 }, (res) => {
       res.resume(); resolve(res.statusCode === 200);
     });
     req.on("error", () => resolve(false));
     req.on("timeout", () => { req.destroy(); resolve(false); });
   });
 }
-const noTailscale = () => {
-  console.error("Tailscale is not installed on this Mac. Install it from https://tailscale.com/download/mac,");
-  console.error("sign in, then run this again.");
-  process.exit(1);
-};
+const fail = (...lines) => { for (const l of lines) console.error(l); process.exit(1); };
+const noTailscale = () => fail("Tailscale is not installed on this Mac. Install it from https://tailscale.com/download/mac,",
+  "sign in, then run this again.");
 
-(async () => {
-  const [cmd, arg] = process.argv.slice(2);
+async function main([cmd, arg]) {
+  const store = createStore();
   switch (cmd) {
     case "pair": {
       const up = await localUp();
@@ -65,8 +92,8 @@ const noTailscale = () => {
       console.log(`\n  Pairing code   ${code.slice(0, 3)} ${code.slice(3)}\n`);
       console.log(`  Good until ${new Date(expiresAt).toLocaleTimeString()}, five tries, one phone.`);
       console.log(url ? `  On the phone, with Tailscale on, open ${url} and enter it.`
-                      : "  Tailscale isn't set up here yet, see the README section \"Phone\".");
-      if (!up) console.log(`\n  The phone server is not answering on 127.0.0.1:${PORT}. Is the panel running?`);
+                      : "  Tailscale isn't set up here yet: install it, sign in, then run airpocket serve.");
+      if (!up) console.log(`\n  Airpocket is not answering on 127.0.0.1:${PORTS.app}. Start it with npm start.`);
       console.log("");
       break;
     }
@@ -74,45 +101,63 @@ const noTailscale = () => {
       const list = store.devices();
       if (!list.length) { console.log("No phones paired with this Mac."); break; }
       for (const d of list) console.log(`${d.id}  ${d.name.padEnd(20)}  paired ${d.createdAt.slice(0, 10)}  last seen ${d.lastSeen ? d.lastSeen.replace("T", " ").slice(0, 16) : "never"}`);
-      console.log("\nRevoke one with: npm run mobile:revoke -- <id>");
+      console.log("\nRevoke one with: airpocket revoke <id>");
       break;
     }
     case "revoke": {
-      if (!arg) { console.error("Usage: npm run mobile:revoke -- <id>   (ids from npm run mobile:devices)"); process.exit(2); }
+      if (!arg) { console.error("Usage: airpocket revoke <id>   (ids from airpocket devices)"); process.exit(2); }
       console.log(store.revoke(arg) ? `Revoked ${arg}. That phone can't reach this Mac any more.` : `No paired phone with id ${arg}.`);
       break;
     }
     case "serve": {
       const bin = tailscaleBin();
       if (!bin) noTailscale();
+      const status = serveStatus(bin);
+      if (!status) fail("Couldn't read what Tailscale already publishes here. Nothing was changed.");
+      const clash = TARGETS.map((t) => [t, othersOn(status, t.public, t.target)]).filter(([, o]) => o.length);
+      if (clash.length) {
+        fail(...clash.map(([t, o]) => `HTTPS port ${t.public} already publishes ${o.join(", ")}.`),
+          "Airpocket won't replace it. Choose other ports with AIRPOCKET_PUBLIC_PORT and AIRPOCKET_PUBLIC_FILE_PORT.",
+          "Nothing was changed.");
+      }
       // `serve` publishes inside your tailnet only. Never `funnel`: that would put
       // this on the public internet.
-      execFileSync(bin, ["serve", "--https=443", "--bg", `http://127.0.0.1:${PORT}`], { stdio: "inherit" });
-      execFileSync(bin, ["serve", `--https=${FILE_PUBLIC_PORT}`, "--bg", `http://127.0.0.1:${FILE_PORT}`], { stdio: "inherit" });
+      for (const t of TARGETS) execFileSync(bin, ["serve", `--https=${t.public}`, "--bg", t.target], { stdio: "inherit" });
       const url = tailnetAddress(bin);
-      if (url) console.log(`\nPublished inside your tailnet at ${url}\nNext: npm run mobile:pair`);
+      if (url) console.log(`\nPublished inside your tailnet at ${url}\nNext: airpocket pair`);
       break;
     }
     case "unserve": {
       const bin = tailscaleBin();
       if (!bin) noTailscale();
-      execFileSync(bin, ["serve", "--https=443", "off"], { stdio: "inherit" });
-      try { execFileSync(bin, ["serve", `--https=${FILE_PUBLIC_PORT}`, "off"], { stdio: "inherit" }); } catch {}
-      console.log("No longer published. The phone server still runs on 127.0.0.1 only.");
+      const status = serveStatus(bin);
+      if (!status) fail("Couldn't read what Tailscale publishes here. Nothing was changed.");
+      let off = 0;
+      for (const t of TARGETS) {
+        if (!publishedOn(status, t.public)) continue;
+        if (othersOn(status, t.public, t.target).length) { console.log(`Left HTTPS port ${t.public} alone: it publishes something else.`); continue; }
+        execFileSync(bin, ["serve", `--https=${t.public}`, "off"], { stdio: "inherit" });
+        off++;
+      }
+      console.log(off ? "No longer published. Airpocket still runs on 127.0.0.1 only." : "Airpocket wasn't published.");
       break;
     }
     case "status": {
       const up = await localUp();
       const bin = tailscaleBin();
       const url = tailnetAddress(bin);
-      console.log(`phone server   ${up ? "running on 127.0.0.1:" + PORT : "not answering on 127.0.0.1:" + PORT}`);
+      console.log(`airpocket      ${up ? "running on 127.0.0.1:" + PORTS.app : "not answering on 127.0.0.1:" + PORTS.app}`);
       console.log(`tailscale      ${bin ? (url ? "signed in as " + url.replace("https://", "") : "installed, not signed in") : "not installed"}`);
       if (bin) { try { console.log("\n" + execFileSync(bin, ["serve", "status"], { encoding: "utf8", timeout: 8000 }).trim()); } catch {} }
       console.log(`paired phones  ${store.devices().length}`);
       break;
     }
     default:
-      console.log("Usage: node mobile/cli.js pair | devices | revoke <id> | serve | unserve | status");
+      console.log("Usage: airpocket pair | devices | revoke <id> | serve | unserve | status");
       process.exit(cmd ? 2 : 0);
   }
-})();
+}
+
+module.exports = { othersOn };
+
+if (require.main === module) main(process.argv.slice(2));
