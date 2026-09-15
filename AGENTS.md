@@ -90,6 +90,23 @@ status line.
   sessions. `/effort <low|medium|high|xhigh|max>` (the bare picker is a
   slider). Shift+Tab cycles modes; the mode line reads `⏵⏵ <mode> on`; the
   effort marker `◐ medium · /effort`; an empty box may show `Try "…"`.
+- **`/effort` and `/model` write the user's real settings.** `/effort low`
+  saves `modelSettings.<model>.effortLevel` in `~/.claude/settings.json`
+  ("saved as your default for new sessions"), even with `--setting-sources
+  project`. Never run either in a trial or a test against a real Claude.
+- **What a Claude transcript records**: each reply's `message.model`
+  (`<synthetic>` for an API error) and top-level `effort`; the permission
+  mode on each prompt (`permissionMode`) and in a `permission-mode` entry
+  rewritten with the session's metadata (`mode` is something else: "normal").
+  `/model` and `/effort` output lands at once ("Set model to `Fable 5.1` …
+  with `xhigh` effort", "Set effort level to low (…)"). Shift+Tab does not:
+  the new mode reaches the transcript with the next prompt. Turn ends:
+  `system/turn_duration`, `system/stop_hook_summary`, `[Request interrupted`.
+- **Model lists**: Claude Code's own catalog is
+  `~/.claude/cache/model-catalog/<id>-cc.json` (`catalog.config.models[]`:
+  `id`, `name`, `thinking.effort_options`). Codex's is
+  `$CODEX_HOME/models_cache.json`; its picker shows `visibility: "list"`
+  only, ordered by `priority`, with `supported_reasoning_levels`.
 - **Codex**: for terminal-hosted threads the app-server daemon reports a
   running turn as "interrupted" with only the prompt. Read the session file
   instead: `~/.codex/sessions/YYYY/MM/DD/rollout-<time>-<thread>.jsonl`
@@ -99,7 +116,11 @@ status line.
   until it holds enough steps. The TUI draws braille dots (U+2800 to U+28FF)
   over its lower rows: strip them. Menus use `›` as the cursor, descriptions
   after two or more spaces. `/model` and `/permissions` open numbered pickers;
-  `/fast` and `/plan` exist.
+  `/fast` and `/plan` exist. Settings changed between turns go into the file
+  (`thread_settings_applied`: model, reasoning_effort, service_tier
+  "priority" = fast, approval_policy, permission_profile, collaboration_mode)
+  only as the next turn starts, a few ms before its `task_started`; until
+  then only the status line shows them.
 - **Tailscale**: run the CLI by its real path
   (`/Applications/Tailscale.app/Contents/MacOS/Tailscale`); through the
   `/usr/local/bin` symlink it aborts. From a launchd process `status --json`
@@ -160,9 +181,9 @@ status line.
 
 ## Where the code stands
 
-- Steps 4, 5 and 6 are merged (PR #1, #2, #3). `npm start` runs one
-  process: the service with its hook endpoint, the phone server and the
-  file-only server, all on 127.0.0.1. 67 tests.
+- Steps 4 to 7 are merged (PR #1 to #4). `npm start` runs one process: the
+  service with its hook endpoint, the phone server and the file-only server,
+  all on 127.0.0.1. 99 tests.
 - `src/service.js`: session records (`sessions/<id>.json`) and the waiting list
   (`queue.json`) in the data folder (`~/Library/Application Support/Airpocket`
   or `$AIRPOCKET_DIR`); folders 0700, files 0600, every write whole
@@ -175,8 +196,12 @@ status line.
   secret every start. `POST /hook/session | enqueue | dequeue | touch` with
   `Authorization: Bearer <secret>` and a JSON body naming the session:
   `session_id, agent (claude|codex), cwd, transcript, title, branch, note,
-  account, pid, started, terminal, workspace, pane, tmux` (empty fields keep
-  the old value; a new pid never keeps the old start time). `enqueue` needs
+  account, pid, started, terminal, workspace, pane, tmux, tmux_pid` (empty
+  fields keep the old value; a new pid never keeps the old start time).
+  Except where the session runs: a hook from another process (a resumed
+  session, a reused pid) replaces all five terminal fields (`terminal,
+  workspace, pane, tmux, tmux_pid`), and empty stays empty, so nothing is
+  kept from a terminal that may now hold only a shell. `enqueue` needs
   `reason`: finished | waiting for you | needs permission | needs input |
   needs a response. `dequeue` needs `why`: prompt | end. Refused: Origin
   header, non-loopback Host, wrong secret, non-JSON, bodies over 16 KB.
@@ -211,14 +236,40 @@ status line.
   in-process and clears only finished and waiting-for-you entries. Chats are
   read from the recorded transcript path (re-checked at use by real path),
   then from `~/.claude/projects` or `$CODEX_HOME/sessions`.
-- The Codex desktop-daemon link is gone: a session without a terminal is
-  read-only on the phone.
+- `src/bridges.js`: every terminal action goes through one interface,
+  `read()`, `type(text, submit)`, `press(key)`, picked from the session's
+  record: a tmux pane if it has one (it wins over a Superset terminal, which
+  would only show the tmux client), else a Superset terminal, else none and
+  the session is read-only. The Codex desktop-daemon link is gone.
+- The tmux bridge runs tmux by absolute path (`/opt/homebrew/bin`,
+  `/usr/local/bin`, `/opt/local/bin`), argv only, `-u` and a clean env. Its
+  checks: the socket must be absolute, really a socket (lstat, no links) and
+  owned by this user; the pane `%<n>`; the server must still be the one the
+  hook saw (`#{pid}` against the pid in `$TMUX`, checked on every read and
+  before typing, since pane ids restart at `%0`); a pane in copy mode is
+  refused. Text goes with `send-keys -l --` in pieces of at most 4 KB (tmux
+  takes 16 KB per command), a trailing `;` escaped, then Enter as its own
+  call after a gap (150 ms + 1 ms a character, at most 1 s). Keys map to tmux
+  names; digits go in as text.
+- Both bridges type only while the recorded agent is still that process
+  (`proc.stillRunning`: pid plus start time, read fresh; no answer means no).
+  The phone gets `can: { bridge, read, send, keys, controls, why }` per
+  session in `/api/sessions` and `/api/screen`, and `can.start` for the Mac
+  (new sessions are Superset-only; 409 `no_superset` without it). The app
+  hides what can't work and says why in one line.
 - `docs/reference/try-hook.py` (+ `try-hook-driver.js`): the end-to-end trial
   with a real, throwaway Claude session against a throwaway Airpocket. Needs
   `pyte`. Passed 9/9 at step 6.
-- Open: Codex has not been tried end to end with a real session (do it at
-  step 10, when hooks are installed). Denying a Claude permission with Esc
-  leaves "needs permission" until the next prompt (no hook fires).
+- `docs/reference/try-tmux.js`: a real throwaway Claude (haiku, only the
+  trial's hook) in a tmux server on a private socket in a temp folder,
+  driven only through the phone API. Passed 8/8 at step 7. The user's own
+  tmux server is never touched.
+- `docs/OWN-TERMINAL.md`: options for sessions outside Superset and tmux;
+  recommends a private tmux session. Not built.
+- Open: Codex has not been tried end to end with a real session, in Superset
+  or tmux (do it at step 10, when hooks are installed). Denying a Claude
+  permission with Esc leaves "needs permission" until the next prompt (no
+  hook fires).
 
 ## Decisions waiting for Öncel (proposed defaults)
 

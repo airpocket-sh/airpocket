@@ -68,7 +68,7 @@ function plan(agent, input) {
       const tool = /^[A-Za-z0-9_.:-]{1,60}$/.test(str(input.tool_name)) ? input.tool_name : "";
       return { event: "enqueue", reason: "needs permission", message: tool ? `Wants to use ${tool}` : "" };
     }
-    case "Interrupt": return { event: "dequeue", why: "prompt" };  // you stopped it at the terminal: you are there
+    case "Interrupt": return { event: "dequeue", why: "interrupt" };  // you stopped it at the terminal: you are there, and the turn is over
     case "SessionEnd": return { event: "dequeue", why: "end" };
   }
   return null;

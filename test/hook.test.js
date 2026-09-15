@@ -95,7 +95,7 @@ test("plan: every event of both agents, and nothing for the rest", () => {
   assert.deepEqual(P("codex", { hook_event_name: "PermissionRequest", tool_name: "Bash", tool_input: { command: "rm -rf /" } }),
     { event: "enqueue", reason: "needs permission", message: "Wants to use Bash" }, "the tool's name, never its input");
   assert.deepEqual(P("codex", { hook_event_name: "PermissionRequest", tool_name: "rm -rf /; x" }), { event: "enqueue", reason: "needs permission", message: "" });
-  assert.deepEqual(P("codex", { hook_event_name: "Interrupt" }), { event: "dequeue", why: "prompt" });
+  assert.deepEqual(P("codex", { hook_event_name: "Interrupt" }), { event: "dequeue", why: "interrupt" });
   assert.deepEqual(P("codex", { hook_event_name: "SessionEnd", reason: "other" }), { event: "dequeue", why: "end" });
   assert.equal(P("codex", { hook_event_name: "Notification", notification_type: "idle_prompt" }), null, "Notification is Claude's");
   assert.equal(P("codex", { hook_event_name: "PostToolUse" }), null);
@@ -127,18 +127,22 @@ test("claude, through the real hook: start, prompt, finished, permission, idle, 
     assert.deepEqual(r && { ...r, last_seen: 0 }, {
       session_id: CLAUDE_ID, bridge_id: "local:" + CLAUDE_ID, agent: "claude", cwd: w.repo, transcript: w.transcript, title: "shop",
       branch: "feature/x", note: "", account: "main@example.com", pid: process.pid, started: OWN_START,
-      terminal: "term-7", workspace: "ws-7", pane: "%3", tmux: "/private/tmp/tmux-501/default", tmux_pid: 123, last_seen: 0,
+      terminal: "term-7", workspace: "ws-7", pane: "%3", tmux: "/private/tmp/tmux-501/default", tmux_pid: 123, working_since: 0, last_seen: 0,
     }, "the record: the agent's pid is the hook's parent, with its start time");
     assert.deepEqual(waiting(), []);
+    const working = () => s.svc.knownSessions()[0].working_since > 0;
 
     await claude("UserPromptSubmit", { prompt: "Add a cart page" });
     assert.equal(s.svc.knownSessions()[0].note, "Add a cart page");
+    assert.ok(working(), "a prompt starts a turn");
     await claude("Stop", { stop_hook_active: false, last_assistant_message: "Added the cart page." });
     assert.deepEqual(waiting(), [["finished", "done", "Added the cart page."]]);
+    assert.ok(!working(), "Stop ends it");
     await claude("UserPromptSubmit", { prompt: "Now run the tests" });
     assert.deepEqual(waiting(), [], "a prompt clears it");
     await claude("Notification", { notification_type: "permission_prompt", message: "Claude needs your permission to use Bash" });
     assert.deepEqual(waiting(), [["needs permission", "input", "Claude needs your permission to use Bash"]]);
+    assert.ok(working(), "a permission question comes mid-turn");
     await claude("Stop", { last_assistant_message: "Tests pass." });
     await claude("Notification", { notification_type: "idle_prompt", message: "Claude is waiting for your input" });
     assert.deepEqual(waiting(), [["waiting for you", "input", "Claude is waiting for your input"]], "idle after finishing");
@@ -173,8 +177,10 @@ test("codex, through the real hook: start, prompt, finished, permission, interru
     await codex("UserPromptSubmit", { prompt: "Delete the drafts" });
     await codex("PermissionRequest", { tool_name: "Bash", tool_use_id: "c1", tool_input: { command: "rm -rf drafts SECRET-COMMAND" } });
     assert.deepEqual(waiting(), [["needs permission", "input", "Wants to use Bash"]]);
+    assert.ok(s.svc.knownSessions()[0].working_since > 0, "mid-turn");
     await codex("Interrupt");
     assert.deepEqual(waiting(), [], "stopping it at the terminal clears it");
+    assert.equal(s.svc.knownSessions()[0].working_since, 0, "and ends the turn");
     await codex("Stop", { last_assistant_message: "Stopped." });
     await codex("SessionEnd", { reason: "other" });
     assert.deepEqual(s.svc.knownSessions(), []);
