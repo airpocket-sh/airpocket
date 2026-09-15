@@ -116,6 +116,11 @@ status line.
   raw control characters, and typed `\u` escapes can arrive as raw bytes.
   Build them in source (`String.fromCharCode(27)`). zsh does not word-split an
   unquoted `$VAR`. `replaceChildren` does not flatten arrays.
+- **Shell traps (zsh)**: never name a variable `path` (it is the PATH array;
+  every command after it goes missing). `$var:t...` applies a modifier, so
+  write `${var}:file`. The Mac has an `rtk` hook that rewrites `git diff`
+  and `grep` output into short summaries: use `rtk proxy git diff` when you
+  need the real lines.
 - **Probing a TUI**: run it in a hidden pty (Python `pty` + `pyte`). An
   untrusted folder shows a trust prompt: Codex's default answer is Yes and
   writes a trust entry to `~/.codex/config.toml` (remove it), Claude's is
@@ -148,6 +153,17 @@ status line.
 - The UI design is Öncel's (a fighter-jet, flight-screen theme). Until his
   designs arrive, keep the current look as a placeholder; do not restyle.
 - Write to Öncel plainly and briefly; he reads on his phone.
+
+## Where the code stands
+
+- Step 4 is merged (PR #1): `src/server.js` (phone API + file-only server),
+  `src/store.js`, `src/cli.js` (`airpocket pair|devices|revoke|serve|unserve|status`),
+  `src/ports.js` (47871/47872, public 443/8443 until step 13, `AIRPOCKET_*`
+  variables), `src/service.js` (stand-ins), `src/public/`, `test/server.test.js`.
+- The server reaches the service through three seams passed to
+  `createServer()`: `knownSessions()`, `getQueue()`, `service(method, path, body)`.
+  Step 5 replaces the stand-ins; keep a test that builds `createServer()` with
+  no stubs.
 
 ## Decisions waiting for Öncel (proposed defaults)
 

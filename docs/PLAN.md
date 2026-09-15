@@ -55,7 +55,7 @@ Decide first
 3. Its own ports, so it runs beside the private tool during the build.
 
 Build
-4. Carry over the phone code (server, pairing, web app, tests), renamed. Done
+4. [done, PR #1] Carry over the phone code (server, pairing, web app, tests), renamed. Done
    when the current tests pass here.
 5. The background service replacing the desktop panel: session registry and
    waiting list (expiry, seen). Done when sessions appear, wait and clear with
