@@ -109,6 +109,37 @@ test("what a hook sends is cleaned: control characters, lengths, paths and ids",
   } finally { await t.close(); }
 });
 
+test("a turn: a prompt starts it, a question keeps it, Stop or an interrupt ends it, a new process starts idle", async () => {
+  const t = await setup();
+  try {
+    const since = () => t.svc.knownSessions().find((r) => r.session_id === ID).working_since;
+    await t.hook("session", { session_id: ID, agent: "codex", cwd: "/Users/x/proj", pid: 4242 });
+    assert.equal(since(), 0);
+    await t.hook("dequeue", { session_id: ID, why: "prompt" });
+    const began = t.clock;
+    assert.equal(since(), began, "a prompt starts a turn");
+    t.clock += MIN;
+    await t.hook("enqueue", { session_id: ID, reason: "needs permission" });
+    await t.hook("touch", { session_id: ID });
+    await t.hook("session", { session_id: ID, pid: 4242 });
+    assert.equal(since(), began, "a question comes mid-turn; the same process keeps its turn");
+    await t.hook("enqueue", { session_id: ID, reason: "finished" });
+    assert.equal(since(), 0, "Stop ends it");
+    await t.hook("dequeue", { session_id: ID, why: "prompt" });
+    assert.equal(await t.hook("dequeue", { session_id: ID, why: "interrupt" }), 204);
+    assert.equal(since(), 0, "an interrupt ends it");
+    assert.deepEqual(t.waiting(), []);
+    await t.hook("dequeue", { session_id: ID, why: "prompt" });
+    await t.hook("enqueue", { session_id: ID, reason: "waiting for you" });
+    assert.equal(since(), 0, "the idle prompt after a turn");
+    await t.hook("dequeue", { session_id: ID, why: "prompt" });
+    await t.hook("session", { session_id: ID, pid: 4343 });
+    assert.equal(since(), 0, "resumed in another process: idle until its own prompt");
+    assert.equal(await t.hook("dequeue", { session_id: ID, why: "stop" }), 400);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(t.dir, "sessions", ID + ".json"), "utf8")).working_since, 0, "saved with the record");
+  } finally { await t.close(); }
+});
+
 test("waiting list: finished waits 20 minutes, questions 60", async () => {
   const t = await setup();
   try {

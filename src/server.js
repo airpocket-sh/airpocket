@@ -13,6 +13,7 @@
 //   POST /api/key       one of a few fixed keys: digits, arrows, Tab, Enter, Esc
 //   POST /api/command   a Controls action, from a fixed table of slash commands
 //   POST /api/seen      opening a finished session takes it off the waiting list
+//   GET  /api/models    the models (and effort levels) each agent offers, from its own list
 //   GET  /api/new/options, POST /api/new    start a session through Superset
 //   GET  /api/files, /api/file/text, /api/file/image, POST /api/file/open
 //
@@ -34,6 +35,7 @@ const { createService, transcriptPath } = require("./service");
 const { processAlive } = require("./proc");
 const { SECRET_CONTENT } = require("./secrets");
 const { createBridges, KEYS, runFile, runSuperset, runTmux, findTmux, supersetInstalled } = require("./bridges");
+const { createModels, CLAUDE_EFFORTS } = require("./models");
 
 const PUBLIC = path.join(__dirname, "public");
 
@@ -62,16 +64,13 @@ const stripControl = (s) => Array.from(String(s)).filter((ch) => { const c = ch.
 
 // ------------------------------------------------------------ controls ---
 // The Controls sheet names a command; the Mac picks the exact text from this
-// table. Each one is a slash command the agent itself understands.
-const CLAUDE_MODELS = ["opus", "opus[1m]", "sonnet", "sonnet[1m]", "haiku", "fable", "fable[1m]", "opusplan"];
-const CODEX_MODELS = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"];
-const MODELS = Object.freeze({ claude: CLAUDE_MODELS, codex: CODEX_MODELS });
-const EFFORTS = Object.freeze({ claude: ["low", "medium", "high", "xhigh", "max"], codex: ["low", "medium", "high", "xhigh"] });
+// table. Each one is a slash command the agent itself understands. A model must
+// be one on the agent's own list (models.js), an effort one /effort takes.
 const plain = (text) => () => text;
 const COMMANDS = Object.freeze({
   claude: {
-    model: (a) => (a === undefined ? "/model" : CLAUDE_MODELS.includes(a) || a === "default" ? "/model " + a : null),
-    effort: (a) => (EFFORTS.claude.includes(a) ? "/effort " + a : null),
+    model: (a, lists) => (a === undefined ? "/model" : a === "default" || lists.claude.models.some((m) => m.id === a) ? "/model " + a : null),
+    effort: (a) => (CLAUDE_EFFORTS.includes(a) ? "/effort " + a : null),
     fast: plain("/fast"), plan: plain("/plan"), compact: plain("/compact"), context: plain("/context"),
     usage: plain("/usage"), resume: plain("/resume"), rewind: plain("/rewind"), clear: plain("/clear"), status: plain("/status"),
   },
@@ -222,8 +221,44 @@ function describeTool(name, input) {
   }
 }
 
-/** Transcript lines -> chat items: user, command, agent, tool, note. */
-function claudeItems(lines) {
+// What Claude Code records about a session besides the conversation, read in
+// the same pass: the model on each reply (never "<synthetic>"), the effort level
+// it ran with, the permission mode (on each prompt, and in the "permission-mode"
+// entry it rewrites with the session's metadata), what /model and /effort just
+// set, and when a turn last ended (its turn_duration or stop-hook entry, or an
+// interruption). The latest of each wins. The "mode" entry is not a permission
+// mode (it reads "normal"), so it is left alone.
+const MODEL_TEXT = /^[A-Za-z0-9][A-Za-z0-9._ \[\]-]{0,63}$/;
+const EFFORT_WORD = /^[a-z]{1,12}$/;
+const PERMISSION_MODE = /^[A-Za-z]{1,30}$/;
+const ANSI = new RegExp(String.fromCharCode(27) + "\\[[0-9;]*[A-Za-z]", "g");
+const turnEnd = (info, at) => { const t = Date.parse(at) || 0; if (t > (info.ended || 0)) info.ended = t; };
+function claudeSetting(info, d, at) {
+  if (d.type === "assistant") {
+    const model = d.message && d.message.model;
+    if (typeof model !== "string" || !MODEL_TEXT.test(model)) return;       // an API error's stand-in says nothing about either
+    info.model = model;
+    if (typeof d.effort === "string" && EFFORT_WORD.test(d.effort)) info.effort = d.effort;
+  } else if (d.type === "permission-mode" || d.type === "user") {
+    if (typeof d.permissionMode === "string" && PERMISSION_MODE.test(d.permissionMode)) info.mode = d.permissionMode;
+  } else if (d.type === "system" && (d.subtype === "turn_duration" || d.subtype === "stop_hook_summary")) {
+    turnEnd(info, at);
+  }
+}
+/** What /model or /effort just set, in Claude's own words: "Set model to `Fable 5.1` … with `xhigh` effort", "Set effort level to low". */
+function claudeCommandOutput(info, raw) {
+  const out = ((/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/.exec(raw) || [])[1] || "").replace(ANSI, "");
+  let m = /Set model to `([^`]{1,64})`/.exec(out);
+  if (m && MODEL_TEXT.test(m[1])) info.model = m[1];
+  m = /with `([a-z]{1,12})` effort/.exec(out) || /Set effort level to ([a-z]{1,12})\b/.exec(out);
+  if (m) info.effort = m[1];
+}
+
+/**
+ * Transcript lines -> chat items: user, command, agent, tool, note. What Claude
+ * recorded about the session's settings goes into `info` on the way.
+ */
+function claudeItems(lines, info = {}) {
   const items = [], errors = new Set();
   const push = (it) => {
     const prev = items[items.length - 1];
@@ -236,6 +271,7 @@ function claudeItems(lines) {
     try { d = JSON.parse(line); } catch { continue; }
     if (!d || d.isSidechain) continue;
     const at = d.timestamp || null;
+    claudeSetting(info, d, at);
     if (d.type === "attachment") {
       const a = d.attachment || {};
       if (a.type === "queued_command" && typeof a.prompt === "string" && a.prompt.trim()) {
@@ -261,6 +297,7 @@ function claudeItems(lines) {
       }
       const raw = texts.join("\n");
       if (!raw.trim() && !images) continue;
+      if (raw.includes("<local-command-stdout>")) claudeCommandOutput(info, raw);
       if (/<task-notification>|<local-command-stdout>|<bash-stdout>|<bash-stderr>|^Caveat: /.test(raw)) continue;
       const cmd = /<command-name>([^<]*)<\/command-name>/.exec(raw);
       if (cmd) {
@@ -270,7 +307,7 @@ function claudeItems(lines) {
       }
       const bash = /<bash-input>([\s\S]*?)<\/bash-input>/.exec(raw);
       if (bash) { push({ type: "command", id: String(d.uuid || ""), text: clip("! " + bash[1], 200), at }); continue; }
-      if (/^\[Request interrupted/.test(raw.trim())) { push({ type: "note", id: String(d.uuid || ""), text: "You interrupted" }); continue; }
+      if (/^\[Request interrupted/.test(raw.trim())) { turnEnd(info, at); push({ type: "note", id: String(d.uuid || ""), text: "You interrupted" }); continue; }
       const text = stripTags(raw);
       if (!text && !images) continue;
       const pics = images ? `[${images} image${images > 1 ? "s" : ""}]` : "";
@@ -465,7 +502,7 @@ function codexLine(s, line) {
   const head = line.slice(0, 240);
   // The settings each turn ran with: model, effort, plan mode, permissions.
   if (/"type"\s*:\s*"turn_context"/.test(head)) {
-    try { s.ctx = codexContext(JSON.parse(line).payload); } catch {}
+    try { s.ctx = codexContext(JSON.parse(line).payload, s.ctx); } catch {}
     return;
   }
   // Otherwise only events matter. Skip the large model-input lines without parsing them.
@@ -481,34 +518,59 @@ function codexLine(s, line) {
     const k = s.items.findLastIndex((x) => x.id === it.id);
     if (k >= 0) s.items[k] = it; else s.items.push(it);
     if (s.items.length > 600) s.items.splice(0, s.items.length - 400);
+  } else if (p.type === "thread_settings_applied") {
+    // Settings changed between turns (/model, /permissions, /fast): newer than the last turn_context.
+    s.ctx = codexContext(p.thread_settings, s.ctx);
   } else if (p.type === "task_started") {
+    s.turns = true;
     s.running = Date.parse(d.timestamp) || Date.now();
   } else if (p.type === "task_complete") {
+    s.turns = true;
     s.running = null;
   } else if (/abort/i.test(String(p.type))) {
+    s.turns = true;
     s.running = null;
     s.items.push({ type: "note", id: "x" + s.n, text: "Stopped" });
   }
 }
 
-function codexContext(p) {
-  if (!p || typeof p !== "object") return null;
+/**
+ * The settings a Codex thread runs with, from its session file: turn_context at
+ * the start of each turn, thread_settings_applied when they change between
+ * turns. Both carry the model, the effort, the collaboration mode ("plan") and
+ * the approval policy. The sandbox is sandbox_policy in the one and
+ * permission_profile in the other ("disabled": no sandbox); the fast tier is
+ * service_tier, in thread settings only. What a line doesn't say stays as it was.
+ */
+function codexContext(p, prev) {
+  const was = prev || {};
+  if (!p || typeof p !== "object") return prev || null;
   const cm = p.collaboration_mode && typeof p.collaboration_mode === "object" ? p.collaboration_mode : {};
-  const sb = p.sandbox_policy && typeof p.sandbox_policy === "object" ? String(p.sandbox_policy.type || "") : String(p.sandbox_policy || "");
+  const profile = p.permission_profile && typeof p.permission_profile === "object" ? String(p.permission_profile.type || "") : "";
+  const sb = (p.sandbox_policy && typeof p.sandbox_policy === "object" ? String(p.sandbox_policy.type || "") : String(p.sandbox_policy || ""))
+    || (profile === "disabled" ? "danger-full-access" : "");
   const ap = String(p.approval_policy || "");
   const access = sb === "danger-full-access" && ap === "never" ? "full access" : sb === "read-only" ? "read only"
     : ap === "on-request" || ap === "untrusted" ? "asks first" : ap === "never" ? "no approvals" : "";
-  return { model: typeof p.model === "string" ? clip(p.model, 40) : "", effort: clip(p.effort || (cm.settings && cm.settings.reasoning_effort) || "", 12),
-           mode: clip(cm.mode || "", 12), access };
+  const effort = p.effort || p.reasoning_effort || (cm.settings && cm.settings.reasoning_effort);
+  return {
+    model: typeof p.model === "string" && MODEL_TEXT.test(p.model) ? clip(p.model, 40) : was.model || "",
+    effort: typeof effort === "string" && EFFORT_WORD.test(effort) ? effort : was.effort || "",
+    mode: clip(cm.mode || "", 12) || was.mode || "",
+    access: access || was.access || "",
+    ...("service_tier" in p ? { fast: /^(priority|fast)$/.test(String(p.service_tier || "")) } : "fast" in was ? { fast: was.fast } : {}),
+  };
 }
 
 /**
- * Model, effort, permission mode and context, as the terminal shows them.
- * Codex prints "gpt-6-astra xhigh fast · ~/dir" under its prompt; its session
- * file fills gaps. Claude has an effort marker ("◐ medium · /effort"), a mode
- * line ("⏵⏵ bypass permissions on") and, with a status line, the model.
+ * Model, effort and mode as the terminal shows them: the second source, for
+ * what the session's own file doesn't say (see mergeInfo). Codex prints
+ * "gpt-6-astra xhigh fast · ~/dir" under its prompt. Claude shows an effort
+ * marker ("◐ medium · /effort"), a mode line ("⏵⏵ bypass permissions on",
+ * "⏸ plan mode on") and, as it starts, a banner ("Opus 5 with high effort").
+ * Nothing here needs a custom status line.
  */
-function sessionInfo(agent, text, ctx) {
+function sessionInfo(agent, text) {
   const lines = String(text || "").split("\n").slice(-40);
   const joined = lines.join("\n");
   const info = {};
@@ -517,22 +579,45 @@ function sessionInfo(agent, text, ctx) {
       const m = /^\s*([a-z][\w.-]*\d[\w.-]*)\s+(?:(none|minimal|low|medium|high|xhigh|max|ultra)\s+)?(fast\s+)?·/.exec(lines[k]);
       if (m) { info.model = m[1]; if (m[2]) info.effort = m[2]; if (m[3]) info.fast = true; break; }
     }
-    if (ctx) {
-      if (!info.model && ctx.model) info.model = ctx.model;
-      if (!info.effort && ctx.effort) info.effort = ctx.effort;
-      if (ctx.mode === "plan") info.mode = "plan";
-      if (ctx.access) info.access = ctx.access;
-    }
     return info;
   }
-  let m = /\|\s*([^|\n]*?(?:Opus|Sonnet|Haiku|Fable|Mythos|Claude)[^|\n]*?)\s*\|\s*context:\s*(\d+|--)/i.exec(joined);
-  if (m) { info.model = clip(m[1], 40); if (m[2] !== "--") info.context = Number(m[2]); }
-  const banner = /((?:Opus|Sonnet|Haiku|Fable|Mythos)[^\n·|]*?) with (low|medium|high|xhigh|max) effort/.exec(joined);
-  if (!info.model && banner) info.model = clip(banner[1], 40);
-  m = /\b(low|medium|high|xhigh|max|ultracode)\s*·\s*\/effort/.exec(joined);
+  const banner = /\b([A-Z][a-z]+(?: \d+(?:\.\d+)*)?(?: \(1M context\))?) with (low|medium|high|xhigh|max) effort/.exec(joined);
+  if (banner) info.model = clip(banner[1], 40);
+  let m = /\b(low|medium|high|xhigh|max|ultracode)\s*·\s*\/effort/.exec(joined);
   if (m) info.effort = m[1]; else if (banner) info.effort = banner[2];
   m = /⏵⏵\s*(.+?)\s+on\b/.exec(joined) || /⏸\s*(plan mode)\s+on\b/.exec(joined);
-  info.mode = m ? clip(m[1], 30) : "default";
+  if (m) info.mode = clip(m[1], 30);
+  return info;
+}
+
+/** Claude's permission mode in the words its screen uses: "bypassPermissions" -> "bypass permissions", "plan" -> "plan mode". */
+function claudeMode(m) {
+  const words = String(m || "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  return !words || words === "default" || words.includes(" ") ? words : words + " mode";
+}
+
+/**
+ * What the phone shows a session runs with. The session's own file comes first
+ * (Claude's transcript, Codex's session file), so it is there for read-only
+ * sessions too; the screen, when there is one, fills what the file doesn't say.
+ * `name` is the model's readable name.
+ */
+function mergeInfo(agent, recorded, screen, nameOf) {
+  const r = recorded || {}, s = screen || {};
+  const info = {};
+  const model = r.model || s.model;
+  if (model) { info.model = model; info.name = nameOf(agent, model) || model; }
+  const effort = r.effort || s.effort;
+  if (effort) info.effort = effort;
+  if (agent === "codex") {
+    const fast = "fast" in r ? r.fast : s.fast;
+    if (fast) info.fast = true;
+    if (r.mode === "plan") info.mode = "plan";
+    if (r.access) info.access = r.access;
+    return info;
+  }
+  const mode = r.mode ? claudeMode(r.mode) : s.mode || (screen ? "default" : "");
+  if (mode) info.mode = mode;
   return info;
 }
 
@@ -714,6 +799,8 @@ function createServer(opts = {}) {
     homeDir: opts.homeDir || os.homedir(),
     ticketMs: opts.ticketMs || 120000,
   };
+  // The models each agent offers, from its own lists (Claude Code's in ~/.claude, Codex's in CODEX_HOME).
+  deps.models = opts.models || createModels({ claudeDir: opts.claudeDir || path.join(deps.homeDir, ".claude"), codexHome: deps.codexHome });
   // Where the file-only origin is reached from the phone: this Mac's tailnet name on
   // its own port, published by `airpocket serve`. Loopback when there is no tailnet.
   const filePort = opts.filePort ?? (opts.port != null ? opts.port + 1 : PORTS.file);
@@ -778,17 +865,20 @@ function createServer(opts = {}) {
     }
     return null;
   }
-  // Parse a transcript again only when it has changed.
+  // Parse a transcript again only when it has changed: its chat items, and what
+  // Claude recorded about the session's model, effort and mode.
   const parsed = new Map();
   function chatItems(file) {
     let st;
     try { st = fs.statSync(file); } catch { return null; }
     const hit = parsed.get(file);
-    if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.items;
-    const items = claudeItems(readTail(file, st.size, TAIL_BYTES));
-    parsed.set(file, { size: st.size, mtimeMs: st.mtimeMs, items });
+    if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit;
+    const info = {};
+    const items = claudeItems(readTail(file, st.size, TAIL_BYTES), info);
+    const out = { size: st.size, mtimeMs: st.mtimeMs, items, info };
+    parsed.set(file, out);
     if (parsed.size > 24) parsed.delete(parsed.keys().next().value);
-    return items;
+    return out;
   }
 
   // A Codex thread's session file: the one on record, or else found under
@@ -912,6 +1002,24 @@ function createServer(opts = {}) {
   }
 
   /**
+   * Working or idle, for a session whose screen can't be read. Codex's session
+   * file says when each turn starts and ends. Otherwise the hooks do: a prompt
+   * starts a turn, Stop ends it. Claude's transcript ends one early when you
+   * interrupted it, since no hook fires then. null when its agent has exited.
+   */
+  function statusOf(e, rollout, recorded) {
+    if (!deps.isLive(e)) return null;
+    let since;
+    if (rollout && rollout.turns) since = rollout.running || 0;
+    else {
+      since = Number(e.working_since) || 0;
+      if (since && recorded && recorded.ended >= since) since = 0;
+    }
+    return since ? { state: "working", verb: "Working…", elapsed: elapsedSince(since), menu: null, staged: "" }
+      : { state: "idle", verb: "", elapsed: "", menu: null, staged: "" };
+  }
+
+  /**
    * One session for the phone. view=chat (default) returns the conversation and
    * the live state; view=terminal returns the screen. `sig` is the fingerprint of
    * the items the phone already has: when nothing changed, the items are left out
@@ -933,26 +1041,27 @@ function createServer(opts = {}) {
       if (text !== null) live = liveState(text);
     }
 
-    let items = null, ctx = null;
+    let items = null, recorded = null, rollout = null;
     if (agent === "claude") {
       const file = transcriptFor(e);
-      if (file) items = chatItems(file);
+      const c = file ? chatItems(file) : null;
+      if (c) { items = c.items; recorded = c.info; }
     } else {
       // Codex: steps come from its session file as they finish, even mid-turn.
       const file = rolloutFor(e);
-      const s = file ? codexChat(file) : null;
-      ctx = s ? s.ctx || null : null;
-      if (s && s.items.length) {
-        items = s.items.slice(-MAX_ITEMS);
-        if (!live && s.running) live = { state: "working", verb: "Working…", elapsed: elapsedSince(s.running), menu: null, staged: "" };
-      }
+      rollout = file ? codexChat(file) : null;
+      recorded = rollout ? rollout.ctx || null : null;
+      if (rollout && rollout.items.length) items = rollout.items.slice(-MAX_ITEMS);
     }
     if (!terminal && items === null) return json(res, 409, { error: "no_route", message: "This session isn't in a Superset or tmux terminal, so it can't be reached from here." }, cors);
+    // With a screen, the screen says what it is doing; without one, the files and the hooks do.
+    if (!live) live = statusOf(e, rollout, recorded);
 
     if (items) items = filesFor(e, items).items;
     const sig = items ? digest(JSON.stringify(items)) : "";
     const out = { kind: items ? "chat" : "terminal", agent, sig, live, can: deps.bridges.caps(e, deps.isLive(e)), at: Date.now() };
-    if (terminal && text !== null) out.info = sessionInfo(agent, text, ctx);
+    const info = mergeInfo(agent, recorded, text !== null ? sessionInfo(agent, text) : null, deps.models.nameOf);
+    if (Object.keys(info).length) out.info = info;
     if (items && sig !== since) out.items = items;
     if (view === "terminal" || !items) out.text = text ?? "";
     return json(res, 200, out, cors);
@@ -1028,7 +1137,7 @@ function createServer(opts = {}) {
   /** Everything the session's record points at, found again from scratch. */
   function sessionFiles(e) {
     let items = [];
-    if (agentOf(e) === "claude") { const f = transcriptFor(e); if (f) items = chatItems(f) || []; }
+    if (agentOf(e) === "claude") { const f = transcriptFor(e); if (f) items = (chatItems(f) || {}).items || []; }
     else { const f = rolloutFor(e); const s = f ? codexChat(f) : null; if (s) items = s.items; }
     return filesFor(e, items);
   }
@@ -1143,7 +1252,7 @@ function createServer(opts = {}) {
     const table = COMMANDS[agent];
     const make = typeof body.cmd === "string" && Object.hasOwn(table, body.cmd) ? table[body.cmd] : null;
     if (!make) return json(res, 400, { error: "bad_command" }, cors);
-    const text = make(body.arg == null || body.arg === "" ? undefined : String(body.arg));
+    const text = make(body.arg == null || body.arg === "" ? undefined : String(body.arg), deps.models.lists());
     if (!text) return json(res, 400, { error: "bad_arg" }, cors);
     const bridge = await writableOr409(e, res, cors);
     if (!bridge) return res.statusCode;
@@ -1199,7 +1308,9 @@ function createServer(opts = {}) {
     if (!deps.hasSuperset()) return noSuperset(res, cors);
     let o;
     try { o = await loadOptions(); } catch { return json(res, 502, { error: "superset_failed", message: "Couldn't ask Superset for its projects." }, cors); }
-    return json(res, 200, { projects: o.projects, workspaces: o.workspaces, agents: o.agents, models: MODELS, efforts: EFFORTS }, cors);
+    const l = deps.models.lists();
+    return json(res, 200, { projects: o.projects, workspaces: o.workspaces, agents: o.agents,
+      models: { claude: l.claude.models, codex: l.codex.models }, efforts: { claude: l.claude.efforts, codex: l.codex.efforts } }, cors);
   }
   async function newSession(res, body, cors) {
     if (!deps.hasSuperset()) return noSuperset(res, cors);
@@ -1222,10 +1333,18 @@ function createServer(opts = {}) {
       if (!BRANCH.test(branch)) return json(res, 400, { error: "bad_branch", message: "Use letters, digits, dots, dashes and slashes for the branch." }, cors);
       args.push("workspaces", "create", "--local", "--project", pr.id, "--branch", branch, "--name", branch, "--agent", agent.id);
     }
-    for (const [flag, list, v] of [["--model", MODELS[agent.id] || [], body.model], ["--effort", EFFORTS[agent.id] || [], body.effort]]) {
-      if (v == null || v === "") continue;
-      if (!list.includes(v)) return json(res, 400, { error: "bad_" + flag.slice(2), message: `That ${flag.slice(2)} isn't offered for ${agent.label}.` }, cors);
-      args.push(flag, v);
+    // Only a model on the agent's own list, and an effort that model takes (any the agent offers, with no model picked).
+    const offer = Object.hasOwn(deps.models.lists(), agent.id) ? deps.models.lists()[agent.id] : { models: [], efforts: [] };
+    const refuse = (what) => json(res, 400, { error: "bad_" + what, message: `That ${what} isn't offered for ${agent.label}.` }, cors);
+    let model = null;
+    if (body.model != null && body.model !== "") {
+      model = offer.models.find((x) => x.id === body.model);
+      if (!model) return refuse("model");
+      args.push("--model", model.id);
+    }
+    if (body.effort != null && body.effort !== "") {
+      if (!(model ? model.efforts : offer.efforts).includes(body.effort)) return refuse("effort");
+      args.push("--effort", body.effort);
     }
     // A prompt that starts with "-" would read as an option.
     args.push("--prompt", prompt.startsWith("-") ? " " + prompt : prompt, "--json");
@@ -1271,6 +1390,7 @@ function createServer(opts = {}) {
       if (p === "/api/sessions") return json(res, 200, { host: deps.hostLabel, can: can(), sessions: list() }, cors);
       if (p === "/api/screen") return screen(res, url, cors);
       if (p === "/api/new/options") return newOptions(res, cors);
+      if (p === "/api/models") { const l = deps.models.lists(); return json(res, 200, { claude: l.claude, codex: l.codex }, cors); }
       if (p === "/api/files") return listFiles(res, url, cors);
       if (p === "/api/file/text") return fileText(res, url, cors);
       if (p === "/api/file/image") return fileImage(res, url, cors);
@@ -1335,7 +1455,8 @@ function start(opts = {}) {
   return app;
 }
 
-module.exports = { start, createServer, tidyScreen, cleanText, KEYS, liveState, claudeItems, describeTool, codexStep, shellLabel, sessionInfo, sessionRoot, fileMeta, mentions };
+module.exports = { start, createServer, tidyScreen, cleanText, KEYS, liveState, claudeItems, describeTool, codexStep, shellLabel, sessionInfo,
+  mergeInfo, claudeMode, codexContext, sessionRoot, fileMeta, mentions };
 
 if (require.main === module) {
   let app;

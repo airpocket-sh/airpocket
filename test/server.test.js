@@ -558,18 +558,19 @@ test("keys: arrows, Tab and Shift+Tab for pickers and Claude's mode", async () =
   assert.equal(calls.superset.at(-1)[7], ESC + "[B");
 });
 
-test("session info: model, effort, mode and context from the screen and Codex's file", async () => {
+test("session info from the screen: Claude's own markers, never a custom status line", async () => {
   const claude = sessionInfo("claude", ["❯", "  default | Opus 5 (1M context) | context: 82% | acct a@b S4%",
     "  ⏵⏵ bypass permissions on (shift+tab to cycle)", "                      ◐ medium · /effort"].join("\n"));
-  assert.deepEqual(claude, { model: "Opus 5 (1M context)", context: 82, effort: "medium", mode: "bypass permissions" });
+  assert.deepEqual(claude, { effort: "medium", mode: "bypass permissions" }, "a status line's model and context are not read");
   assert.deepEqual(sessionInfo("claude", "❯\n  ⏸ plan mode on (shift+tab to cycle)").mode, "plan mode");
-  const codex = sessionInfo("codex", "› Ask Codex to do anything\n  gpt-6-astra xhigh fast · ~/x · title", { model: "old", effort: "low", mode: "plan", access: "full access" });
-  assert.deepEqual(codex, { model: "gpt-6-astra", effort: "xhigh", fast: true, mode: "plan", access: "full access" });
+  assert.deepEqual(sessionInfo("claude", " ✻ Welcome\n   Fable 5.1 with xhigh effort · Claude Max\n❯ "), { model: "Fable 5.1", effort: "xhigh" }, "Claude's own banner");
+  const codex = sessionInfo("codex", "› Ask Codex to do anything\n  gpt-6-astra xhigh fast · ~/x · title");
+  assert.deepEqual(codex, { model: "gpt-6-astra", effort: "xhigh", fast: true });
+  // This Codex file has no settings lines, so the screen says what it runs with.
   const r = await req("GET", "/api/screen?id=" + CODEX_T, { headers: auth() });
-  assert.equal(r.json.info.model, "gpt-6");
-  assert.equal(r.json.info.effort, "medium");
+  assert.deepEqual([r.json.info.model, r.json.info.name, r.json.info.effort], ["gpt-6", "gpt-6", "medium"]);
   const d = await req("GET", "/api/screen?id=" + CODEX, { headers: auth() });
-  assert.equal(d.json.info, undefined, "no terminal, no screen info");
+  assert.equal(d.json.info, undefined, "no terminal and no session file: nothing to say");
 });
 
 test("menus: Codex descriptions come apart from the option", () => {

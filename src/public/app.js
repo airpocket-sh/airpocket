@@ -444,6 +444,9 @@
     // The phone names a command; the Mac types the slash command the agent knows.
     let cur = { info: null, agent: "claude" };
     let sheetEl = null;
+    // What each agent offers on this Mac, from the agents' own lists; asked once per session view.
+    let offered = null;
+    api(host, "/api/models").then((d) => { offered = d; }).catch(() => {});
     const closeSheet = () => { if (sheetEl) { sheetEl.remove(); sheetEl = null; } };
     leave.push(closeSheet);
     const run = async (cmd, arg, label, ask) => {
@@ -483,17 +486,19 @@
           chip("Review", false, () => run("review", undefined, "Review started")), chip("Resume…", false, () => run("resume", undefined, "Pick a chat below")),
           chip("New chat", false, () => run("new", undefined, "New chat", "Start a new chat in this terminal? The current one stays saved."))]));
       } else {
-        const a = alias(info.model);
-        secs.push(sec("Model", info.model || "", [
-          ...[["Opus", "opus"], ["Opus 1M", "opus[1m]"], ["Sonnet", "sonnet"], ["Haiku", "haiku"], ["Fable", "fable"]]
-            .map(([l, v]) => chip(l, a === v, () => run("model", v, "Model: " + l + ". Claude also makes it the default for new sessions."))),
+        // The models Claude Code itself offers on that Mac (or its aliases, when its list can't be read).
+        const list = (offered && offered.claude && offered.claude.models) || [];
+        const on = (m) => info.model === m.id || (!!info.name && info.name === m.name) || alias(info.model) === m.id;
+        secs.push(sec("Model", info.name || info.model || "", [
+          ...list.map((m) => chip(m.name || m.id, on(m), () => run("model", m.id, "Model: " + (m.name || m.id) + ". Claude also makes it the default for new sessions."))),
           chip("More…", false, () => run("model", undefined, "The model picker is open below"))]));
-        secs.push(sec("Effort", info.effort || "", ["low", "medium", "high", "xhigh", "max"].map((x) => chip(x, info.effort === x, () => run("effort", x, "Effort: " + x)))));
+        const efforts = (offered && offered.claude && offered.claude.efforts) || ["low", "medium", "high", "xhigh", "max"];
+        secs.push(sec("Effort", info.effort || "", efforts.map((x) => chip(x, info.effort === x, () => run("effort", x, "Effort: " + x)))));
         secs.push(sec("Permission mode", info.mode || "", [
           chip("Next mode", false, () => { closeSheet(); press("stab", "Switched mode"); }),
           chip("Plan", /plan/.test(info.mode || ""), () => run("plan", undefined, "Plan mode")),
           chip("Fast mode", false, () => run("fast", undefined, "Toggled fast mode"))]));
-        secs.push(sec("Session", info.context != null ? info.context + "% of context used" : "", [
+        secs.push(sec("Session", "", [
           chip("Compact", false, () => run("compact", undefined, "Compacting")), chip("Context", false, () => run("context", undefined, "Context is in the terminal view")),
           chip("Usage", false, () => run("usage", undefined, "Usage is in the terminal view")), chip("Resume…", false, () => run("resume", undefined, "Pick a conversation below")),
           chip("Rewind…", false, () => run("rewind", undefined, "Pick a point below")),
@@ -503,7 +508,7 @@
         [["1", "1"], ["2", "2"], ["3", "3"], ["Enter", "enter"], ["Esc", "esc"], ["↑", "up"], ["↓", "down"], ["←", "left"], ["→", "right"], ["Tab", "tab"], ["⇧Tab", "stab"]]
           .map(([l, k]) => chip(l, false, () => press(k, "Pressed " + l)))));
       if (can.send) secs.push(sec("Message box", "", [chip("Type it without sending", false, () => { closeSheet(); submit(false); })]));
-      const summary = [shortModel(info.model), info.effort, info.fast ? "fast" : "", info.mode && info.mode !== "default" ? info.mode : "", info.access || ""]
+      const summary = [info.name || shortModel(info.model), info.effort, info.fast ? "fast" : "", info.mode && info.mode !== "default" ? info.mode : "", info.access || ""]
         .filter(Boolean).join(" · ");
       sheetEl = h("div", { class: "sheet-back", onclick: (ev) => { if (ev.target === sheetEl) closeSheet(); } },
         h("div", { class: "sheet", role: "dialog", "aria-label": "Controls" },
@@ -569,7 +574,7 @@
       setInfo(info, agent) {
         cur = { info: info || null, agent: agent || cur.agent };
         const i = info || {};
-        const t = [shortModel(i.model), i.effort, i.fast ? "fast" : ""].filter(Boolean).join(" · ");
+        const t = [i.name || shortModel(i.model), i.effort, i.fast ? "fast" : ""].filter(Boolean).join(" · ");
         infoEl.hidden = !t;
         if (infoEl.dataset.t !== t) { infoEl.dataset.t = t; infoEl.textContent = t; }
         if (sheetEl && !sheetEl.isConnected) sheetEl = null;
@@ -701,8 +706,6 @@
       return el;
     };
     const wrapSel = (el) => h("div", { class: "selwrap" }, el, icon("down", 18));
-    const niceModel = (x) => ({ opus: "Opus", "opus[1m]": "Opus 1M", sonnet: "Sonnet", "sonnet[1m]": "Sonnet 1M", haiku: "Haiku",
-                               fable: "Fable", "fable[1m]": "Fable 1M", opusplan: "Opus plan" })[x] || x;
     const field = (label, ...kids) => h("div", { class: "field" }, h("div", { class: "fl", text: label }), ...kids);
     // A row of tappable choices, one selected.
     const pick = (opts, value, onChange, extra) => {
@@ -744,11 +747,21 @@
       const logo = (id) => (id === "claude" ? "/agent-claude.png" : id === "codex" ? "/agent-codex.png" : null);
       const tune = h("div", { class: "tune" });
       let modelPick = { value: "" }, effortPick = { value: "" };
+      // Models come as { id, name, efforts } from the agents' own lists (plain ids from an older Mac).
       const fillTune = (agentId) => {
-        const m = (o.models || {})[agentId] || [], e = (o.efforts || {})[agentId] || [];
-        modelPick = pick([["", "Default"], ...m.map((x) => [x, niceModel(x)])], "");
-        effortPick = pick([["", "Default"], ...e.map((x) => [x, x])], "");
-        tune.replaceChildren(...[m.length ? field("Model", modelPick.el) : null, e.length ? field("Effort", effortPick.el) : null].filter(Boolean));
+        const m = ((o.models || {})[agentId] || []).map((x) => (typeof x === "string" ? { id: x, name: x } : x));
+        const all = (o.efforts || {})[agentId] || [];
+        const effortBox = h("div");
+        // The effort levels the chosen model takes; with no model chosen, any the agent offers.
+        const fillEffort = (modelId) => {
+          const chosen = m.find((x) => x.id === modelId);
+          const e = chosen && Array.isArray(chosen.efforts) ? chosen.efforts : all;
+          effortPick = pick([["", "Default"], ...e.map((x) => [x, x])], "");
+          effortBox.replaceChildren(...(e.length ? [field("Effort", effortPick.el)] : []));
+        };
+        modelPick = pick([["", "Default"], ...m.map((x) => [x.id, x.name || x.id])], "", fillEffort);
+        fillEffort("");
+        tune.replaceChildren(...[m.length ? field("Model", modelPick.el) : null, effortBox].filter(Boolean));
       };
       const first = agents.some((a) => a.id === prefs.newAgent) ? prefs.newAgent : (agents[0] || {}).id;
       const main = agents.filter((a) => rank(a) < 2), rest = agents.filter((a) => rank(a) >= 2);

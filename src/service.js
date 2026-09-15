@@ -29,6 +29,11 @@
 // runs (terminal, workspace, pane, tmux, tmux_pid): a hook from another process
 // (a resumed session) sets all five, and empty stays empty.
 //
+// A record also keeps working_since: when the current turn started (ms), or 0.
+// A prompt starts a turn; Stop, the idle notification that follows it, and a
+// Codex interrupt end it, and so does a new process. It is how the phone knows
+// "working 3m" or "idle" for a session whose screen it can't read.
+//
 // What it keeps, in Airpocket's data folder (folders 0700, files 0600, every
 // file written whole to a temporary name and renamed into place, so a crash
 // never leaves half a file):
@@ -54,6 +59,7 @@ const { SECRET_CONTENT } = require("./secrets");
 const DAY_S = 24 * 3600;
 const TTL_MS = Object.freeze({ input: 60 * 60000, done: 20 * 60000 });
 const REASONS = new Set(["finished", "waiting for you", "needs permission", "needs input", "needs a response"]);
+const TURN_ENDS = new Set(["finished", "waiting for you"]);
 const SESSION_ID = /^[A-Za-z0-9_-]{6,100}$/;
 const TERMINAL_ID = /^[A-Za-z0-9_-]{1,100}$/;
 const TMUX_PANE = /^%\d{1,9}$/;
@@ -238,8 +244,8 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     if (changed || queue.length !== before) saveQueue();
   }
 
-  /** Record what a hook says about a session; fields it leaves out or empty keep their old values. */
-  function upsert(b) {
+  /** Record what a hook says about a session; fields it leaves out or empty keep their old values. `turn` sets working_since. */
+  function upsert(b, turn) {
     const sid = b.session_id;
     const prev = records.get(sid) || {};
     const agent = b.agent === "codex" || b.agent === "claude" ? b.agent : prev.agent || "claude";
@@ -270,6 +276,8 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
       tmux: place(absPath(b.tmux), prev.tmux),
       // The tmux server the pane is on: it comes with its socket, never kept from another one.
       tmux_pid: absPath(b.tmux) ? pidOf(b.tmux_pid) : moved ? 0 : prev.tmux_pid || 0,
+      // A new process starts idle; its turns are its own.
+      working_since: turn !== undefined ? turn : moved ? 0 : prev.working_since || 0,
       last_seen: Math.floor(now() / 1000),
     };
     records.set(sid, r);
@@ -314,7 +322,8 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
         return 204;
       case "enqueue": {
         if (!REASONS.has(b.reason)) return 400;
-        enqueue(upsert(b), b.reason, snippet(b.message, 220));
+        // A finished turn, or the idle prompt after it, ends the turn. A question comes mid-turn: it goes on after.
+        enqueue(upsert(b, TURN_ENDS.has(b.reason) ? 0 : undefined), b.reason, snippet(b.message, 220));
         return 204;
       }
       case "dequeue": {
@@ -324,8 +333,9 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
           dropRecord(b.session_id);
           return 204;
         }
-        if (b.why !== "prompt") return 400;
-        const r = upsert(b);
+        // A prompt starts a turn; an interrupt (you stopped it at the terminal) ends one. Either way you are there.
+        if (b.why !== "prompt" && b.why !== "interrupt") return 400;
+        const r = upsert(b, b.why === "prompt" ? now() : 0);
         dequeue(r.bridge_id, r.session_id);
         return 204;
       }
