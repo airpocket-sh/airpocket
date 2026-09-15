@@ -5,7 +5,8 @@
 // where that session runs in its own records (what the hook saw in the agent's
 // environment), then picks a bridge:
 //
-//   tmux       the pane (TMUX_PANE, "%12") on the server behind the socket in $TMUX
+//   tmux       the pane (TMUX_PANE, "%12") on the server behind the socket in $TMUX,
+//              and only while that is still the same server (its pid, also in $TMUX)
 //   superset   the Superset terminal (SUPERSET_WORKSPACE_ID, SUPERSET_TERMINAL_ID)
 //
 // A pane wins over a Superset terminal. When tmux runs inside Superset, the
@@ -31,11 +32,14 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { execFile } = require("child_process");
-const { stillRunning } = require("./proc");
+const { stillRunning, pidOf } = require("./proc");
 
 const ESC = String.fromCharCode(27);
 const SUPERSET = path.join(os.homedir(), ".superset", "bin", "superset");
-const TMUX_BINS = Object.freeze(["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux"]);
+// Homebrew on Apple silicon, Homebrew on Intel, MacPorts.
+const TMUX_BINS = Object.freeze(["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/opt/local/bin/tmux"]);
+// tmux takes one command of 16 KB at most (MAX_IMSGSIZE), so text goes in pieces well under that.
+const TMUX_PIECE = 4096;
 const TMUX_PANE = /^%\d{1,9}$/;
 const TERMINAL_ID = /^[A-Za-z0-9_-]{1,100}$/;
 // tmux gets no environment of ours: no $TMUX to confuse it, and a UTF-8 locale
@@ -93,6 +97,20 @@ function tmuxSocket(p, uid = process.getuid()) {
  */
 const tmuxLiteral = (t) => (t.endsWith(";") ? t.slice(0, -1) + "\\;" : t);
 
+/** Text in pieces of at most `max` bytes of UTF-8, cut between characters, never inside one. */
+function tmuxPieces(text, max = TMUX_PIECE) {
+  const out = [];
+  let cur = "", size = 0;
+  for (const ch of text) {
+    const n = Buffer.byteLength(ch);
+    if (size + n > max && cur) { out.push(cur); cur = ""; size = 0; }
+    cur += ch;
+    size += n;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 /**
  * The bridges, over their programs. The seams are for the tests: superset and
  * tmux run the program with an argument list; hasTmux says whether tmux is
@@ -123,13 +141,22 @@ function createBridges(o = {}) {
     };
   }
 
-  function tmuxBridge(sock, pane) {
+  function tmuxBridge(sock, pane, server) {
     const t = (...args) => tmux(["-u", "-S", sock, ...args]);
-    const literal = (text) => t("send-keys", "-t", pane, "-l", "--", tmuxLiteral(text));
+    const literal = async (text) => { for (const piece of tmuxPieces(text)) await t("send-keys", "-t", pane, "-l", "--", tmuxLiteral(piece)); };
+    // Pane ids start again at %0 when a tmux server restarts on the same socket.
+    // Another server means the recorded terminal is gone, like a closed Superset terminal.
+    const sameServer = (pid) => { if (Number(pid) !== server) throw new Error("that tmux server is gone"); };
     return {
       name: "tmux",
-      key: `tmux:${sock}:${pane}`,
-      read: async () => String(await t("capture-pane", "-p", "-t", pane)),
+      key: `tmux:${sock}:${server}:${pane}`,
+      // One tmux call: which server this is, then the screen (";" alone separates tmux commands).
+      async read() {
+        const out = String(await t("display-message", "-p", "-t", pane, "#{pid}", ";", "capture-pane", "-p", "-t", pane));
+        const nl = out.indexOf("\n");
+        sameServer(out.slice(0, nl < 0 ? out.length : nl).trim());
+        return nl < 0 ? "" : out.slice(nl + 1);
+      },
       async type(text, submit) {
         if (text) await literal(text);
         if (!submit) return;
@@ -137,9 +164,10 @@ function createBridges(o = {}) {
         await t("send-keys", "-t", pane, "Enter");
       },
       press: (k) => (k.tmux ? t("send-keys", "-t", pane, k.tmux) : literal(k.text)),
-      // A pane scrolled back in copy mode takes keys as copy-mode commands, not as input for the agent.
+      // The same server, and not scrolled back in copy mode, where keys are copy-mode commands, not input for the agent.
       async ready() {
-        const mode = String(await t("display-message", "-p", "-t", pane, "#{pane_in_mode}")).trim();
+        const [pid, mode] = String(await t("display-message", "-p", "-t", pane, "#{pid} #{pane_in_mode}")).trim().split(" ");
+        sameServer(pid);
         return mode === "0" ? "" : "Its tmux pane is scrolled back in copy mode. Leave that on the Mac (q) first.";
       },
     };
@@ -148,9 +176,9 @@ function createBridges(o = {}) {
   /** The bridge to a session's terminal, from its record; null when it has none (read-only). */
   function of(e) {
     if (!e) return null;
-    if (typeof e.pane === "string" && TMUX_PANE.test(e.pane) && hasTmux()) {
+    if (typeof e.pane === "string" && TMUX_PANE.test(e.pane) && pidOf(e.tmux_pid) && hasTmux()) {
       const sock = tmuxSocket(e.tmux, uid);
-      if (sock) return tmuxBridge(sock, e.pane);
+      if (sock) return tmuxBridge(sock, e.pane, e.tmux_pid);
     }
     if (TERMINAL_ID.test(String(e.workspace || "")) && TERMINAL_ID.test(String(e.terminal || ""))) return supersetBridge(e.workspace, e.terminal);
     return null;
@@ -183,4 +211,4 @@ function createBridges(o = {}) {
   return { of, caps, writable };
 }
 
-module.exports = { createBridges, KEYS, tmuxSocket, tmuxLiteral, runFile, runSuperset, runTmux, findTmux, supersetInstalled, TMUX_BINS };
+module.exports = { createBridges, KEYS, tmuxSocket, tmuxLiteral, tmuxPieces, runFile, runSuperset, runTmux, findTmux, supersetInstalled, TMUX_BINS };

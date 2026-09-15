@@ -92,9 +92,12 @@ const QUEUE = [{ id: "session_01ABC", sid: CLAUDE, kind: "input", reason: "input
 // A session in a tmux pane (a real socket file, a stand-in tmux), and one whose
 // agent has exited: its pid now has another start time.
 const TMUXS = "66666666-7777-8888-9999-000000000000", GONE = "77777777-8888-9999-aaaa-bbbbbbbbbbbb";
-const TMUX_SOCK = path.join(dir, "tmux.sock");
+const TMUX_OLD = "88888888-9999-aaaa-bbbb-cccccccccccc";
+const TMUX_SOCK = path.join(dir, "tmux.sock"), TMUX_SERVER = 4343;
 const sockServer = net.createServer().listen(TMUX_SOCK);
-SESS.push({ session_id: TMUXS, bridge_id: "local:" + TMUXS, title: "In tmux", agent: "claude", pid: process.pid, started: ME, last_seen: now - 10, pane: "%7", tmux: TMUX_SOCK });
+SESS.push({ session_id: TMUXS, bridge_id: "local:" + TMUXS, title: "In tmux", agent: "claude", pid: process.pid, started: ME, last_seen: now - 10, pane: "%7", tmux: TMUX_SOCK, tmux_pid: TMUX_SERVER });
+// Yesterday's session on the same pane id, from a tmux server that has since restarted.
+SESS.push({ session_id: TMUX_OLD, bridge_id: "local:" + TMUX_OLD, title: "Old tmux", agent: "claude", pid: process.pid, started: ME - 60, last_seen: now - 12, pane: "%7", tmux: TMUX_SOCK, tmux_pid: 1111 });
 SESS.push({ session_id: GONE, bridge_id: "local:" + GONE, title: "Ended", agent: "claude", pid: process.pid, started: ME - 60, last_seen: now - 11, terminal: "term-9", workspace: "ws-9" });
 const TMUX_SCREEN = "tmux output   \n❯ ";
 let supersetHere = true;
@@ -152,8 +155,8 @@ const app = createServer({
   hasSuperset: () => supersetHere,
   tmux: async (args) => {
     calls.tmux.push(args);
-    if (args[3] === "capture-pane") return TMUX_SCREEN;
-    if (args[3] === "display-message") return "0\n";
+    if (args.includes("capture-pane")) return `${TMUX_SERVER}\n${TMUX_SCREEN}`;
+    if (args[3] === "display-message") return `${TMUX_SERVER} 0\n`;
     return "";
   },
   typeGap: () => 0,
@@ -301,10 +304,10 @@ test("a tmux session: read with capture-pane, typed with send-keys, keys by tmux
   assert.equal(r.json.kind, "terminal");
   assert.equal(r.json.text, "tmux output\n❯");
   assert.equal(r.json.can.bridge, "tmux");
-  assert.deepEqual(calls.tmux.at(-1), ["-u", "-S", TMUX_SOCK, "capture-pane", "-p", "-t", "%7"]);
+  assert.deepEqual(calls.tmux.at(-1), ["-u", "-S", TMUX_SOCK, "display-message", "-p", "-t", "%7", "#{pid}", ";", "capture-pane", "-p", "-t", "%7"]);
   calls.tmux.length = 0;
   assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: TMUXS, text: "a\nb;" } })).status, 200);
-  assert.deepEqual(calls.tmux.map((a) => a.slice(3)), [["display-message", "-p", "-t", "%7", "#{pane_in_mode}"],
+  assert.deepEqual(calls.tmux.map((a) => a.slice(3)), [["display-message", "-p", "-t", "%7", "#{pid} #{pane_in_mode}"],
     ["send-keys", "-t", "%7", "-l", "--", "a b\\;"], ["send-keys", "-t", "%7", "Enter"]]);
   await req("POST", "/api/key", { headers: auth(), body: { id: TMUXS, key: "esc" } });
   assert.deepEqual(calls.tmux.at(-1).slice(3), ["send-keys", "-t", "%7", "Escape"]);
@@ -313,9 +316,19 @@ test("a tmux session: read with capture-pane, typed with send-keys, keys by tmux
   calls.tmux.length = 0;
   const c = await req("POST", "/api/command", { headers: auth(), body: { id: TMUXS, cmd: "effort", arg: "high" } });
   assert.equal(c.status, 200);
-  assert.deepEqual(calls.tmux.map((a) => a[3]), ["display-message", "capture-pane", "send-keys", "send-keys"], "checked, looked, typed, Enter");
+  assert.deepEqual(calls.tmux.map((a) => a[3]), ["display-message", "display-message", "send-keys", "send-keys"], "checked, looked, typed, Enter");
+  assert.ok(calls.tmux[1].includes("capture-pane"), "the look is the screen");
   assert.deepEqual(calls.tmux.slice(-2).map((a) => a.slice(3)), [["send-keys", "-t", "%7", "-l", "--", "/effort high"], ["send-keys", "-t", "%7", "Enter"]]);
   assert.equal(calls.superset.length, n, "nothing went to Superset");
+});
+
+test("an old tmux session whose server restarted shows nothing of the pane that took its id", async () => {
+  const chat = await req("GET", "/api/screen?id=" + TMUX_OLD, { headers: auth() });
+  assert.equal(chat.status, 200);
+  assert.deepEqual([chat.json.text, chat.json.live, chat.json.info], ["", null, undefined], "no screen, no live state, no model line from someone else's pane");
+  const term = await req("GET", "/api/screen?id=" + TMUX_OLD + "&view=terminal", { headers: auth() });
+  assert.equal(term.status, 502, "like a closed terminal");
+  assert.ok(!JSON.stringify([chat.json, term.json]).includes("tmux output"));
 });
 
 test("an ended agent's terminal is read-only: the phone is told, and nothing is typed", async () => {

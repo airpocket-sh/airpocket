@@ -356,9 +356,12 @@ test("the transcript path is kept only when it is that session's .jsonl, by an a
     assert.equal(rec(CODEX).transcript, "", "Codex's are rollout files");
     await t.hook("session", { session_id: CODEX, agent: "codex", transcript: `/c/sessions/2026/09/15/rollout-2026-09-15T10-00-00-${CODEX}.jsonl` });
     assert.equal(rec(CODEX).transcript, `/c/sessions/2026/09/15/rollout-2026-09-15T10-00-00-${CODEX}.jsonl`);
-    await t.hook("session", { session_id: ID2, pane: "%12", tmux: "/private/tmp/tmux-501/default" });
-    await t.hook("touch", { session_id: ID2, pane: "12; kill", tmux: "relative" });
-    assert.deepEqual([rec(ID2).pane, rec(ID2).tmux], ["%12", "/private/tmp/tmux-501/default"], "tmux pane ids only, absolute socket paths only");
+    await t.hook("session", { session_id: ID2, pane: "%12", tmux: "/private/tmp/tmux-501/default", tmux_pid: 321 });
+    await t.hook("touch", { session_id: ID2, pane: "12; kill", tmux: "relative", tmux_pid: 999 });
+    assert.deepEqual([rec(ID2).pane, rec(ID2).tmux, rec(ID2).tmux_pid], ["%12", "/private/tmp/tmux-501/default", 321],
+      "tmux pane ids only, absolute socket paths only, and the server pid only with its socket");
+    await t.hook("touch", { session_id: ID2, tmux: "/private/tmp/tmux-501/other", tmux_pid: "77" });
+    assert.deepEqual([rec(ID2).tmux, rec(ID2).tmux_pid], ["/private/tmp/tmux-501/other", 0], "another server's socket never keeps the old server's pid");
     // The service screens snippets too, whatever sent them.
     await t.hook("dequeue", { session_id: ID2, why: "prompt", note: "deploy with ghp_" + "c".repeat(36) });
     assert.equal(rec(ID2).note, "", "a note that looks like a token is not stored");

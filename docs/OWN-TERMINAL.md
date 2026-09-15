@@ -22,7 +22,8 @@ This note is a comparison, not a build. Nothing here is implemented.
   file) works in the first and is awkward in the second: it can't be embedded
   and loaded from inside the program, so it has to be unpacked to disk first
   and signed for Gatekeeper, for each CPU.
-- **Few dependencies.** Today there is one (`ws`).
+- **Few dependencies.** Today there are none: plain Node. (`ws` was Walkie's.)
+  B would add the first two, C the first one.
 - **The agent must outlive Airpocket.** The service restarts: upgrades,
   crashes, logging out and in. If the service owns the terminal, a restart
   kills every session in it.
@@ -63,6 +64,15 @@ default socket.
 - Risks: tmux shows through at the edges (copy mode on scroll, a prefix key).
   People who already use tmux get a second server they didn't ask for; the
   private socket keeps the two apart.
+- Already in tmux or Superset: `$TMUX` is set inside tmux, and tmux refuses
+  to nest ("sessions should be nested with care"). Inside Superset it works,
+  but adds a layer for nothing. In both cases the existing bridges already
+  reach the agent, so `run` should start the agent directly there.
+- Socket path length: macOS caps a Unix socket path at 104 bytes; longer
+  fails with `File name too long`. The default
+  (`~/Library/Application Support/Airpocket/tmux/sock`) is about 55 bytes
+  plus the user name, but a custom data folder (`$AIRPOCKET_DIR`) could pass
+  the limit. `doctor` should check it.
 
 ### B. node-pty in the service, plus a JavaScript terminal emulator
 
@@ -146,5 +156,8 @@ with the pty in a process that outlives the service.
    `extended-keys on`, `set-clipboard on`, `history-limit 50000`,
    `default-terminal tmux-256color` with RGB.
 3. `airpocket doctor` checks tmux is installed and new enough (3.2 or later
-   for extended keys); setup offers `brew install tmux`.
-4. A real-tmux test like step 7's, through `run`, on a temporary socket.
+   for extended keys), and that the socket path is under 104 bytes; setup
+   offers `brew install tmux`.
+4. Inside tmux or Superset already, `run` starts the agent in place instead
+   of a nested session.
+5. A real-tmux test like step 7's, through `run`, on a temporary socket.

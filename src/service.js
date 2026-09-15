@@ -24,7 +24,7 @@
 //   POST /hook/touch     it is still there
 //
 // Every body names the session ({ session_id, agent, cwd, transcript, title,
-// branch, note, account, pid, started, terminal, workspace, pane, tmux }); a
+// branch, note, account, pid, started, terminal, workspace, pane, tmux, tmux_pid }); a
 // field left out or empty keeps what was recorded before.
 //
 // What it keeps, in Airpocket's data folder (folders 0700, files 0600, every
@@ -260,6 +260,8 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
       workspace: terminalId(b.workspace) || prev.workspace || "",
       pane: (typeof b.pane === "string" && TMUX_PANE.test(b.pane) ? b.pane : "") || prev.pane || "",
       tmux: absPath(b.tmux) || prev.tmux || "",
+      // The tmux server the pane is on: it comes with its socket, never kept from another one.
+      tmux_pid: absPath(b.tmux) ? pidOf(b.tmux_pid) : prev.tmux_pid || 0,
       last_seen: Math.floor(now() / 1000),
     };
     records.set(sid, r);

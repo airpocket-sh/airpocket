@@ -12,7 +12,7 @@ const os = require("os");
 const path = require("path");
 const net = require("net");
 const { execFileSync, spawn } = require("child_process");
-const { createBridges, KEYS, tmuxSocket, tmuxLiteral, TMUX_BINS } = require("../src/bridges");
+const { createBridges, KEYS, tmuxSocket, tmuxLiteral, tmuxPieces, TMUX_BINS } = require("../src/bridges");
 const { startTimeOf, stillRunning } = require("../src/proc");
 
 const ESC = String.fromCharCode(27);
@@ -58,24 +58,33 @@ function tmuxReads(a) {
   throw new Error("the text ended the tmux command early");
 }
 const TMUX_KEYS = { Up: ESC + "[A", Down: ESC + "[B", Right: ESC + "[C", Left: ESC + "[D", Tab: TAB, BTab: ESC + "[Z", Escape: ESC, Enter: CR };
-// tmux: send-keys -l -- T types T; send-keys <Key> presses one key by its tmux name.
-function fakeTmux(term, sock = SOCK, pane = "%3") {
+const SERVER = 4242;                       // the stand-in tmux server's pid
+// tmux: send-keys -l -- T types T; send-keys <Key> presses one key by its tmux name;
+// an argument that is ";" alone separates commands; one call carries 16 KB at most.
+function fakeTmux(term, sock = SOCK, pane = "%3", server = SERVER) {
   const calls = [];
   const run = async (args) => {
     calls.push(args);
     assert.deepEqual(args.slice(0, 3), ["-u", "-S", sock], "always the recorded socket, UTF-8 on");
-    const [cmd, ...rest] = args.slice(3);
-    if (cmd === "send-keys") assert.deepEqual(rest.slice(0, 2), ["-t", pane], "the pane on record");
-    if (cmd === "capture-pane") { assert.deepEqual(rest, ["-p", "-t", pane]); return term.screen + "\n"; }
-    if (cmd === "display-message") { assert.deepEqual(rest, ["-p", "-t", pane, "#{pane_in_mode}"]); return (term.inMode ? "1" : "0") + "\n"; }
-    if (cmd === "send-keys") {
-      if (rest[2] === "-l") { assert.equal(rest[3], "--"); assert.equal(rest.length, 5); term.got += tmuxReads(rest[4]); return ""; }
+    if (args.reduce((n, a) => n + Buffer.byteLength(a) + 1, 0) > 16000) throw new Error("command too long");
+    const cmds = [[]];
+    for (const a of args.slice(3)) { if (a === ";") cmds.push([]); else cmds[cmds.length - 1].push(a); }
+    let out = "";
+    for (const [cmd, ...rest] of cmds) {
+      if (cmd === "capture-pane") { assert.deepEqual(rest, ["-p", "-t", pane]); out += term.screen + "\n"; continue; }
+      if (cmd === "display-message") {
+        assert.deepEqual(rest.slice(0, 3), ["-p", "-t", pane]);
+        out += rest[3].replace("#{pid}", String(server)).replace("#{pane_in_mode}", term.inMode ? "1" : "0") + "\n";
+        continue;
+      }
+      if (cmd !== "send-keys") throw new Error("unexpected tmux call " + cmd);
+      assert.deepEqual(rest.slice(0, 2), ["-t", pane], "the pane on record");
+      if (rest[2] === "-l") { assert.equal(rest[3], "--"); assert.equal(rest.length, 5); term.got += tmuxReads(rest[4]); continue; }
       assert.equal(rest.length, 3, "one key per call");
       if (!Object.hasOwn(TMUX_KEYS, rest[2])) throw new Error("unknown key " + rest[2]);
       term.got += TMUX_KEYS[rest[2]];
-      return "";
     }
-    throw new Error("unexpected tmux call " + cmd);
+    return out;
   };
   return { run, calls };
 }
@@ -109,6 +118,12 @@ function contract(label, setup, opts = {}) {
     await t.bridge.type("", true);
     await expect(CR, "Enter alone");
   });
+  test(`${label}: a long message in a wide script arrives whole`, opts, async () => {
+    await get();
+    const long = "漢".repeat(7999) + ";";            // 24 KB of UTF-8, more than tmux takes in one command
+    await t.bridge.type(long, false);
+    await expect(long, "every character, in order");
+  });
   test(`${label}: every key on the allow-list reaches the program as its bytes`, opts, async () => {
     await get();
     for (const [name, bytes] of Object.entries(KEY_BYTES)) {
@@ -137,7 +152,7 @@ contract("tmux (stand-in)", async () => {
   const term = { got: "", screen: "hello from tmux ❯" };
   const fake = fakeTmux(term);
   const bridges = createBridges({ tmux: fake.run, hasTmux: () => true, gap: () => 0 });
-  const record = { pane: "%3", tmux: SOCK, ...ME };
+  const record = { pane: "%3", tmux: SOCK, tmux_pid: SERVER, ...ME };
   return { bridges, record, bridge: bridges.of(record), screen: /hello from tmux ❯/,
            received: async () => term.got, reset: () => { term.got = ""; } };
 });
@@ -181,7 +196,7 @@ contract("tmux (real, private socket)", async () => {
   const pane = tmuxHere("list-panes", "-F", "#{pane_id}").trim();
   const pid = Number(await until(() => { try { return fs.readFileSync(PIDFILE, "utf8"); } catch { return ""; } }));
   assert.ok(pid > 1, "the agent started");
-  realRecord = { pane, tmux: RSOCK, pid, started: startTimeOf(pid) };
+  realRecord = { pane, tmux: RSOCK, tmux_pid: Number(tmuxHere("display-message", "-p", "#{pid}").trim()), pid, started: startTimeOf(pid) };
   const bridges = createBridges({});                 // the real runner: tmux by its absolute path
   const bridge = bridges.of(realRecord);
   assert.equal(bridge && bridge.name, "tmux");
@@ -217,24 +232,44 @@ test("tmux (real): once the agent exits, nothing is typed into what's left", rea
   assert.equal(fs.existsSync(AFTER) ? fs.readFileSync(AFTER, "utf8") : "", "", "nothing reached the program left behind");
 });
 
+test("tmux (real): after the server restarts, the old pane id is someone else's: not read, not typed into", real, async () => {
+  assert.ok(realRecord, "the real tmux contract ran first");
+  tmuxHere("kill-server");
+  await until(() => { try { tmuxHere("list-sessions"); return false; } catch { return true; } });
+  tmuxHere("-f", "/dev/null", "new-session", "-d", "-x", "80", "-y", "10", "/bin/sh", "-c", "echo SOMEONE ELSE; exec /bin/cat");
+  const [pane, server] = tmuxHere("display-message", "-p", "#{pane_id} #{pid}").trim().split(" ");
+  assert.equal(pane, realRecord.pane, "tmux hands out the same pane id again");
+  assert.notEqual(Number(server), realRecord.tmux_pid);
+  const bridges = createBridges({});
+  const old = bridges.of(realRecord);
+  await assert.rejects(old.read(), /gone/, "the old session's screen is not this pane's");
+  assert.equal((await bridges.writable(realRecord)).error, "ended");
+  assert.equal((await bridges.writable({ ...realRecord, pid: ME.pid, started: ME.started })).error, "unreachable", "even with a live agent");
+  await until(() => /SOMEONE ELSE/.test(tmuxHere("capture-pane", "-p", "-t", pane)));
+  assert.match(await bridges.of({ ...realRecord, tmux_pid: Number(server) }).read(), /SOMEONE ELSE/, "the new server's own record reads fine");
+});
+
 // ---- choosing a bridge ------------------------------------------------------------------
 
 test("a bridge comes from the record: Superset ids, or a tmux pane on a usable socket; tmux wins", async () => {
   await sockReady;
   const b = createBridges({ superset: async () => "", tmux: async () => "", hasTmux: () => true });
+  const at = { tmux: SOCK, tmux_pid: SERVER };
   assert.equal(b.of({ workspace: "ws-1", terminal: "term-1" }).name, "superset");
-  assert.equal(b.of({ pane: "%3", tmux: SOCK }).name, "tmux");
-  assert.equal(b.of({ pane: "%3", tmux: SOCK, workspace: "ws-1", terminal: "term-1" }).name, "tmux", "the pane is exact; Superset shows the tmux client");
+  assert.equal(b.of({ pane: "%3", ...at }).name, "tmux");
+  assert.equal(b.of({ pane: "%3", ...at, workspace: "ws-1", terminal: "term-1" }).name, "tmux", "the pane is exact; Superset shows the tmux client");
+  assert.equal(b.of({ pane: "%3", tmux: SOCK }), null, "no server pid on record: which server the pane was on is unknown");
+  assert.equal(b.of({ pane: "%3", tmux: SOCK, tmux_pid: "4242" }), null);
   assert.equal(b.of({}), null, "neither: read-only");
   assert.equal(b.of(null), null);
   assert.equal(b.of({ workspace: "ws-1" }), null, "half a Superset address is none");
   assert.equal(b.of({ workspace: "ws 1", terminal: "term-1" }), null);
   for (const pane of ["3", "%", "%3;", "%x", "%3 ", "{last}", "=%3"]) {
-    assert.equal(b.of({ pane, tmux: SOCK }), null, "pane " + pane);
+    assert.equal(b.of({ pane, ...at }), null, "pane " + pane);
   }
-  assert.equal(b.of({ pane: "%x", tmux: SOCK, workspace: "ws-1", terminal: "term-1" }).name, "superset", "a bad pane falls back to Superset");
+  assert.equal(b.of({ pane: "%x", ...at, workspace: "ws-1", terminal: "term-1" }).name, "superset", "a bad pane falls back to Superset");
   const none = createBridges({ tmux: async () => "", hasTmux: () => false });
-  assert.equal(none.of({ pane: "%3", tmux: SOCK }), null, "tmux not installed");
+  assert.equal(none.of({ pane: "%3", ...at }), null, "tmux not installed");
 });
 
 test("tmux sockets: absolute, a socket itself, and this user's", async () => {
@@ -253,7 +288,7 @@ test("tmux sockets: absolute, a socket itself, and this user's", async () => {
   assert.equal(tmuxSocket(path.join(dir, "missing.sock"), uid), "", "missing");
   for (const v of [undefined, null, 5, "", {}]) assert.equal(tmuxSocket(v, uid), "");
   const other = createBridges({ tmux: async () => "", hasTmux: () => true, uid: uid + 1 });
-  assert.equal(other.of({ pane: "%3", tmux: SOCK }), null, "the bridge uses the same check");
+  assert.equal(other.of({ pane: "%3", tmux: SOCK, tmux_pid: SERVER }), null, "the bridge uses the same check");
 });
 
 test("tmux argv: the socket and pane on record, text literal after --, Enter as its own call", async () => {
@@ -263,7 +298,7 @@ test("tmux argv: the socket and pane on record, text literal after --, Enter as 
   const order = [];
   const b = createBridges({ tmux: async (args) => { order.push(args.slice(3).join(" ")); return fake.run(args); }, hasTmux: () => true,
                             gap: (text) => { order.push("gap " + text.length); return 0; } });
-  const bridge = b.of({ pane: "%3", tmux: SOCK });
+  const bridge = b.of({ pane: "%3", tmux: SOCK, tmux_pid: SERVER });
   await bridge.type("-n hi", true);
   assert.deepEqual(fake.calls, [["-u", "-S", SOCK, "send-keys", "-t", "%3", "-l", "--", "-n hi"], ["-u", "-S", SOCK, "send-keys", "-t", "%3", "Enter"]]);
   assert.deepEqual(order, ["send-keys -t %3 -l -- -n hi", "gap 5", "send-keys -t %3 Enter"], "text lands before its Enter");
@@ -272,6 +307,31 @@ test("tmux argv: the socket and pane on record, text literal after --, Enter as 
   await bridge.press(KEYS["7"]);
   assert.deepEqual(fake.calls, [["-u", "-S", SOCK, "send-keys", "-t", "%3", "-l", "--", "7"]], "digits go in as text, not as key names");
   for (const k of Object.values(KEYS)) assert.ok(k.tmux === null || Object.hasOwn(TMUX_KEYS, k.tmux), "every key has a tmux name or is text");
+
+  // Long text goes in pieces of 4 KB at most, cut between characters (an emoji is two UTF-16 units, one character).
+  for (const text of ["漢".repeat(3000), "a".repeat(10000), "😀".repeat(3000), "ş;".repeat(2000), "x"]) {
+    const p = tmuxPieces(text);
+    assert.equal(p.join(""), text);
+    assert.ok(p.every((x) => x && Buffer.byteLength(x) <= 4096), "each piece fits");
+    assert.ok(p.every((x) => !/^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/.test(x)), "no character cut in half");
+  }
+  assert.deepEqual(tmuxPieces(""), []);
+  fake.calls.length = 0;
+  await bridge.type("漢".repeat(3000), false);
+  assert.equal(fake.calls.length, 3, "9000 bytes: three pieces");
+});
+
+test("tmux reads: the server pid and the screen in one call, and nothing from another server", async () => {
+  await sockReady;
+  const term = { got: "", screen: "the agent's screen" };
+  const fake = fakeTmux(term);
+  const b = createBridges({ tmux: fake.run, hasTmux: () => true });
+  assert.equal(await b.of({ pane: "%3", tmux: SOCK, tmux_pid: SERVER }).read(), "the agent's screen\n");
+  assert.deepEqual(fake.calls, [["-u", "-S", SOCK, "display-message", "-p", "-t", "%3", "#{pid}", ";", "capture-pane", "-p", "-t", "%3"]]);
+  const old = { pane: "%3", tmux: SOCK, tmux_pid: SERVER + 1, ...ME };
+  await assert.rejects(b.of(old).read(), /gone/, "a restarted server's pane is someone else's");
+  assert.equal((await b.writable(old)).error, "unreachable");
+  assert.equal(term.got, "");
 });
 
 test("what a session allows: which bridge, and no typing without a known, running agent", async () => {
@@ -317,8 +377,8 @@ test("writable: refused without a bridge, for a gone or reused pid, or when ps c
 test("writable: a terminal that can't be reached is said so, and not typed into", async () => {
   await sockReady;
   const b = createBridges({ tmux: async () => { throw new Error("no server running"); }, hasTmux: () => true });
-  const w = await b.writable({ pane: "%3", tmux: SOCK, ...ME });
+  const w = await b.writable({ pane: "%3", tmux: SOCK, tmux_pid: SERVER, ...ME });
   assert.equal(w.error, "unreachable");
   const inMode = createBridges({ tmux: fakeTmux({ got: "", screen: "", inMode: true }).run, hasTmux: () => true });
-  assert.equal((await inMode.writable({ pane: "%3", tmux: SOCK, ...ME })).error, "not_ready");
+  assert.equal((await inMode.writable({ pane: "%3", tmux: SOCK, tmux_pid: SERVER, ...ME })).error, "not_ready");
 });

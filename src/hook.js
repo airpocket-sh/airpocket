@@ -134,7 +134,7 @@ function readHookFile(dir) {
 /** Everything the service is told about a session, with the event's own fields. */
 function bodyFor(agent, input, step, env, proc, home) {
   const cwd = str(input.cwd);
-  const tmux = str(env.TMUX).split(",")[0];                  // "<socket>,<server pid>,<session>"
+  const [tmux = "", tmuxPid = ""] = str(env.TMUX).split(",");   // "<socket>,<server pid>,<session>"
   const { event, ...fields } = step;
   return {
     session_id: str(input.session_id),
@@ -150,6 +150,8 @@ function bodyFor(agent, input, step, env, proc, home) {
     workspace: str(env.SUPERSET_WORKSPACE_ID),
     pane: str(env.TMUX_PANE),
     tmux: path.isAbsolute(tmux) ? tmux : "",
+    // Pane ids start again at %0 when a tmux server restarts; its pid says which server the pane was on.
+    tmux_pid: path.isAbsolute(tmux) && /^\d{1,9}$/.test(tmuxPid) ? Number(tmuxPid) : 0,
     ...fields,
   };
 }
