@@ -1,4 +1,4 @@
-# Windsock
+# Airpocket
 
 Your coding agents, on your phone. Every Claude Code and Codex session on every
 one of your Macs, in one list, with the ones waiting on you first. Read the
@@ -6,7 +6,7 @@ conversation, reply, answer questions, switch models, start new sessions and
 open the files they made, from anywhere.
 
 Nothing sits in between: your phone talks to your Macs over your own
-[Tailscale](https://tailscale.com) network. There is no Windsock server, no
+[Tailscale](https://tailscale.com) network. There is no Airpocket server, no
 account and no relay.
 
 > **Status: private, work in progress.** Not ready to install yet. See
