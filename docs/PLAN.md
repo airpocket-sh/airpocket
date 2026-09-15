@@ -57,7 +57,7 @@ Decide first
 Build
 4. [done, PR #1] Carry over the phone code (server, pairing, web app, tests), renamed. Done
    when the current tests pass here.
-5. The background service replacing the desktop panel: session registry and
+5. [done, PR #2] The background service replacing the desktop panel: session registry and
    waiting list (expiry, seen). Done when sessions appear, wait and clear with
    no panel.
 6. One hook for Claude and Codex: start, prompt, finished, question, end,
