@@ -30,7 +30,9 @@ const crypto = require("crypto");
 const { execFile } = require("child_process");
 const { createStore } = require("./store");
 const { PORTS } = require("./ports");
-const { createService } = require("./service");
+const { createService, transcriptPath } = require("./service");
+const { processAlive } = require("./proc");
+const { SECRET_CONTENT } = require("./secrets");
 
 const PUBLIC = path.join(__dirname, "public");
 const SUPERSET = path.join(os.homedir(), ".superset", "bin", "superset");
@@ -585,7 +587,6 @@ const FILE_KINDS = Object.freeze({
 const TEXT_SHOW = 512 * 1024;
 const DENY_NAME = /^(id_(rsa|dsa|ecdsa|ed25519)(\.pub)?|.*\.(pem|key|p8|p12|pfx|keychain(-db)?|kdbx|ovpn|mobileprovision|cer|crt|der|asc|gpg|jks|keystore)|.*(secret|credential|passw|private[-_. ]?key|api[-_. ]?key).*|(.*[._-])?env(\..*)?)$/i;
 // Text that looks like a credential never leaves, whatever the file is called.
-const SECRET_CONTENT = /-----BEGIN [A-Z ]*PRIVATE KEY-----|"private_key"\s*:|\bAKIA[0-9A-Z]{16}\b|\bsk-(ant-)?[A-Za-z0-9_-]{24,}|\bgh[pousr]_[A-Za-z0-9]{30,}|\bxox[abprs]-[A-Za-z0-9-]{20,}/;
 const FILE_SECRET = crypto.randomBytes(32);          // refs cannot be computed off the Mac, and change on restart
 const BOM = String.fromCharCode(0xfeff);
 
@@ -689,9 +690,9 @@ function tailscaleDns() {
   return Promise.resolve("");
 }
 
-function alive(pid) {
-  if (!pid) return false;
-  try { process.kill(pid, 0); return true; } catch (err) { return err.code === "EPERM"; }
+/** Is the session's process still there: that pid, started when the hook said (a reused pid is not). */
+function alive(pid, started) {
+  return !!pid && processAlive(pid, started || 0);
 }
 
 // --------------------------------------------------------------- superset ---
@@ -721,6 +722,9 @@ function createServer(opts = {}) {
     knownSessions: opts.knownSessions || service.knownSessions,
     getQueue: opts.getQueue || service.getQueue,
     dequeue: opts.dequeue || service.dequeue,
+    // Is a session's process there: the service's answer, from one cached ps call
+    // for all sessions, so a poll of the list costs one ps call at most.
+    isLive: opts.isLive || (service ? service.isLive : (e) => alive(e.pid, e.started)),
     superset: opts.superset || runSuperset,
     store,
     log,
@@ -755,10 +759,25 @@ function createServer(opts = {}) {
     return promise;
   }
 
-  // Where each Claude session's transcript lives, found once and remembered.
+  // The transcript a session's hook reported, checked again at use: a real file,
+  // named after that session, by its real path. This is what finds sessions from
+  // other Claude config folders and other CODEX_HOMEs. null when there is none.
+  function recordedTranscript(e, agent) {
+    if (!transcriptPath(e.transcript, e.session_id, agent)) return null;
+    try {
+      const real = fs.realpathSync(e.transcript);
+      return fs.statSync(real).isFile() && transcriptPath(real, e.session_id, agent) ? real : null;
+    } catch { return null; }
+  }
+
+  // Where each Claude session's transcript lives: the one on record, or else
+  // found once under ~/.claude/projects and remembered.
   const transcriptPaths = new Map();
-  function transcriptFor(sid) {
+  function transcriptFor(e) {
+    const sid = String(e.session_id);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sid)) return null;
+    const own = recordedTranscript(e, "claude");
+    if (own) return own;
     const known = transcriptPaths.get(sid);
     if (known && fs.existsSync(known)) return known;
     let dirs = [];
@@ -782,11 +801,15 @@ function createServer(opts = {}) {
     return items;
   }
 
-  // A Codex thread's session file. Thread ids are UUIDv7, so the id says which
-  // day's folder it was created in. Found once, then remembered.
+  // A Codex thread's session file: the one on record, or else found under
+  // CODEX_HOME. Thread ids are UUIDv7, so the id says which day's folder it was
+  // created in. Found once, then remembered.
   const rolloutPaths = new Map(), rolloutMiss = new Map();
-  function rolloutFor(tid) {
+  function rolloutFor(e) {
+    const tid = String(e.session_id);
     if (!UUID.test(tid)) return null;
+    const own = recordedTranscript(e, "codex");
+    if (own) return own;
     const known = rolloutPaths.get(tid);
     if (known && fs.existsSync(known)) return known;
     if (Date.now() - (rolloutMiss.get(tid) || 0) < 10000) return null;
@@ -859,7 +882,7 @@ function createServer(opts = {}) {
         branch: String(e.branch || ""),
         note: String((q && q.message) || e.note || "").slice(0, 240),
         lastSeen: e.last_seen || 0,
-        live: alive(e.pid),
+        live: deps.isLive(e),
         waiting: !!q,
         kind: q ? (q.kind || "input") : null,
         via: terminal ? "terminal" : null,               // null: read-only on the phone
@@ -914,11 +937,11 @@ function createServer(opts = {}) {
 
     let items = null, ctx = null;
     if (agent === "claude") {
-      const file = transcriptFor(String(e.session_id));
+      const file = transcriptFor(e);
       if (file) items = chatItems(file);
     } else {
       // Codex: steps come from its session file as they finish, even mid-turn.
-      const file = rolloutFor(String(e.session_id));
+      const file = rolloutFor(e);
       const s = file ? codexChat(file) : null;
       ctx = s ? s.ctx || null : null;
       if (s && s.items.length) {
@@ -1007,8 +1030,8 @@ function createServer(opts = {}) {
   /** Everything the session's record points at, found again from scratch. */
   function sessionFiles(e) {
     let items = [];
-    if (agentOf(e) === "claude") { const f = transcriptFor(String(e.session_id)); if (f) items = chatItems(f) || []; }
-    else { const f = rolloutFor(String(e.session_id)); const s = f ? codexChat(f) : null; if (s) items = s.items; }
+    if (agentOf(e) === "claude") { const f = transcriptFor(e); if (f) items = chatItems(f) || []; }
+    else { const f = rolloutFor(e); const s = f ? codexChat(f) : null; if (s) items = s.items; }
     return filesFor(e, items);
   }
   function lookupFile(e, ref) {
