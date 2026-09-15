@@ -1,6 +1,6 @@
 # Plan
 
-Windsock is the phone side of a private tool (claude-overlay's `overlay/mobile`),
+Airpocket is the phone side of a private tool (claude-overlay's `overlay/mobile`),
 cut loose from the desktop panel it lived in and made installable by anyone on
 macOS. It also carries on an earlier private prototype, Walkie, whose own
 terminal mode becomes the option for people without Superset or tmux.
@@ -40,11 +40,47 @@ Superset, file viewing with the file-only origin, the UI, and the test suite.
 8. **Fresh-Mac test** on a new macOS user account.
 9. **Launch**: README, a short demo video, the post.
 
-## Sessions
+## Design
 
-1. Service skeleton: registry, waiting list, hook endpoints, phone server
-   started from it; tests carried over.
-2. Terminal bridges (Superset, tmux, own PTY) and read-only fallback.
-3. Installer and uninstaller; generic model and status detection.
-4. Clean-up, security review, docs.
-5. Fresh-Mac test, fixes, demo and launch.
+Öncel designs the look: a fighter-jet, flight-screen theme (cockpit, HUD). The
+phone UI step waits for those designs; the current warm palette is a
+placeholder carried over from the private tool.
+
+## Build steps
+
+Decide first
+1. Runtime: require Node (Homebrew) or ship one self-contained program.
+2. v1 scope: Superset and tmux bridges; the Walkie-style own-terminal mode in
+   v1 or just after; drop the Codex desktop-daemon link.
+3. Its own ports, so it runs beside the private tool during the build.
+
+Build
+4. Carry over the phone code (server, pairing, web app, tests), renamed. Done
+   when the current tests pass here.
+5. The background service replacing the desktop panel: session registry and
+   waiting list (expiry, seen). Done when sessions appear, wait and clear with
+   no panel.
+6. One hook for Claude and Codex: start, prompt, finished, question, end,
+   where the transcript lives, which terminal. Done when sessions from several
+   accounts land in one list.
+7. Terminal bridges: Superset, tmux, then own-terminal mode; read-only without
+   one, with the phone hiding what it can't do.
+8. Model and status from what the agents show themselves; model lists that do
+   not go stale.
+9. The phone app for the public: the new design, Airpocket name and icon, no
+   Accounts screen, first-run guidance, QR pairing.
+10. setup / doctor / uninstall: hooks, login item, Tailscale for both
+    addresses, QR; uninstall removes exactly what setup added.
+11. Security pass: threat model, review, secret scan of code and history,
+    dependency audit, SECURITY.md.
+12. Tests on GitHub Actions (macOS) for every change.
+
+Prove it, then launch
+13. Öncel switches his own Macs over for a few days; the private tool's phone
+    part retires (the panel stays private).
+14. Fresh-Mac test from the README alone: Superset and tmux, Claude and Codex,
+    a second Mac, a real iPhone including a PDF.
+15. Launch material: README with screenshots, a short demo video, FAQ, first
+    release.
+16. Go public: final secret scan, repo public, buy airpocket.sh last and point
+    it at the repo or a small page with the install command, post on X.
