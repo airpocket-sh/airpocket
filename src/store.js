@@ -5,13 +5,15 @@
 //                  `hash` is the SHA-256 of that device's token. The token itself
 //                  exists only on the phone; this file cannot be replayed.
 //   pairing.json   the one pending six-digit code: {hash, expiresAt, attempts}.
-//                  Only someone at this Mac can create it (npm run mobile:pair).
+//                  Only someone at this Mac can create it (airpocket pair).
+//
+// The folder is ~/Library/Application Support/Airpocket, or $AIRPOCKET_DIR.
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 
-const DEFAULT_DIR = path.join(os.homedir(), "Library", "Application Support", "claude-overlay", "mobile");
+const DEFAULT_DIR = path.join(os.homedir(), "Library", "Application Support", "Airpocket");
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const TOUCH_EVERY_MS = 5 * 60 * 1000;
@@ -24,7 +26,7 @@ function sameDigest(a, b) {
   return x.length === 32 && y.length === 32 && crypto.timingSafeEqual(x, y);
 }
 
-function createStore(dir = process.env.PANEL_MOBILE_DIR || DEFAULT_DIR) {
+function createStore(dir = process.env.AIRPOCKET_DIR || DEFAULT_DIR) {
   const file = (n) => path.join(dir, n);
   const read = (n, fallback) => {
     try { return JSON.parse(fs.readFileSync(file(n), "utf8")); } catch { return fallback; }

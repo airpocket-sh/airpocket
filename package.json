@@ -1,0 +1,14 @@
+{
+  "name": "airpocket",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Your Claude Code and Codex sessions, from every Mac, on your phone.",
+  "license": "MIT",
+  "main": "src/server.js",
+  "bin": { "airpocket": "src/cli.js" },
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}

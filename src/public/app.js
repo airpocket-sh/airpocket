@@ -1,10 +1,10 @@
 "use strict";
-// The phone side of the panel. Plain DOM, no framework, no HTML strings: every
+// Airpocket on the phone. Plain DOM, no framework, no HTML strings: every
 // value from a Mac goes in through textContent. Paired Macs and their device
 // tokens live in this phone's storage only.
 (() => {
-  const HOSTS_KEY = "panel.hosts.v1";
-  const PREFS_KEY = "panel.prefs.v1";
+  const HOSTS_KEY = "airpocket.hosts.v1";
+  const PREFS_KEY = "airpocket.prefs.v1";
   const bar = document.getElementById("bar");
   const view = document.getElementById("view");
   const composer = document.getElementById("composer");
@@ -35,7 +35,6 @@
     plus: ["M12 5v14", "M5 12h14"],
     down: ["M6 9l6 6 6-6"],
     refresh: ["M23 4v6h-6", "M1 20v-6h6", "M3.51 9a9 9 0 0 1 14.85-3.36L23 10", "M1 14l4.64 4.36A9 9 0 0 0 20.49 15"],
-    usage: ["M21.21 15.89A10 10 0 1 1 8 2.83", "M22 12A10 10 0 0 0 12 2v10z"],
     mac: ["M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M8 21h8", "M12 17v4"],
     sliders: ["M4 21v-7", "M4 10V3", "M12 21v-9", "M12 8V3", "M20 21v-5", "M20 12V3", "M1 14h6", "M9 8h6", "M17 16h6"],
     send: ["M12 19V5", "M5 12l7-7 7 7"],
@@ -164,7 +163,6 @@
       if (host) return renderSession(host, decodeURIComponent(m[2]));
     }
     if (hash === "#/new") return renderNew();
-    if (hash === "#/accounts") return renderAccounts();
     if (hash === "#/hosts") return renderHosts();
     if (hash === "#/add") return renderPair(true);
     return renderList();
@@ -177,7 +175,6 @@
     document.body.classList.add("on-list");
     const sub = hosts.length > 1 ? hosts.length + " Macs" : (hosts[0] && hosts[0].name) || "";
     setBar({ title: "Sessions", sub, actions: [
-      h("button", { class: "ib", "aria-label": "Accounts and usage", onclick: () => go("#/accounts") }, icon("usage")),
       h("button", { class: "ib", "aria-label": "Paired Macs", onclick: () => go("#/hosts") }, icon("mac")),
       h("button", { class: "ib", "aria-label": "Refresh", onclick: () => poll && poll.tick() }, icon("refresh", 20)),
     ] });
@@ -819,62 +816,9 @@
     load();
   }
 
-  // ---- accounts (claude-accounts) ----------------------------------------------------
-  function renderAccounts() {
-    setBar({ back: "#/", title: "Accounts", sub: "Usage, and the live account on each Mac" });
-    const list = h("div", {}, h("div", { class: "empty", text: "Loading…" }));
-    view.replaceChildren(list);
-    const when = (iso) => {
-      const d = new Date(iso);
-      if (!iso || isNaN(d)) return "";
-      const t = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      return "resets " + (d - Date.now() < 86400000 ? t : d.toLocaleDateString([], { weekday: "short" }) + " " + t);
-    };
-    const draw = async () => {
-      const blocks = await Promise.all(hosts.map(async (host) => {
-        try { return { host, d: await api(host, "/api/accounts", { timeout: 15000 }) }; } catch (err) { return { host, err }; }
-      }));
-      list.replaceChildren(...blocks.flatMap(({ host, d, err }) => {
-        const head = hosts.length > 1 ? [h("div", { class: "hdr" }, host.name)] : [];
-        if (err) return [...head, h("div", { class: "hosterr" }, h("b", { text: host.name }), err.message)];
-        if (!d.available) return [...head, h("div", { class: "empty", text: "Account switching isn't set up on this Mac." })];
-        const card = (a) => {
-          const codex = a.provider === "codex";
-          const live = codex ? a.name === d.activeCodex : a.name === d.active;
-          let btn = null;
-          if (live) btn = h("span", { class: "livebadge", text: "Live" });
-          else if (d.canSwitch) {
-            btn = h("button", { class: "btn ghost sm", text: "Make live" });
-            btn.addEventListener("click", async () => {
-              if (!window.confirm(`Make ${a.name} the live ${codex ? "Codex" : "Claude"} account on ${host.name}? New sessions use it.`)) return;
-              btn.disabled = true;
-              try { await api(host, "/api/accounts/switch", { method: "POST", body: { name: a.name }, timeout: 45000 }); toast("Switched to " + a.name); draw(); }
-              catch (e) { toast(e.message, true); btn.disabled = false; }
-            });
-          }
-          return h("div", { class: "acct" + (live ? " live" : "") },
-            h("div", { class: "ah" }, h("b", { text: a.name.replace(/-codex$/, "") }), a.plan ? h("span", { class: "chip", text: a.plan }) : null, btn),
-            a.limits.map((l) => {
-              const fill = h("i");
-              fill.style.width = l.percent + "%";          // CSSOM, which the page's CSP allows
-              if (l.percent >= 90) fill.classList.add("hot");
-              return h("div", { class: "lim" },
-                h("div", { class: "lt2" }, h("span", { text: l.label }), h("span", { text: [l.percent + "%", when(l.resetsAt)].filter(Boolean).join(" · ") })),
-                h("div", { class: "meter" }, fill));
-            }),
-            a.stale ? h("div", { class: "note", text: "This reading may be old." }) : null);
-        };
-        const claude = d.accounts.filter((a) => a.provider !== "codex"), codex = d.accounts.filter((a) => a.provider === "codex");
-        return [...head, h("div", { class: "hdr" }, "Claude"), ...claude.map(card),
-                ...(codex.length ? [h("div", { class: "hdr" }, "Codex"), ...codex.map(card)] : [])];
-      }));
-    };
-    draw();
-  }
-
   // ---- pairing -------------------------------------------------------------------
   function renderPair(adding) {
-    setBar(adding ? { back: "#/hosts", title: "Add a Mac" } : { mark: "Claude" });
+    setBar(adding ? { back: "#/hosts", title: "Add a Mac" } : { mark: "Airpocket" });
     const base = h("input", { type: "url", inputmode: "url", placeholder: "https://mac-name.your-tailnet.ts.net",
       autocapitalize: "none", autocorrect: "off", spellcheck: "false", "aria-label": "Mac address" });
     const code = h("input", { class: "code", inputmode: "numeric", autocomplete: "one-time-code", maxlength: "7",
@@ -907,8 +851,7 @@
     });
     view.replaceChildren(h("div", { class: "card" },
       h("h1", { text: adding ? "Add another Mac" : "Pair this phone" }),
-      h("p", {}, "On the Mac, in Terminal, run ", h("code", { text: "npm run mobile:pair" }), " inside ",
-        h("code", { text: "~/Developer/claude-overlay/overlay" }), ", then enter the six-digit code it shows."),
+      h("p", {}, "On the Mac, in Terminal, run ", h("code", { text: "airpocket pair" }), ", then enter the six-digit code it shows."),
       adding ? h("label", {}, "Mac address", base) : null,
       h("label", {}, "Code", code),
       h("label", {}, "Name for this phone", name),
@@ -938,7 +881,7 @@
     }));
     draw();
     view.replaceChildren(list, h("div", { class: "card" },
-      h("p", { text: "Each Mac has its own Tailscale address and its own pairing code. To cut a phone off, run npm run mobile:devices on that Mac and revoke it." }),
+      h("p", { text: "Each Mac has its own Tailscale address and its own pairing code. To cut a phone off, run airpocket devices on that Mac and revoke it." }),
       h("button", { class: "btn wide", text: "Add another Mac", onclick: () => go("#/add") })));
   }
 

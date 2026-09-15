@@ -1,25 +1,27 @@
 "use strict";
-// Phone access to the panel.
+// Airpocket's server: the phone app and its API.
 //
-// A second, deliberately small HTTP server. It listens on 127.0.0.1 only; the
-// phone reaches it through `tailscale serve`, which publishes it inside your
-// tailnet over HTTPS and nowhere else. It is kept apart from the panel's own
-// server on purpose: that one carries debug and control routes (/inspect,
-// /logout, /ax, /probe, ...) that must never leave this Mac. This one exposes a
-// short allow-list:
+// A deliberately small HTTP server. It listens on 127.0.0.1 only; the phone
+// reaches it through `tailscale serve`, which publishes it inside your tailnet
+// over HTTPS and nowhere else. It exposes a short allow-list:
 //
-//   POST /api/pair      six-digit code from `npm run mobile:pair` -> device token
+//   POST /api/pair      six-digit code from `airpocket pair` -> device token
 //   GET  /api/hello     which Mac is this
-//   GET  /api/sessions  every session the panel knows, the waiting ones marked
-//   GET  /api/screen    one session: its terminal screen, or its Codex transcript
+//   GET  /api/sessions  every session this Mac knows, the waiting ones marked
+//   GET  /api/screen    one session: its conversation, live state, or terminal screen
 //   POST /api/send      type text into a session, with or without Enter
-//   POST /api/key       one of a few fixed keys: 1 2 3 Enter Esc
+//   POST /api/key       one of a few fixed keys: digits, arrows, Tab, Enter, Esc
+//   POST /api/command   a Controls action, from a fixed table of slash commands
 //   POST /api/answer    approve, decline or answer a pending Codex request
+//   POST /api/seen      opening a finished session takes it off the waiting list
+//   GET  /api/new/options, POST /api/new    start a session through Superset
+//   GET  /api/files, /api/file/text, /api/file/image, POST /api/file/open
 //
 // Everything except pairing and the static app needs `Authorization: Bearer
 // <device token>`. There are no cookies, so there is nothing for another site to
 // ride on. The phone never names a terminal or a workspace: it names a session
-// id, and the terminal is looked up here in the panel's own records.
+// id, and the terminal is looked up here in Airpocket's own records. A second
+// server, on the next port, is the file-only origin (see "files" below).
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -27,8 +29,9 @@ const os = require("os");
 const crypto = require("crypto");
 const { execFile } = require("child_process");
 const { createStore } = require("./store");
+const { PORTS } = require("./ports");
+const { fileSessions, fileQueue, noService } = require("./service");
 
-const OVERLAY = path.join(__dirname, "..");
 const PUBLIC = path.join(__dirname, "public");
 const SUPERSET = path.join(os.homedir(), ".superset", "bin", "superset");
 
@@ -196,7 +199,7 @@ function tidyScreen(text, { codex = false } = {}) {
     .replace(/^\n+|\n+$/g, "");
 }
 
-/** A Codex thread as the panel's daemon returns it, reduced to what a phone shows. */
+/** A Codex thread as the service's app-server link returns it, reduced to what a phone shows. */
 function codexView(d) {
   const items = [];
   for (const turn of (d.turns || []).slice().reverse()) {
@@ -436,7 +439,7 @@ function chatFromCodex(items) {
 // ------------------------------------------------------------ codex view ---
 // Codex writes each thread to ~/.codex/sessions/YYYY/MM/DD/rollout-<time>-<thread id>.jsonl
 // and appends an item_completed event the moment a step finishes, while the turn
-// is still running. The panel's daemon only knows finished turns (a running one
+// is still running. Codex's app-server daemon only knows finished turns (a running one
 // reads as "interrupted" with just your message), so the phone reads the file.
 // What leaves the Mac is the same as for Claude: your messages, Codex's
 // messages, one short label per step. Never command output, file contents,
@@ -754,25 +757,8 @@ function alive(pid) {
   try { process.kill(pid, 0); return true; } catch (err) { return err.code === "EPERM"; }
 }
 
-// ------------------------------------------------ defaults when standalone ---
+// --------------------------------------------------------------- superset ---
 
-function fileSessions() {
-  // Same rule as knownSessions() in main.js: hook-written records from the last day.
-  const dir = path.join(OVERLAY, "sessions");
-  const cutoff = Date.now() / 1000 - 24 * 3600;
-  const out = [];
-  try {
-    for (const f of fs.readdirSync(dir)) {
-      if (!f.endsWith(".json")) continue;
-      try { const e = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")); if (e && e.last_seen >= cutoff) out.push(e); } catch {}
-    }
-  } catch {}
-  return out.sort((a, b) => (b.last_seen || 0) - (a.last_seen || 0));
-}
-function fileQueue() {
-  try { const d = JSON.parse(fs.readFileSync(path.join(OVERLAY, "queue.json"), "utf8")); return Array.isArray(d.queue) ? d.queue : []; }
-  catch { return []; }
-}
 function runFile(file, args, timeout = 15000) {
   return new Promise((resolve, reject) => {
     execFile(file, args, { timeout, maxBuffer: 4 * 1024 * 1024 }, (err, out, errOut) =>
@@ -780,44 +766,30 @@ function runFile(file, args, timeout = 15000) {
   });
 }
 function runSuperset(args, o = {}) { return runFile(SUPERSET, args, o.timeout || 15000); }
-function panelCall(port, method, p, body) {
-  return new Promise((resolve, reject) => {
-    const data = body === undefined ? null : Buffer.from(JSON.stringify(body));
-    const req = http.request({ host: "127.0.0.1", port, method, path: p, timeout: 15000,
-      headers: data ? { "Content-Type": "application/json", "Content-Length": data.length } : {} }, (res) => {
-      let b = "";
-      res.setEncoding("utf8");
-      res.on("data", (c) => { if (b.length < 4e6) b += c; });
-      res.on("end", () => { let j = null; try { j = JSON.parse(b); } catch {} resolve({ status: res.statusCode, json: j, text: b }); });
-    });
-    req.on("timeout", () => req.destroy(new Error("the panel did not answer")));
-    req.on("error", reject);
-    if (data) req.write(data);
-    req.end();
-  });
-}
 
 // ----------------------------------------------------------------- server ---
 
-function createMobileServer(opts = {}) {
+function createServer(opts = {}) {
+  const store = opts.store || createStore(opts.dataDir);
   const deps = {
-    knownSessions: opts.knownSessions || fileSessions,
-    getQueue: opts.getQueue || fileQueue,
+    // The seams to the background service (see service.js). Until step 5 they read
+    // Airpocket's own data folder, and every service call is "not available".
+    knownSessions: opts.knownSessions || (() => fileSessions(path.join(store.dir, "sessions"))),
+    getQueue: opts.getQueue || (() => fileQueue(path.join(store.dir, "queue.json"))),
+    service: opts.service || noService,
     superset: opts.superset || runSuperset,
-    panel: opts.panel || ((m, p, b) => panelCall(opts.panelPort || 47820, m, p, b)),
-    store: opts.store || createStore(opts.dataDir),
+    store,
     log: opts.log || ((...a) => console.log(new Date().toISOString(), ...a)),
     hostLabel: opts.hostLabel || os.hostname().replace(/\.local$/i, ""),
     claudeProjects: opts.claudeProjects || path.join(os.homedir(), ".claude", "projects"),
     codexHome: opts.codexHome || process.env.CODEX_HOME || path.join(os.homedir(), ".codex"),
-    accountsHome: opts.accountsHome || path.join(os.homedir(), ".claude-accounts"),
     homeDir: opts.homeDir || os.homedir(),
     ticketMs: opts.ticketMs || 120000,
   };
   // Where the file-only origin is reached from the phone: this Mac's tailnet name on
-  // its own port, published by `npm run mobile:serve`. Loopback when there is no tailnet.
-  const filePort = opts.filePort ?? (opts.port ?? 47821) + 1;
-  const publicFilePort = opts.publicFilePort ?? 8443;
+  // its own port, published by `airpocket serve`. Loopback when there is no tailnet.
+  const filePort = opts.filePort ?? (opts.port != null ? opts.port + 1 : PORTS.file);
+  const publicFilePort = opts.publicFilePort ?? PORTS.publicFile;
   let fileBaseCache = null;
   deps.fileBase = opts.fileBase || (async () => {
     if (fileBaseCache && Date.now() - fileBaseCache.at < 600000) return fileBaseCache.url;
@@ -826,8 +798,6 @@ function createMobileServer(opts = {}) {
     fileBaseCache = { at: Date.now(), url };
     return url;
   });
-  // claude-accounts (github: claude-account-manager), when it is installed: usage and the live account.
-  deps.accounts = opts.accounts || ((args) => runFile(path.join(deps.accountsHome, "bin", "claude-accounts"), args, 40000));
 
   // Several polls of one terminal within a second share a single read.
   const reads = new Map();
@@ -969,10 +939,10 @@ function createMobileServer(opts = {}) {
     const r = deps.store.useCode(body.code);
     if (r === "ok") {
       const { token, device } = deps.store.addDevice(cleanName(body.name));
-      deps.log(`mobile: paired ${device.name} (${device.id})`);
+      deps.log(`paired ${device.name} (${device.id})`);
       return json(res, 200, { token, deviceId: device.id, host: deps.hostLabel }, cors);
     }
-    if (r === "none") return json(res, 400, { error: "no_code", message: "No pairing code is waiting. On the Mac run: npm run mobile:pair" }, cors);
+    if (r === "none") return json(res, 400, { error: "no_code", message: "No pairing code is waiting. On the Mac run: airpocket pair" }, cors);
     if (r === "expired") return json(res, 400, { error: "expired", message: "That code expired. Make a new one on the Mac." }, cors);
     if (r === "locked") return json(res, 429, { error: "locked", message: "Too many wrong tries. Make a new code on the Mac." }, cors);
     return json(res, 401, { error: "wrong_code", left: r.wrong,
@@ -1013,12 +983,12 @@ function createMobileServer(opts = {}) {
         items = s.items.slice(-MAX_ITEMS);
         if (!live && s.running) live = { state: "working", verb: "Working…", elapsed: elapsedSince(s.running), menu: null, staged: "" };
       }
-      // Threads the panel runs keep their approvals there. It is also the fallback
-      // for a thread that has no session file yet. A slow or failing panel never
-      // takes the conversation down with it.
+      // Threads the service runs keep their approvals there. It is also the fallback
+      // for a thread that has no session file yet. A slow, failing or missing
+      // service never takes the conversation down with it.
       if (!terminal || !items) {
         let r = null;
-        try { r = await deps.panel("GET", "/codex/thread?id=" + encodeURIComponent(e.session_id)); } catch {}
+        try { r = await deps.service("GET", "/codex/thread?id=" + encodeURIComponent(e.session_id)); } catch {}
         if (r && r.status === 200 && r.json) { const v = codexView(r.json); pending = v.pending; if (!items) items = chatFromCodex(v.items); }
       }
     }
@@ -1046,8 +1016,8 @@ function createMobileServer(opts = {}) {
     }
     if (isCodex(e)) {
       if (!submit) return json(res, 400, { error: "submit_only", message: "Codex threads take whole messages." }, cors);
-      const r = await deps.panel("POST", "/codex/turn", { threadId: e.session_id, text });
-      if (r.status !== 200) return json(res, 502, { error: "codex_failed", message: String(r.text || "The panel refused that message.").slice(0, 200) }, cors);
+      const r = await deps.service("POST", "/codex/turn", { threadId: e.session_id, text });
+      if (r.status !== 200) return json(res, 502, { error: "codex_failed", message: String(r.text || "The service refused that message.").slice(0, 200) }, cors);
       return json(res, 200, { ok: true, via: "codex", submitted: true }, cors);
     }
     return json(res, 409, { error: "no_route", message: "This session can't be reached from here." }, cors);
@@ -1170,7 +1140,7 @@ function createMobileServer(opts = {}) {
     if (tickets.size >= 100) tickets.delete(tickets.keys().next().value);
     const id = crypto.randomBytes(32).toString("base64url");
     tickets.set(id, { root: f.root, abs: f.abs, ino: f.ino, dev: f.dev, ext: f.ext, name: f.name, kind: f.kind, type: f.type, expires: now + deps.ticketMs, uses: 0 });
-    deps.log(`mobile: opened a ${f.kind} (${f.ext})`);
+    deps.log(`opened a ${f.kind} (${f.ext})`);
     const host = tailnetHost(req);
     const origin = host ? `https://${host}:${publicFilePort}` : await deps.fileBase();
     return json(res, 200, { url: `${origin}/f/${id}/${encodeURIComponent(f.name)}`, expires: now + deps.ticketMs }, cors);
@@ -1248,7 +1218,7 @@ function createMobileServer(opts = {}) {
     const q = (deps.getQueue() || []).find((x) => x && (String(x.id) === String(e.bridge_id) || (x.sid && String(x.sid) === String(e.session_id))));
     if (!q || !SEEN_CLEARS.has(String(q.reason || ""))) return json(res, 200, { ok: true, cleared: false }, cors);
     let r = null;
-    try { r = await deps.panel("GET", `/dequeue?id=${encodeURIComponent(q.id)}&sid=${encodeURIComponent(q.sid || "")}`); } catch {}
+    try { r = await deps.service("GET", `/dequeue?id=${encodeURIComponent(q.id)}&sid=${encodeURIComponent(q.sid || "")}`); } catch {}
     return json(res, 200, { ok: true, cleared: !!(r && r.status === 200) }, cors);
   }
 
@@ -1309,54 +1279,14 @@ function createMobileServer(opts = {}) {
     try { await deps.superset(args, { timeout: 90000 }); }
     catch (err) { return json(res, 502, { error: "start_failed", message: "Superset couldn't start it: " + String(err.message || "").slice(0, 160) }, cors); }
     options = null;                           // a new workspace changes the lists
-    deps.log(`mobile: started ${agent.id} ${body.workspace != null ? "in a workspace" : "on a new branch"}`);
-    return json(res, 200, { ok: true }, cors);
-  }
-
-  // ---- accounts (claude-accounts, when installed) ----
-  let accountsRefreshing = false;
-  function accountsState() {
-    let cache, state = {};
-    try { cache = JSON.parse(fs.readFileSync(path.join(deps.accountsHome, "status-cache.json"), "utf8")); } catch { return null; }
-    try { state = JSON.parse(fs.readFileSync(path.join(deps.accountsHome, "state.json"), "utf8")) || {}; } catch {}
-    if (!cache || typeof cache.accounts !== "object" || !cache.accounts) return null;
-    return { cache, state, bin: fs.existsSync(path.join(deps.accountsHome, "bin", "claude-accounts")) };
-  }
-  async function accountsInfo(res, cors) {
-    const a = accountsState();
-    if (!a) return json(res, 200, { available: false }, cors);
-    // An old reading is refreshed in the background, as the status line does.
-    try {
-      const age = Date.now() - fs.statSync(path.join(deps.accountsHome, "status-cache.json")).mtimeMs;
-      if (age > 600000 && a.bin && !accountsRefreshing) {
-        accountsRefreshing = true;
-        deps.accounts(["status", "--json"]).catch(() => {}).finally(() => { accountsRefreshing = false; });
-      }
-    } catch {}
-    // Names, plans and percentages only. Never a credential or an organisation id.
-    const accounts = Object.entries(a.cache.accounts).map(([name, x]) => ({
-      name: clip(name, 80), provider: x && x.provider === "codex" ? "codex" : "claude", plan: clip((x && x.plan) || "", 20), stale: !!(x && x.stale),
-      limits: ((x && Array.isArray(x.limits) && x.limits) || []).slice(0, 4).map((l) => ({
-        label: clip(l.label || "", 20), percent: Math.max(0, Math.min(100, Math.round(Number(l.percent) || 0))), resetsAt: clip(l.resets_at || "", 40) })),
-    }));
-    return json(res, 200, { available: true, canSwitch: a.bin, active: String(a.state.active || a.cache.active || ""),
-      activeCodex: String(a.state.active_codex || a.cache.active_codex || ""), accounts }, cors);
-  }
-  async function switchAccount(res, body, cors) {
-    const a = accountsState();
-    if (!a || !a.bin) return json(res, 409, { error: "unavailable", message: "Account switching isn't set up on this Mac." }, cors);
-    const name = typeof body.name === "string" ? body.name : "";
-    if (!Object.hasOwn(a.cache.accounts, name) || !/^[\w.@+][\w.@+-]{0,79}$/.test(name)) return json(res, 400, { error: "bad_account" }, cors);
-    try { await deps.accounts(["switch", name]); }
-    catch (err) { return json(res, 502, { error: "switch_failed", message: "The switch failed: " + String(err.message || "").slice(0, 160) }, cors); }
-    deps.log("mobile: switched the live account");
+    deps.log(`started ${agent.id} ${body.workspace != null ? "in a workspace" : "on a new branch"}`);
     return json(res, 200, { ok: true }, cors);
   }
 
   async function answer(res, body, cors) {
     const e = find(body.id);
     if (!e || !isCodex(e)) return json(res, 404, { error: "unknown_session" }, cors);
-    const r = await deps.panel("GET", "/codex/thread?id=" + encodeURIComponent(e.session_id));
+    const r = await deps.service("GET", "/codex/thread?id=" + encodeURIComponent(e.session_id));
     if (r.status !== 200 || !r.json) return json(res, 502, { error: "codex_unavailable" }, cors);
     // Answer only a request that is actually pending on this thread, with its original id.
     const pend = (r.json.pending || []).find((p) => String(p.id) === String(body.request));
@@ -1376,7 +1306,7 @@ function createMobileServer(opts = {}) {
       if (!DECISIONS.has(body.decision)) return json(res, 400, { error: "bad_decision" }, cors);
       result = { decision: body.decision };
     }
-    const a = await deps.panel("POST", "/codex/answer", { id: pend.id, result });
+    const a = await deps.service("POST", "/codex/answer", { id: pend.id, result });
     if (a.status !== 200) return json(res, 502, { error: "answer_failed", message: String(a.text || "").slice(0, 200) }, cors);
     return json(res, 200, { ok: true }, cors);
   }
@@ -1414,7 +1344,6 @@ function createMobileServer(opts = {}) {
       if (p === "/api/sessions") return json(res, 200, { host: deps.hostLabel, sessions: list() }, cors);
       if (p === "/api/screen") return screen(res, url, cors);
       if (p === "/api/new/options") return newOptions(res, cors);
-      if (p === "/api/accounts") return accountsInfo(res, cors);
       if (p === "/api/files") return listFiles(res, url, cors);
       if (p === "/api/file/text") return fileText(res, url, cors);
       if (p === "/api/file/image") return fileImage(res, url, cors);
@@ -1422,7 +1351,7 @@ function createMobileServer(opts = {}) {
     }
     if (req.method === "POST") {
       const handler = { "/api/send": sendText, "/api/key": pressKey, "/api/answer": answer, "/api/command": command,
-                        "/api/seen": seen, "/api/new": newSession, "/api/accounts/switch": switchAccount, "/api/file/open": openFile }[p];
+                        "/api/seen": seen, "/api/new": newSession, "/api/file/open": openFile }[p];
       if (!handler) return json(res, 404, { error: "not_found" }, cors);
       const body = await readJson(req, res, cors);
       return body ? handler(res, body, cors, req) : res.statusCode;
@@ -1433,14 +1362,14 @@ function createMobileServer(opts = {}) {
   const server = http.createServer((req, res) => {
     const started = Date.now();
     let url;
-    try { url = new URL(req.url || "/", "http://mobile.invalid"); } catch { res.writeHead(400); return res.end(); }
+    try { url = new URL(req.url || "/", "http://airpocket.invalid"); } catch { res.writeHead(400); return res.end(); }
     route(req, res, url)
       .then((status) => {
         // Polls are frequent; log writes and failures only. Never the query or the body.
-        if (req.method === "POST" || status >= 400) deps.log(`mobile ${req.method} ${url.pathname} ${status} ${Date.now() - started}ms`);
+        if (req.method === "POST" || status >= 400) deps.log(`${req.method} ${url.pathname} ${status} ${Date.now() - started}ms`);
       })
       .catch((err) => {
-        deps.log("mobile error:", err && err.stack ? err.stack : err);
+        deps.log("error:", err && err.stack ? err.stack : err);
         if (!res.headersSent) json(res, 500, { error: "internal", message: "Something went wrong on the Mac." });
         else res.destroy();
       });
@@ -1449,26 +1378,26 @@ function createMobileServer(opts = {}) {
   // The file-only origin: nothing but two-minute file links. No API, no app, no cookies.
   const fileServer = http.createServer((req, res) => {
     let status;
-    try { status = fileRoute(req, res); } catch (err) { deps.log("mobile file error:", err && err.message); if (!res.headersSent) { res.writeHead(500); res.end(); } }
-    if (status >= 400 && status !== 404) deps.log(`mobile file ${req.method} ${status}`);
+    try { status = fileRoute(req, res); } catch (err) { deps.log("file server error:", err && err.message); if (!res.headersSent) { res.writeHead(500); res.end(); } }
+    if (status >= 400 && status !== 404) deps.log(`file ${req.method} ${status}`);
   });
   fileServer.requestTimeout = 60000;
   server.headersTimeout = 15000;
   return { server, fileServer, deps };
 }
 
-/** Start on 127.0.0.1 only. The panel calls this; `node mobile/server.js` does too. */
+/** Start both servers on 127.0.0.1 only. `npm start` calls this; so will the background service. */
 function start(opts = {}) {
-  const port = opts.port ?? 47821;
-  const mobile = createMobileServer(opts);
-  mobile.server.on("error", (err) => mobile.deps.log(`mobile server: ${err.code === "EADDRINUSE" ? `port ${port} is already taken` : err.message}`));
-  mobile.server.listen(port, "127.0.0.1", () => mobile.deps.log(`mobile server on http://127.0.0.1:${port}`));
-  const filePort = opts.filePort ?? port + 1;
-  mobile.fileServer.on("error", (err) => mobile.deps.log(`mobile file server: ${err.code === "EADDRINUSE" ? `port ${filePort} is already taken` : err.message}`));
-  mobile.fileServer.listen(filePort, "127.0.0.1", () => mobile.deps.log(`mobile file server on http://127.0.0.1:${filePort}`));
-  return mobile;
+  const port = opts.port ?? PORTS.app;
+  const filePort = opts.filePort ?? (opts.port != null ? opts.port + 1 : PORTS.file);
+  const app = createServer({ ...opts, port, filePort });
+  app.server.on("error", (err) => app.deps.log(`server: ${err.code === "EADDRINUSE" ? `port ${port} is already taken` : err.message}`));
+  app.server.listen(port, "127.0.0.1", () => app.deps.log(`airpocket on http://127.0.0.1:${port}`));
+  app.fileServer.on("error", (err) => app.deps.log(`file server: ${err.code === "EADDRINUSE" ? `port ${filePort} is already taken` : err.message}`));
+  app.fileServer.listen(filePort, "127.0.0.1", () => app.deps.log(`file server on http://127.0.0.1:${filePort}`));
+  return app;
 }
 
-module.exports = { start, createMobileServer, tidyScreen, codexView, cleanText, KEYS, liveState, claudeItems, describeTool, chatFromCodex, codexStep, shellLabel, sessionInfo, sessionRoot, fileMeta, mentions };
+module.exports = { start, createServer, tidyScreen, codexView, cleanText, KEYS, liveState, claudeItems, describeTool, chatFromCodex, codexStep, shellLabel, sessionInfo, sessionRoot, fileMeta, mentions };
 
-if (require.main === module) start({ port: Number(process.env.PANEL_MOBILE_PORT) || 47821 });
+if (require.main === module) start();
