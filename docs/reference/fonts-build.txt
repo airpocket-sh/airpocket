@@ -1,0 +1,28 @@
+set -e
+U_LAT="U+0020-007E,U+00A0-00FF,U+0131,U+0152-0153,U+0160-0161,U+0178,U+017D-017E"
+U_EXTA="U+0100-017F"
+U_PUNCT="U+2013-2014,U+2018-2019,U+201C-201D,U+2022,U+2026,U+2039-203A,U+2212,U+20AC,U+2122"
+U_ARROWS="U+2190-2193,U+21E7,U+21B5"
+U_SYM="U+2713,U+25CF,U+00B7"
+SUB="--layout-features=kern,liga,calt,tnum,case,ccmp,locl,mark,mkmk --flavor=woff2 --desubroutinize --no-hinting --name-IDs=0,1,2,3,4,5,6,13,14,16,17 --name-languages=0x409"
+mkdir -p out
+pyftsubset b612-B612-Regular.ttf --unicodes="$U_LAT,$U_PUNCT,$U_ARROWS,$U_SYM" $SUB --output-file=out/b612-400.woff2
+pyftsubset b612-B612-Bold.ttf --unicodes="$U_LAT,$U_PUNCT,$U_ARROWS,$U_SYM" $SUB --output-file=out/b612-700.woff2
+pyftsubset b612mono-B612Mono-Regular.ttf --unicodes="$U_LAT,$U_PUNCT,$U_ARROWS,$U_SYM" $SUB --output-file=out/b612-mono-400.woff2
+pyftsubset b612mono-B612Mono-Bold.ttf --unicodes="$U_LAT,$U_PUNCT,$U_ARROWS,$U_SYM" $SUB --output-file=out/b612-mono-700.woff2
+for w in 400 500 600; do
+  fonttools varLib.instancer "ibmplexsans-IBMPlexSans[wdth,wght].ttf" wght=$w wdth=100 -q -o plex-$w.ttf
+  pyftsubset plex-$w.ttf --unicodes="U+0020-007E,U+00A0-00FF,$U_EXTA,$U_PUNCT,U+2190-2193,$U_SYM" $SUB --output-file=out/plex-$w.woff2
+done
+ls -l out
+from fontTools.ttLib import TTFont
+import sys
+for fn in sys.argv[1:]:
+    f = TTFont(fn)
+    for rec in f["name"].names:
+        if rec.nameID in (1, 3, 4, 6, 16, 17):
+            s = rec.toUnicode().replace("IBM Plex Sans", "Airpocket Read").replace("IBMPlexSans", "AirpocketRead")
+            rec.string = s
+    f.flavor = "woff2"
+    f.save(fn)
+    print(fn, [(r.nameID, r.toUnicode()) for r in f["name"].names if r.nameID in (1, 4, 6)])

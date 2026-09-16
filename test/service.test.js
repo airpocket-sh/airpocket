@@ -363,6 +363,14 @@ test("liveness costs one ps call per second, however many sessions and phone pol
       assert.ok(sessions.every((s) => s.live), "every session is live");
     }
     assert.equal(reads.length, 1, "five polls of eight sessions: one ps call");
+    const { sessions } = await api("GET", "/api/sessions", null, token);
+    assert.ok(sessions.every((x) => x.status && x.status.state === "idle"), "every row says working or idle");
+    await call(hookPort, "/hook/dequeue", { session_id: "aaaaaaaa-0000-4000-8000-000000000003", why: "prompt", pid: process.pid, started: own },
+      { Authorization: "Bearer " + secret });
+    const after = (await api("GET", "/api/sessions", null, token)).sessions;
+    assert.equal(after.find((x) => x.id.endsWith("3")).status.state, "working", "a prompt shows on its row");
+    assert.equal(after.filter((x) => x.status.state === "working").length, 1);
+    assert.equal(reads.length, 1, "the rows' state costs no more ps calls");
     clock += 1000;
     await api("GET", "/api/sessions", null, token);
     assert.equal(reads.length, 2, "and one more a second later");

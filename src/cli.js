@@ -2,7 +2,7 @@
 "use strict";
 // Airpocket, operator side:
 //
-//   airpocket pair            a six-digit code for one phone: ten minutes, five tries
+//   airpocket pair            a six-digit code for one phone, and a QR of it: ten minutes, five tries
 //   airpocket devices         the phones paired with this Mac
 //   airpocket revoke <id>     cut a phone off; its token stops working at once
 //   airpocket serve           publish Airpocket inside your tailnet
@@ -15,6 +15,7 @@ const http = require("http");
 const { execFileSync } = require("child_process");
 const { createStore } = require("./store");
 const { PORTS } = require("./ports");
+const QR = require("./public/qr");
 
 // The file-only origin (two-minute links to PDFs and pages) runs next to the app
 // and is published on its own HTTPS port, so a file can never share the app's origin.
@@ -100,6 +101,11 @@ async function main([cmd, arg]) {
       const { code, expiresAt } = store.newCode();
       const url = tailnetAddress(tailscaleBin());
       console.log(`\n  Pairing code   ${code.slice(0, 3)} ${code.slice(3)}\n`);
+      // The same code and this Mac's address, for the app's camera. Scanning it pairs exactly like typing the code.
+      if (url) {
+        for (const line of QR.toTerminal(QR.encode(QR.pairPayload(url, code), "M"), { color: !!process.stdout.isTTY })) console.log("  " + line);
+        console.log("\n  In the Airpocket app: Scan the code on your Mac, or enter the six digits.");
+      }
       console.log(`  Good until ${new Date(expiresAt).toLocaleTimeString()}, five tries, one phone.`);
       console.log(url ? `  On the phone, with Tailscale on, open ${url} and enter it.`
                       : "  Tailscale isn't set up here yet: install it, sign in, then run airpocket serve.");
