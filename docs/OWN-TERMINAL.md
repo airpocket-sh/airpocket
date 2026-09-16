@@ -207,4 +207,4 @@ Also found:
   what was there before `claude` was typed, plus `[exited]`, rather than the
   end of the conversation as Claude run directly would leave it.
 - The window's `airpocket` (node) process stays as the tmux client's parent
-  while attached: about 40 MB per open window.
+  while attached: about 30 MB resident per open window (measured with Node 20).
