@@ -263,6 +263,7 @@ body.sheet-open #toast{top:calc(var(--top) + 4px)}          /* over the dimmed s
 .when{font-family:var(--font-mono);font-size:11px;color:var(--fg-3);text-align:center}
 .msg{min-width:0;font-family:var(--font-read);font-size:16px;line-height:1.55;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
 .msg.user{align-self:flex-end;max-width:85%;border:var(--stroke-w) solid var(--sand);padding:10px var(--s-3);line-height:1.5;white-space:pre-wrap}
+.msg.user.pending{border-style:dashed;color:var(--fg-2)}
 .msg.user .more{position:relative;display:block;margin-top:6px;color:var(--sand);font-family:var(--font-ui);font-size:13px}
 .msg.agent>:first-child{margin-top:0}
 .msg.agent>:last-child{margin-bottom:0}

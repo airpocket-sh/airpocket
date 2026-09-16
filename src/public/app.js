@@ -220,7 +220,9 @@
     poll = p;
     p.tick();
   }
-  const refreshSoon = (ms) => setTimeout(() => poll && poll.tick(), ms);
+  // One early look after something was sent. A poll already on its way started
+  // before the send, so the next one follows it at once instead of waiting a round.
+  const refreshSoon = (ms) => setTimeout(() => { if (!poll) return; if (poll.busy) poll.soon = true; else poll.tick(); }, ms);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible" || !poll) return;
     // A request that was in flight when the phone went to sleep can hang for
@@ -539,12 +541,46 @@
   }
 
   // ---- one session --------------------------------------------------------------
+  // A sent message shows at once, marked as not yet back from the Mac, until the
+  // conversation brings it in. The Mac types what the phone sent with its line
+  // breaks as spaces and control characters dropped, adds a line of its own when
+  // there are only photos, and the chat shows photos as a count, so the bubble
+  // says what the conversation will say.
+  function echoText(text, photos) {
+    const said = String(text || "").replace(/\r\n?|\n/g, " ").replace(/[\x00-\x1f\x7f]/g, "").trim();
+    if (!photos) return said;
+    const lead = said || (photos > 1 ? "Look at these photos:" : "Look at this photo:");
+    return lead + "\n[" + photos + " photo" + (photos > 1 ? "s" : "") + "]";
+  }
+
+  // Whether a message in the conversation is the one sent. An agent may take a
+  // photo in as an image of its own, so counts and image marks don't count.
+  function sameMessage(shown, sent) {
+    const norm = (t) => String(t || "").replace(/\[(?:\d+ (?:photo|image)s?|Image #\d+)\]/g, " ").replace(/\s+/g, " ").trim();
+    return norm(shown) === norm(sent);
+  }
+
+  // The sent messages still waiting: one goes when a message that wasn't there at
+  // the send turns up with its text, or after `wait` ms whatever the conversation
+  // says, since by then it is in the terminal either way.
+  function stillPending(pending, items, now, wait) {
+    const claimed = new Set();
+    return pending.filter((p) => {
+      if (now - p.at > wait) return false;
+      const hit = items.find((it) => it.type === "user" && !p.before.has(it.id) && !claimed.has(it.id) && sameMessage(it.text, p.text));
+      if (hit) claimed.add(hit.id);
+      return !hit;
+    });
+  }
+  const ECHO_MS = 30000;
+  let echoes = 0;
+
   const clock = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
 
   function renderSession(host, id) {
     screenIs("session", "on");
     const st = { view: prefs.view === "terminal" ? "terminal" : "chat", sig: "", items: [], meta: null, kind: null, trouble: false,
-                 open: new Set(), chat: null, blocks: new Map(), openFile: (f) => openFile(host, id, f) };
+                 open: new Set(), chat: null, blocks: new Map(), pending: [], openFile: (f) => openFile(host, id, f) };
     const feed = h("div");
     const screen = h("pre", { class: "screen" + (prefs.wrap ? "" : " nowrap") });
     const atBottom = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80;
@@ -555,7 +591,31 @@
     window.addEventListener("scroll", onScroll, { passive: true });
     leave.push(() => window.removeEventListener("scroll", onScroll));
     fill(view, feed, newer);
-    const ui = buildDeck(host, id);
+    const redraw = () => drawChat(feed, host, id, st, redraw);
+    const chatShown = () => st.view === "chat" && st.kind === "chat" && !!st.chat && feed.firstChild === st.chat;
+    const unsay = (p) => {
+      clearTimeout(p.timer);
+      if (!st.pending.includes(p)) return;
+      st.pending = st.pending.filter((x) => x !== p);
+      if (chatShown()) redraw();
+    };
+    const unsayAll = () => { for (const p of st.pending) clearTimeout(p.timer); st.pending = []; };
+    leave.push(unsayAll);
+    // Put a sent message at the end of the conversation. Only the chat can: the
+    // terminal is a screen the Mac draws. Returns how to take it back, or null.
+    const echo = (text, photos) => {
+      if (!chatShown()) return null;
+      const stick = atBottom();
+      const p = { key: "pending:" + ++echoes, text: echoText(text, photos), at: Date.now(),
+                  before: new Set(st.items.filter((it) => it.type === "user").map((it) => it.id)) };
+      st.pending.push(p);
+      p.timer = setTimeout(() => unsay(p), ECHO_MS);
+      redraw();
+      if (stick) toBottom(false);
+      else newer.hidden = false;
+      return () => unsay(p);
+    };
+    const ui = buildDeck(host, id, echo);
 
     const ttyText = h("span", { text: "TERMINAL · LIVE" });
     const drawBar = () => {
@@ -570,6 +630,7 @@
             st.view = v;
             prefs.view = st.view; keep(PREFS_KEY, prefs);
             st.sig = ""; feed.dataset.sig = "";
+            unsayAll();
             drawBar();
             if (poll) poll.tick();
           } }, label))));
@@ -593,22 +654,25 @@
       drawBar();
     }).catch(() => {});
 
-    const redraw = () => drawChat(feed, host, id, st, redraw);
     let first = true;
     startPoll(async (signal) => {
       try {
         const d = await api(host, `/api/screen?id=${encodeURIComponent(id)}&view=${st.view}&sig=${encodeURIComponent(st.sig)}`, { signal });
         if (st.kind !== d.kind) { st.kind = d.kind; drawBar(); }
+        // A session that can't take messages any more has none on their way.
+        const ended = st.pending.length && d.can && !d.can.send;
+        if (ended) unsayAll();
         const stick = first || atBottom();
         const height = document.documentElement.scrollHeight;
         if (st.view === "terminal" || d.kind === "terminal") {
           if (screen.textContent !== (d.text || "")) screen.textContent = d.text || "";
           if (feed.firstChild !== screen || feed.childNodes.length > 1) fill(feed, screen);
           st.chat = null;
+          unsayAll();
         } else if (d.items) {
           st.items = d.items; st.sig = d.sig;
           redraw();
-        }
+        } else if (ended && chatShown()) redraw();
         if (st.trouble) { st.trouble = false; ttyText.textContent = "TERMINAL · LIVE"; }
         ui.setLive(d.live, d.agent);
         ui.setInfo(d.info, d.agent, d.efforts);
@@ -624,6 +688,7 @@
         if (showing && err.status !== 401 && err.status !== 404) { st.trouble = true; ttyText.textContent = "TERMINAL · RETRYING"; ui.trouble(err.message); return; }
         fill(feed, h("div", { class: "hosterr" }, h("b", { text: "Can't read it" }), err.message));
         st.sig = ""; st.chat = null;
+        unsayAll();
       } finally {
         launchDone();
       }
@@ -636,6 +701,7 @@
   function drawChat(feed, host, id, st, redraw) {
     const blocks = [];                                  // [key, content signature, make]
     const items = st.items || [];
+    st.pending = stillPending(st.pending, items, Date.now(), ECHO_MS);
     for (let i = 0; i < items.length;) {
       const it = items[i];
       if (it.type === "tool") {
@@ -664,6 +730,10 @@
         blocks.push([key, it.text, () => h("div", { class: "mnote", text: it.text })]);
       }
     }
+    // Sent, not yet back: a stable key, so a redraw while it waits leaves it be.
+    for (const p of st.pending) {
+      blocks.push([p.key, JSON.stringify([p.text, st.open.has(p.key)]), () => userMsg({ text: p.text, at: new Date(p.at).toISOString(), pending: true }, p.key, st, redraw)]);
+    }
     if (!blocks.length) blocks.push(["empty", "", () => h("div", { class: "empty bare", text: "No messages yet." })]);
 
     if (!st.chat || feed.firstChild !== st.chat) {
@@ -690,7 +760,7 @@
   function userMsg(it, key, st, redraw) {
     const folded = it.text.length > 700 && !st.open.has(key);
     const when = it.at ? clock(it.at) + (it.queued ? " · sent while it worked" : "") : "";
-    const bubble = h("div", { class: "msg user" },
+    const bubble = h("div", { class: "msg user" + (it.pending ? " pending" : "") },
       folded ? it.text.slice(0, 560).trimEnd() + "…" : it.text,
       folded ? h("button", { class: "more hit", onclick: () => { st.open.add(key); redraw(); } }, "Show all") : null);
     return when ? h("div", { class: "umsg" }, h("div", { class: "when", text: when }), bubble) : bubble;
@@ -714,7 +784,7 @@
   }
 
   // The deck in a session: its status line, an on-screen question, the message box, and the soft keys.
-  function buildDeck(host, id) {
+  function buildDeck(host, id, echo) {
     // What this session allows (the Mac's list and each poll say); what it doesn't is hidden.
     let can = { read: true, send: true, keys: true, controls: true, why: "" };
     let typeOnly = false;                       // "Type it without sending", from the Keys section
@@ -723,7 +793,7 @@
       try {
         await api(host, "/api/key", { method: "POST", body: { id, key: k } });
         toast(label);
-        refreshSoon(700);
+        refreshSoon(300);
       } catch (err) { toast(err.message, true); }
     };
 
@@ -752,7 +822,7 @@
       try {
         await api(host, "/api/command", { method: "POST", body: arg === undefined ? { id, cmd } : { id, cmd, arg } });
         toast(label || "Sent");
-        refreshSoon(900);
+        refreshSoon(300);
       } catch (err) { toast(err.message, true); }
     };
     const alias = (m) => {
@@ -1012,14 +1082,34 @@
         body: `It starts with "!", so the agent runs it as a command in a shell on ${host.name || "the Mac"}, not as a message.` +
           (enter ? "" : " Typed into its box, it runs when Enter is pressed."), action: enter ? "Run it" : "Type it" }))) return;
       sendBtn.disabled = true;
+      // A message leaves the box, the tray and the phone's hands at once, and
+      // shows in the chat as sent. Typed-only text stays until the Mac has it:
+      // nothing was sent, and the status line will say what sits in the box.
+      let kept = null, takeBack = null;
+      if (enter) {
+        kept = { value: box.value, shots };
+        box.value = "";
+        shots = [];
+        paintTray();
+        fit();
+        takeBack = echo(text, refs.length);
+      }
       try {
         await api(host, "/api/send", { method: "POST", body: { id, text, refs, submit: enter }, timeout: 15000 });
-        box.value = "";
-        clearShots();
-        fit();
-        toast(enter ? "Sent" : "Typed into its box, not sent");
-        refreshSoon(800);
+        if (kept) { for (const s of kept.shots) if (s.url) URL.revokeObjectURL(s.url); }
+        else { box.value = ""; clearShots(); fit(); }
+        if (!takeBack) toast(enter ? "Sent" : "Typed into its box, not sent");
+        refreshSoon(250);
       } catch (err) {
+        // It didn't go: the bubble goes, and the words and photos come back as they were.
+        if (takeBack) takeBack();
+        if (kept) {
+          box.value = box.value ? kept.value + "\n" + box.value : kept.value;
+          shots = [...kept.shots, ...shots];
+          for (const s of shots.splice(MAX_PHOTOS)) if (s.url) URL.revokeObjectURL(s.url);
+          paintTray();
+          fit();
+        }
         toast(err.message, true);
       } finally {
         sendBtn.disabled = false;
