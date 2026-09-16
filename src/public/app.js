@@ -1171,7 +1171,8 @@
   // ---- pairing: the six digits, or the QR code the Mac shows -------------------------------------
   const canScan = () => !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.AirpocketQR);
   function renderPair(adding) {
-    screenIs("pair", null);
+    // On glass: on the bare map at its brightest, an error in red and a field's border fall under 4.5:1 and 3:1.
+    screenIs("pair", "thin");
     launchDone();
     const q = new URLSearchParams(location.hash.split("?")[1] || "");
     const st = { mode: SCAN_FIRST && canScan() ? "scan" : "code", code: "", name: "iPhone", base: adding ? (q.get("mac") || "") : "", err: "", left: null, busy: false, paired: null };
