@@ -522,40 +522,41 @@ test("doctor reads Codex's trust in our hooks from config.toml", () => {
   assert.deepEqual(cfg.codexUntrusted(file, state), ["Interrupt"]);
 });
 
-test("setup ends by saying why the phone may not show every agent yet, only when that's so", async () => {
-  // Three agents run: one has checked in (a session record names it), two haven't.
-  const agents = [{ pid: 4101, started: 100, agent: "claude" }, { pid: 4102, started: 101, agent: "claude" }, { pid: 4103, started: 102, agent: "codex" }];
+test("setup ends by saying why the phone may not show every agent yet, by agent, only when that's so", async () => {
+  // Four agents run: one Claude has checked in (a session record names it); two Claude and a Codex haven't.
+  const agents = [{ pid: 4101, started: 100, agent: "claude" }, { pid: 4102, started: 101, agent: "claude" },
+    { pid: 4103, started: 102, agent: "codex" }, { pid: 4104, started: 103, agent: "claude" }];
   const w = await world({ agents });
   const sessions = path.join(w.ctx.paths.dataDir, "sessions");
   fs.mkdirSync(sessions, { recursive: true, mode: 0o700 });
   fs.writeFileSync(path.join(sessions, ID_ONE + ".json"), JSON.stringify({ session_id: ID_ONE, pid: 4101, started: 100 }));
   let out = await setupOk(w);
-  assert.ok(out.includes(setup.UNSEEN.many(2)), out);
-  assert.ok(out.includes(setup.UNSEEN.codex), "Codex hasn't trusted the new hooks yet\n" + out);
-  assert.ok(out.indexOf(setup.UNSEEN.many(2)) > out.lastIndexOf(": done") && out.indexOf(setup.UNSEEN.codex) < out.indexOf("Airpocket is set up."), "at the end");
+  const ending = (o) => o.slice(o.lastIndexOf(": done"), o.indexOf("Airpocket is set up.")).split("\n").filter((l) => /checked in|trusted/.test(l));
+  assert.equal(setup.unseenLine("claude", 2), "2 Claude agents haven't checked in. They appear the next time you prompt them.");
+  assert.deepEqual(ending(out), [setup.unseenLine("claude", 2), setup.UNSEEN.codex[0], setup.UNSEEN.hooks], out);
 
-  // One left, and Codex trusts every hook: one line.
+  // Only the Codex left, and Codex trusts every hook: one line, the Codex one.
   agents.splice(1, 1);
+  agents.pop();
   const file = w.ctx.paths.codex;
   const state = cfg.hookState(json(file), "codex");
   fs.writeFileSync(path.join(path.dirname(file), "config.toml"), cfg.EVENTS.codex.map((e) =>
     `[hooks.state."${file}:${e.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()}:${state[e].at.group}:${state[e].at.index}"]\ntrusted_hash = "sha256:00"\n`).join("\n"));
   out = await setupOk(w);
-  assert.ok(out.includes(setup.UNSEEN.one), out);
-  assert.ok(!out.includes("Codex hooks aren't trusted"), out);
+  assert.deepEqual(ending(out), ["1 Codex agent hasn't checked in. Codex takes its hooks at launch, so it needs restarting."], out);
 
   // Nothing to say: no lines.
   agents.length = 1;
   out = await setupOk(w);
-  assert.ok(!/checked in yet|aren't trusted/.test(out), out);
+  assert.ok(!/checked in|aren't trusted/.test(out), out);
   assert.equal(await setup.runUninstall(w.ctx, ["--remove-data"]), 0);
 });
 
 test("the phone and setup say the same about agents that haven't checked in", () => {
   const app = fs.readFileSync(path.join(__dirname, "..", "src", "public", "app.js"), "utf8");
-  assert.ok(app.includes(`"${setup.UNSEEN.one}"`), "one agent");
-  assert.ok(app.includes("`${n}" + setup.UNSEEN.many(0).slice(1) + "`"), "several agents");
-  assert.ok(app.includes(`"${setup.UNSEEN.codex}"`), "Codex hooks");
+  const table = /\n\s*const UNSEEN = (\{[\s\S]*?\n\s*\});\n/.exec(app);
+  assert.ok(table, "app.js has its UNSEEN table");
+  assert.deepEqual(new Function(`return ${table[1]};`)(), setup.UNSEEN);
 });
 
 test("a Mac that never used tailscale serve (status prints null) sets up, and uninstalls", async () => {

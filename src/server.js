@@ -827,7 +827,7 @@ function createServer(opts = {}) {
     // for all sessions, so a poll of the list costs one ps call at most.
     isLive: opts.isLive || (service ? service.isLive : (e) => alive(e.pid, e.started)),
     // Agents running in a terminal that no record names yet: the service's count, from that same ps call.
-    unseenAgents: opts.unseenAgents || (service ? service.unseenAgents : () => 0),
+    unseenAgents: opts.unseenAgents || (service ? service.unseenAgents : () => ({ claude: 0, codex: 0 })),
     superset: opts.superset || runSuperset,
     // New sessions start through Superset only; without it the phone hides "New".
     hasSuperset: opts.hasSuperset || (opts.superset ? () => true : supersetInstalled),
@@ -876,15 +876,19 @@ function createServer(opts = {}) {
   }
 
   /**
-   * Why the list may be shorter than what runs on this Mac: { agents, codex? }, or
-   * undefined when there is nothing to say. `agents` running in a terminal haven't
-   * reached a hook yet; `codex` is "untrusted" while Codex won't run the hooks.
+   * Why the list may be shorter than what runs on this Mac: { claude?, codex?,
+   * codexHooks? }, or undefined when there is nothing to say. `claude` and `codex`
+   * count the agents of each running in a terminal that haven't reached a hook yet
+   * (only when there are some); `codexHooks` is "untrusted" while Codex won't run
+   * Airpocket's hooks, "ok" once it will (only when they are in hooks.json).
    */
   function unseen() {
-    const agents = Math.max(0, Number(deps.unseenAgents()) || 0);
-    const codex = codexTrusted();
-    if (!agents && codex !== "untrusted") return undefined;
-    return { agents, ...(codex ? { codex } : {}) };
+    const got = deps.unseenAgents() || {};
+    const count = (v) => Math.max(0, Math.floor(Number(v) || 0));
+    const claude = count(got.claude), codex = count(got.codex);
+    const codexHooks = codexTrusted();
+    if (!claude && !codex && codexHooks !== "untrusted") return undefined;
+    return { ...(claude ? { claude } : {}), ...(codex ? { codex } : {}), ...(codexHooks ? { codexHooks } : {}) };
   }
 
   // Several polls of one terminal within a second share a single read.

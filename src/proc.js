@@ -174,4 +174,11 @@ function unrecordedAgents(agents, records) {
   return agents.filter((a) => !(known.has(a.pid) && (!known.get(a.pid) || !a.started || known.get(a.pid) === a.started)));
 }
 
-module.exports = { parseLstart, startTimes, scanProcesses, parseProcesses, unrecordedAgents, agentOfExec, startTimeOf, pidExists, processAlive, stillRunning, processInfo, agentProcess, pidOf };
+/** How many of these agents are Claude Code and how many Codex: { claude, codex }. */
+function byAgent(agents) {
+  const out = { claude: 0, codex: 0 };
+  for (const a of agents) if (a && Object.hasOwn(out, a.agent)) out[a.agent]++;
+  return out;
+}
+
+module.exports = { parseLstart, startTimes, scanProcesses, parseProcesses, unrecordedAgents, byAgent, agentOfExec, startTimeOf, pidExists, processAlive, stillRunning, processInfo, agentProcess, pidOf };

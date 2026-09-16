@@ -79,14 +79,17 @@ missing. Then it:
 
 Codex asks you to review new hooks the next time it starts: choose to trust
 Airpocket's, or open `/hooks`. A Codex session shows up on the phone once
-you've sent it a first message.
+you've sent it a first message. In Superset it's different: Superset's `codex`
+wrapper starts Codex with the trust check bypassed, so the hooks run there
+without the review (and the phone's "not trusted yet" line is about Codex
+started anywhere else).
 
 Claude Code picks up the hooks while it runs, so sessions started before setup
 need no restart: each appears the next time you prompt it. Codex reads its
 hooks only when it starts, so restart a Codex session that was running before
-setup. Until then the phone says how many agents are running that haven't
-checked in, and whether Codex's hooks still need trusting; setup prints the
-same when it finishes.
+setup. Until then the phone says how many Claude Code and how many Codex
+agents are running that haven't checked in, and whether Codex's hooks still
+need trusting; setup prints the same when it finishes.
 
 ```sh
 airpocket doctor      # checks everything, says what to do; exits 1 if something is broken

@@ -816,7 +816,7 @@ test("the list says why it may be short: agents that haven't checked in, and Cod
   const data = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-data-"));
   const codexHome = path.join(data, "codex");
   fs.mkdirSync(codexHome);
-  let running = 0;
+  let running = { claude: 0, codex: 0 };
   const own = createStore(data);
   const mac = createServer({ store: own, log: () => {}, knownSessions: () => [], getQueue: () => [], dequeue: () => 0, unseenAgents: () => running,
     claudeProjects: path.join(data, "none"), codexHome, hasSuperset: () => false });
@@ -826,16 +826,20 @@ test("the list says why it may be short: agents that haven't checked in, and Cod
     const t = (await req("POST", "/api/pair", { at, body: { code: own.newCode().code } })).json.token;
     const unseen = async () => { const r = await req("GET", "/api/sessions", { at, headers: auth(t) }); assert.equal(r.status, 200); return r.json.unseen; };
     assert.equal(await unseen(), undefined, "nothing to say: no field");
-    running = 3;
-    assert.deepEqual(await unseen(), { agents: 3 });
+    running = { claude: 3, codex: 0 };
+    assert.deepEqual(await unseen(), { claude: 3 }, "only the kind there is");
+    running = { claude: 0, codex: 2 };
+    assert.deepEqual(await unseen(), { codex: 2 });
+    running = { claude: 3, codex: 2 };
+    assert.deepEqual(await unseen(), { claude: 3, codex: 2 });
 
     // Setup added Codex's hooks; Codex hasn't been told to trust them.
     const file = path.join(codexHome, "hooks.json");
     const config = cfg.addHooks({}, "codex", cfg.hookCommand({ node: "/n", hook: "/h", agent: "codex" })).config;
     fs.writeFileSync(file, JSON.stringify(config));
-    assert.deepEqual(await unseen(), { agents: 3, codex: "untrusted" });
-    running = 0;
-    assert.deepEqual(await unseen(), { agents: 0, codex: "untrusted" }, "the Codex line alone");
+    assert.deepEqual(await unseen(), { claude: 3, codex: 2, codexHooks: "untrusted" });
+    running = { claude: 0, codex: 0 };
+    assert.deepEqual(await unseen(), { codexHooks: "untrusted" }, "the Codex line alone");
 
     // Trusted in /hooks: Codex writes a trust entry per hook into config.toml.
     const state = cfg.hookState(config, "codex");
@@ -843,12 +847,12 @@ test("the list says why it may be short: agents that haven't checked in, and Cod
       `[hooks.state."${file}:${e.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()}:${state[e].at.group}:${state[e].at.index}"]\ntrusted_hash = "sha256:00"\n`).join("\n"));
     trustAll(cfg.EVENTS.codex);
     assert.equal(await unseen(), undefined, "all trusted and every agent seen: nothing to say");
-    running = 2;
-    assert.deepEqual(await unseen(), { agents: 2, codex: "ok" });
+    running = { claude: 2, codex: 0 };
+    assert.deepEqual(await unseen(), { claude: 2, codexHooks: "ok" });
     trustAll(cfg.EVENTS.codex.filter((e) => e !== "Stop"));
-    assert.deepEqual(await unseen(), { agents: 2, codex: "untrusted" }, "one hook not trusted: the line is back");
+    assert.deepEqual(await unseen(), { claude: 2, codexHooks: "untrusted" }, "one hook not trusted: the line is back");
     fs.unlinkSync(file);
-    assert.deepEqual(await unseen(), { agents: 2 }, "no hooks of ours: nothing to say about trust");
+    assert.deepEqual(await unseen(), { claude: 2 }, "no hooks of ours: nothing to say about trust");
   } finally {
     mac.server.close();
     fs.rmSync(data, { recursive: true, force: true });

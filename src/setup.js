@@ -35,7 +35,7 @@ const cfg = require("./agentconfig");
 const ts = require("./tailscale");
 const li = require("./loginitem");
 const { dataDirFor, portsFrom } = require("./ports");
-const { processAlive, scanProcesses, unrecordedAgents } = require("./proc");
+const { processAlive, scanProcesses, unrecordedAgents, byAgent } = require("./proc");
 const { writeAtomic } = require("./service");
 const { createStore } = require("./store");
 const { TMUX_BINS } = require("./bridges");
@@ -616,12 +616,14 @@ async function runSetup(ctx, argv = []) {
   return 0;
 }
 
-// The phone says the same (app.js, unseenLines); a test keeps the two in step.
+// The phone says the same (app.js, UNSEEN); a test keeps the two in step. For each
+// agent: the line for one, and the line for several after their number.
 const UNSEEN = {
-  one: "1 agent is running that hasn't checked in yet. It appears the next time you prompt it.",
-  many: (n) => `${n} agents are running that haven't checked in yet. They appear the next time you prompt them.`,
-  codex: "Codex hooks aren't trusted yet: start Codex, run /hooks, trust Airpocket's.",
+  claude: ["1 Claude agent hasn't checked in. It appears the next time you prompt it.", "Claude agents haven't checked in. They appear the next time you prompt them."],
+  codex: ["1 Codex agent hasn't checked in. Codex takes its hooks at launch, so it needs restarting.", "Codex agents haven't checked in. Codex takes its hooks at launch, so they need restarting."],
+  hooks: "Codex hooks aren't trusted yet: start Codex, run /hooks, trust Airpocket's.",
 };
+const unseenLine = (kind, n) => (n === 1 ? UNSEEN[kind][0] : `${n} ${UNSEEN[kind][1]}`);
 
 /**
  * Why the phone may not show every agent yet, right after setup: agents running
@@ -634,10 +636,9 @@ function unseenLines(ctx) {
   try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch {}
   for (const name of names.slice(0, 5000)) { const r = readJson(path.join(dir, name)); if (r && typeof r === "object") records.push(r); }
   const scan = ctx.processes() || {};
-  const n = unrecordedAgents(Array.isArray(scan.agents) ? scan.agents : [], records).length;
-  const lines = [];
-  if (n) lines.push(n === 1 ? UNSEEN.one : UNSEEN.many(n));
-  if (exists(path.dirname(ctx.paths.codex)) && cfg.codexTrust(ctx.paths.codex) === "untrusted") lines.push(UNSEEN.codex);
+  const n = byAgent(unrecordedAgents(Array.isArray(scan.agents) ? scan.agents : [], records));
+  const lines = ["claude", "codex"].filter((kind) => n[kind]).map((kind) => unseenLine(kind, n[kind]));
+  if (exists(path.dirname(ctx.paths.codex)) && cfg.codexTrust(ctx.paths.codex) === "untrusted") lines.push(UNSEEN.hooks);
   return lines;
 }
 
@@ -818,5 +819,5 @@ function listBackups(ctx) {
   return out.sort();
 }
 
-module.exports = { context, stableNode, survey, planSetup, runSetup, unseenLines, UNSEEN, planUninstall, runUninstall, pairingLines, readLock, readInstall,
+module.exports = { context, stableNode, survey, planSetup, runSetup, unseenLines, unseenLine, UNSEEN, planUninstall, runUninstall, pairingLines, readLock, readInstall,
   probe, listening, versionOf, majorOf, SOCKET_MAX, copyApp, tail, unsafeDataDir, ownSessions };

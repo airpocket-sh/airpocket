@@ -106,7 +106,7 @@ const SCREENS = {
 };
 const screens = { "t-perm": SCREENS.perm, "t-work": SCREENS.working, "t-cx": SCREENS.codex };
 
-function mac(name, sessions, queue, { superset = true, delay = 0, unseen = 0, tag = "" } = {}) {
+function mac(name, sessions, queue, { superset = true, delay = 0, unseen = {}, tag = "" } = {}) {
   const h1 = homes(name.replace(/\W/g, "") + tag);
   const store = createStore(path.join(T, name.replace(/\W/g, "") + tag + "-store"));
   const sent = [];
@@ -137,8 +137,8 @@ const M = mac("Mini", [], [], { superset: false });
 const E = mac("Studio", [], [], { superset: false });          // one Mac, nothing running, some earlier
 const SLOW = mac("Studio", [], [], { delay: 60000 });
 // Agents that haven't checked in: none on the list, then a list with rows; the first also has Codex hooks not trusted yet.
-const U = mac("Studio", [], [], { superset: false, unseen: 3, tag: "-unseen" });
-const UO = mac("Studio", S.sessions, S.queue, { unseen: 1, tag: "-unseen1" });
+const U = mac("Studio", [], [], { superset: false, unseen: { claude: 29, codex: 10 }, tag: "-unseen" });
+const UO = mac("Studio", S.sessions, S.queue, { unseen: { claude: 1 }, tag: "-unseen1" });
 {
   const cfg = require("../../src/agentconfig");
   fs.mkdirSync(U.h.codexHome, { recursive: true });

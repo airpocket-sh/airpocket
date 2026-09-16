@@ -8,7 +8,7 @@ const os = require("os");
 const fs = require("fs");
 const path = require("path");
 const { createService, takeLock } = require("../src/service");
-const { startTimeOf, processAlive, parseLstart, parseProcesses, unrecordedAgents } = require("../src/proc");
+const { startTimeOf, processAlive, parseLstart, parseProcesses, unrecordedAgents, byAgent } = require("../src/proc");
 const { start, createServer } = require("../src/server");
 const { createStore } = require("../src/store");
 const { createBridges } = require("../src/bridges");
@@ -309,6 +309,8 @@ test("one ps call finds the agents running in a terminal: never a daemon, a chil
   // A record names an agent by its pid, and by its start time when both have one.
   const recorded = unrecordedAgents(agents, [{ pid: 500, started: agents[0].started }, { pid: 501, started: 7 }, { pid: 601 }, {}]);
   assert.deepEqual(recorded.map((a) => a.pid), [501], "a pid now running another process isn't that record's agent");
+  assert.deepEqual(byAgent(agents), { claude: 2, codex: 1 });
+  assert.deepEqual(byAgent([]), { claude: 0, codex: 0 });
 });
 
 test("a reused pid can't keep a dead session alive, on the list or waiting", async () => {
@@ -365,9 +367,9 @@ test("liveness and the unseen count cost one ps call per second, however many se
   const own = startTimeOf(process.pid);
   let clock = Date.parse("2026-09-15T10:00:00Z");
   const reads = [], single = [];
-  // Every process on the Mac: this one, which the eight sessions record, and a Codex no hook has named yet.
+  // Every process on the Mac: this one, which the eight sessions record, and a Claude and two Codex no hook has named yet.
   const svc = createService({ dir, now: () => clock, readStarts: (pids) => { single.push(pids); return new Map(); },
-    readProcesses: () => { reads.push(1); return { starts: new Map([[process.pid, own]]), agents: [{ pid: process.pid, started: own, agent: "claude" }, { pid: 99999, started: 5, agent: "codex" }] }; } });
+    readProcesses: () => { reads.push(1); return { starts: new Map([[process.pid, own]]), agents: [{ pid: process.pid, started: own, agent: "claude" }, { pid: 99997, started: 5, agent: "claude" }, { pid: 99998, started: 5, agent: "codex" }, { pid: 99999, started: 5, agent: "codex" }] }; } });
   const hookPort = await new Promise((ok) => svc.listen(0, ok));
   const secret = JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).secret;
   const store = createStore(dir);
@@ -392,7 +394,7 @@ test("liveness and the unseen count cost one ps call per second, however many se
       const { sessions, unseen } = await api("GET", "/api/sessions", null, token);
       assert.equal(sessions.length, 8);
       assert.ok(sessions.every((s) => s.live), "every session is live");
-      assert.deepEqual(unseen, { agents: 1 }, "the recorded agent isn't counted, the other one is");
+      assert.deepEqual(unseen, { claude: 1, codex: 2 }, "the recorded agent isn't counted, the others are, by agent");
     }
     assert.equal(reads.length, 1, "five polls of eight sessions: one ps call");
     assert.deepEqual(single, [], "no ps call per row");

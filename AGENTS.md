@@ -365,11 +365,16 @@ status line.
   per process and took 150 ms). It gives every start time and the agents: this
   user's `…/claude`, `…/codex` or `…/claude/versions/<v>` with a terminal, not
   started under another agent (never the arguments; Claude through npm is
-  `node` and isn't counted). `/api/sessions` adds `unseen: { agents, codex }`
-  when agents run that no record names (`service.unseenAgents`) or Codex
-  hasn't trusted our hooks (`agentconfig.codexTrust`, doctor's check, re-read
-  when `hooks.json` or `config.toml` changes); absent otherwise. The phone
-  shows it under Open, setup prints it at the end. Claude Code re-reads its
+  `node` and isn't counted). `/api/sessions` adds `unseen: { claude?, codex?,
+  codexHooks? }`: how many of each agent run that no record names
+  (`service.unseenAgents`, only counts above 0), and `codexHooks` "untrusted"
+  or "ok" (`agentconfig.codexTrust`, doctor's check, re-read when `hooks.json`
+  or `config.toml` changes; only when our hooks are there); absent when no
+  agent is unseen and the hooks aren't untrusted. The phone shows one line per
+  agent under Open (Claude: appears at the next prompt; Codex: needs
+  restarting) and the trust line after; setup prints the same (`setup.UNSEEN`,
+  matched against `app.js` by a test). Superset's `codex` wrapper passes
+  `--dangerously-bypass-hook-trust`, so there the trust line doesn't apply. Claude Code re-reads its
   settings while it runs, so a session from before setup appears at its next
   prompt; Codex needs a restart.
 - The app's CSP has `font-src 'self'`; the app sends

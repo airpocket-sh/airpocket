@@ -58,7 +58,7 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
-const { processAlive, startTimes, startTimeOf, scanProcesses, unrecordedAgents, pidOf } = require("./proc");
+const { processAlive, startTimes, startTimeOf, scanProcesses, unrecordedAgents, byAgent, pidOf } = require("./proc");
 const { SECRET_CONTENT } = require("./secrets");
 
 const DAY_S = 24 * 3600;
@@ -410,11 +410,12 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
   /**
    * Agents running in a terminal that no record names: sessions whose hooks
    * haven't fired yet (idle since setup, or a Codex started before it). From the
-   * same cached ps call as liveness.
+   * same cached ps call as liveness. { claude, codex }: the two need different
+   * things (Claude picks up hooks while it runs, Codex only when it starts).
    */
   function unseenAgents() {
-    if (!stillHeld()) return 0;
-    return unrecordedAgents(scan().agents, [...records.values()]).length;
+    if (!stillHeld()) return byAgent([]);
+    return byAgent(unrecordedAgents(scan().agents, [...records.values()]));
   }
   function getQueue() {
     sweep();
