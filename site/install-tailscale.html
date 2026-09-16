@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex">   <!-- remove at step 16, when the repo is public and the links resolve -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>MagicDNS, HTTPS certificates and a tailnet of your own · Airpocket</title>
+<meta name="description" content="Airpocket reaches your Mac over Tailscale and needs MagicDNS and HTTPS certificates. Why it needs both, how to turn them on, and why signing in with a work email means you can't.">
+<link rel="canonical" href="https://airpocket.sh/install-tailscale">
+<meta name="theme-color" content="#0A0D08">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-180.png" type="image/png" sizes="180x180">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Airpocket">
+<meta property="og:url" content="https://airpocket.sh/install-tailscale">
+<meta property="og:title" content="MagicDNS, HTTPS certificates, and which tailnet you are in">
+<meta property="og:description" content="Airpocket reaches your Mac over Tailscale and needs MagicDNS and HTTPS certificates. Why it needs both, how to turn them on, and why signing in with a work email means you can't.">
+<meta property="og:image" content="https://airpocket.sh/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="AIRPOCKET, with the dart beside it, over a dark map: Your agents fly the missions. This is the cockpit.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MagicDNS, HTTPS certificates, and which tailnet you are in">
+<meta name="twitter:description" content="Airpocket reaches your Mac over Tailscale and needs MagicDNS and HTTPS certificates. Why it needs both, how to turn them on, and why signing in with a work email means you can't.">
+<meta name="twitter:image" content="https://airpocket.sh/og.png">
+<meta name="twitter:image:alt" content="AIRPOCKET, with the dart beside it, over a dark map: Your agents fly the missions. This is the cockpit.">
+</head>
+<body>
+
+<div class="hud">
+  <div class="tl"></div><div class="tr"></div><div class="bl"></div><div class="br"></div>
+  <div class="sl"></div><div class="ml"></div><div class="sr"></div><div class="mr"></div>
+</div>
+
+<header class="strip">
+  <div class="hdr-row">
+    <a class="brand" href="/"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 18.5l13-6.5-13-6.5v4.2l7 2.3-7 2.3z"/></svg><span>AIRPOCKET</span></a>
+    <a class="hdr-gh" href="https://github.com/oncelozguleso/airpocket"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>GITHUB</a>
+    <nav class="hdr-nav" aria-label="Guides">
+      <a href="/install-tailscale" aria-current="page"><span></span>TAILNET</a>
+      <a href="/claude-code-on-iphone"><span></span>CLAUDE</a>
+      <a href="/codex-on-iphone"><span></span>CODEX</a>
+      <a href="/any-terminal"><span></span>TERMINALS</a>
+    </nav>
+  </div>
+  <div class="scanline"><div></div></div>
+</header>
+
+<main class="guide">
+
+<div class="guide-hero">
+  <div class="eyebrow"><b>G1</b><i></i>GUIDE · TAILSCALE</div>
+  <h1>MagicDNS, HTTPS certificates, and which tailnet you are in</h1>
+  <p class="lead">Airpocket's phone app reaches your Mac over your own Tailscale network, at the Mac's name in that network, over HTTPS. That takes two tailnet settings, MagicDNS and HTTPS certificates, and only the tailnet's admin can turn them on. If you signed in to Tailscale with a work email, that admin is probably someone else.</p>
+</div>
+
+<div class="guide-body">
+<article class="prose">
+
+<section id="needs">
+  <div class="sec-head"><div class="sec-num">01</div><div class="sec-title"><div class="eyebrow">WHAT IT NEEDS</div><h2>Tailscale on both ends, one tailnet</h2></div></div>
+  <p>Airpocket has no server of its own. The phone talks to each Mac directly, and Tailscale is what makes that work from anywhere: it puts your devices on a private network of their own, a tailnet, and encrypts what passes between them with WireGuard.</p>
+  <p>You need Tailscale on the Mac and on the iPhone, signed in to the same tailnet. On the Mac, <code>airpocket setup</code> publishes the app inside that tailnet with <code>tailscale serve</code>, at an address of this shape:</p>
+  <pre class="cmd">https://studio-mac.tail1a2b3c.ts.net</pre>
+  <p>Both settings are about that address.</p>
+</section>
+
+<section id="why">
+  <div class="sec-head"><div class="sec-num">02</div><div class="sec-title"><div class="eyebrow">WHY BOTH</div><h2>What MagicDNS and HTTPS certificates are for</h2></div></div>
+  <ul>
+    <li><strong>MagicDNS</strong> gives every device in the tailnet a name under the tailnet's own <code>ts.net</code> domain. That name is the Mac's address for the phone, and the address the pairing QR code carries.</li>
+    <li><strong>HTTPS certificates</strong> let Tailscale obtain a real certificate for that name, so the address can start with <code>https://</code>. Airpocket is a web app you add to the Home Screen, and a browser gives a page the parts that make it an app, such as the offline shell and the camera that scans the pairing code, only over a secure connection.</li>
+  </ul>
+  <p>Tailscale ends the encrypted connection on the Mac itself and hands each request to Airpocket on 127.0.0.1, the only address Airpocket listens on.</p>
+  <p><code>airpocket setup</code> checks both settings before it changes anything. If one is off, it stops and says which.</p>
+</section>
+
+<section id="work-email">
+  <div class="sec-head"><div class="sec-num">03</div><div class="sec-title"><div class="eyebrow">THE TRAP</div><h2>Signed in with a work email? Then the tailnet isn't yours</h2></div></div>
+  <div class="trap"><div>
+    <div class="eyebrow">WRITTEN DOWN BECAUSE IT COST AN EVENING</div>
+    <p>This one cost one of Airpocket's co-founders an evening. It is written down here so that it doesn't cost you one.</p>
+  </div></div>
+  <p>Tailscale sorts people into tailnets by the email domain they sign in with. Sign in with a work address and you join your company's tailnet, not one of your own. There you are a member, not the admin:</p>
+  <ul>
+    <li>an admin may have to approve each device you add;</li>
+    <li>the admin console refuses you;</li>
+    <li>MagicDNS and HTTPS certificates are tailnet-wide settings, so both are someone else's switch.</li>
+  </ul>
+  <p>Nothing on your Mac or your phone can change that. Setup stops with that explanation in plain words rather than half-installing.</p>
+  <h3>Two ways out</h3>
+  <ol>
+    <li><div><strong>Use a personal account.</strong> Sign in to Tailscale with a personal account, the same one on the Mac and on the phone. That gives you a tailnet of your own, where you are the admin and each setting is one switch.</div></li>
+    <li><div><strong>Ask the admin.</strong> A shared tailnet works as well. Its admin turns both settings on once, for everyone in it.</div></li>
+  </ol>
+  <p>Sharing a tailnet doesn't share sessions. Every Mac asks the phone for a pairing code of its own and hands out its own token, so another member of the tailnet can reach the address but not your sessions.</p>
+</section>
+
+<section id="turn-on">
+  <div class="sec-head"><div class="sec-num">04</div><div class="sec-title"><div class="eyebrow">SWITCHES</div><h2>Turning them on</h2></div></div>
+  <ol>
+    <li><div>Open the <a href="https://console.tailscale.com/admin/dns">DNS page</a> of the Tailscale admin console, signed in as the tailnet's admin.</div></li>
+    <li><div>Turn on <strong>MagicDNS</strong>, if it isn't on already.</div></li>
+    <li><div>Turn on <strong>HTTPS Certificates</strong>, on the same page.</div></li>
+    <li><div>Run setup again on the Mac.</div></li>
+  </ol>
+  <pre class="cmd"><span class="ps">$ </span>airpocket setup</pre>
+  <p>The first time the phone opens the address, the Mac can take fifteen seconds or more to answer while the certificate is issued. That wait is expected, and it doesn't come back with every visit.</p>
+  <p>Afterwards, <code>airpocket doctor</code> checks the addresses along with everything else, and gives a fix for anything it finds.</p>
+</section>
+
+<section id="public">
+  <div class="sec-head"><div class="sec-num">05</div><div class="sec-title"><div class="eyebrow">EXPOSURE</div><h2>What becomes public, and what never does</h2></div></div>
+  <p><strong>The Mac's name becomes public.</strong> Every certificate a public authority issues is recorded in public certificate-transparency logs, and a Tailscale certificate names the machine: something like <code>studio-mac.tail1a2b3c.ts.net</code>. Anyone reading those logs can learn that the name exists.</p>
+  <p><strong>What it serves does not.</strong> Airpocket publishes with <code>tailscale serve</code>, which makes a port reachable from devices in your tailnet and from nowhere else. Knowing the name gets a device outside the tailnet nothing.</p>
+  <p>Airpocket never uses <code>tailscale funnel</code>, the command that would put a port on the public internet, and nothing in its instructions asks you to. Setup also leaves ports alone that another program already publishes: it takes 443 and 8443 when they are free, and otherwise the next free ones of 4443, 5443 and on.</p>
+  <p>Inside the tailnet, reaching the address isn't enough either. Only a phone paired with a one-time code from that Mac can use it, and <code>airpocket revoke</code> cuts a phone off at once. Tailscale's own access rules can narrow which devices reach the Mac at all. The <a href="https://github.com/oncelozguleso/airpocket/blob/main/docs/THREAT-MODEL.md">threat model</a> goes through the rest.</p>
+</section>
+
+</article>
+
+<nav class="toc glass" aria-label="On this page">
+  <div class="eyebrow">ON THIS PAGE</div>
+  <a href="#needs"><span>01</span>Tailscale on both ends</a>
+  <a href="#why"><span>02</span>What the two settings are for</a>
+  <a href="#work-email"><span>03</span>Signed in with a work email</a>
+  <a href="#turn-on"><span>04</span>Turning them on</a>
+  <a href="#public"><span>05</span>What becomes public</a>
+</nav>
+</div>
+
+<section class="related">
+  <div class="sec-head"><div class="sec-num">→</div><div class="sec-title"><div class="eyebrow">NEXT</div><h2>The other guides</h2></div></div>
+  <div class="related-grid">
+    <a class="card glass" href="/claude-code-on-iphone"><div class="eyebrow">G2 · CLAUDE CODE</div><b>Claude Code on your iPhone</b><span>What the hooks do, why a session appears at its next prompt, and what the phone can and can't do.</span></a>
+    <a class="card glass" href="/codex-on-iphone"><div class="eyebrow">G3 · CODEX</div><b>Codex on your iPhone</b><span>The same for Codex, and the two things that differ: hooks read at launch, and trusting them.</span></a>
+    <a class="card glass" href="/any-terminal"><div class="eyebrow">G4 · TERMINALS</div><b>Answering from any terminal</b><span>Which terminals the phone can answer, and what airpocket run and attach do.</span></a>
+  </div>
+  <div class="links"><a class="btn" href="/">The launch page</a><a class="btn-line" href="https://github.com/oncelozguleso/airpocket">The source on GitHub</a></div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-ruler"></div>
+  <div class="foot-row">
+    <a class="foot-brand" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 18.5l13-6.5-13-6.5v4.2l7 2.3-7 2.3z"/></svg><span>AIRPOCKET · MIT LICENCE</span></a>
+    <nav class="foot-nav"><a href="https://github.com/oncelozguleso/airpocket">GITHUB</a><a href="https://github.com/oncelozguleso/airpocket/blob/main/LICENSE">LICENCE</a><a href="/#security">SECURITY</a><a href="/#faq">FAQ</a></nav>
+    <span class="foot-note">Made by the Airpocket contributors.</span>
+    <nav class="foot-guides" aria-label="Guides"><span>GUIDES</span><a href="/install-tailscale">TAILNET</a><a href="/claude-code-on-iphone">CLAUDE CODE</a><a href="/codex-on-iphone">CODEX</a><a href="/any-terminal">ANY TERMINAL</a></nav>
+  </div>
+</footer>
+
+</body>
+</html>

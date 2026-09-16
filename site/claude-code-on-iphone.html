@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex">   <!-- remove at step 16, when the repo is public and the links resolve -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Claude Code on iPhone: read and answer your sessions · Airpocket</title>
+<meta name="description" content="See the Claude Code sessions on your Macs from your iPhone: read along, reply, answer its menus, change model and effort, stop a run. How the hooks work, and what the phone can't do.">
+<link rel="canonical" href="https://airpocket.sh/claude-code-on-iphone">
+<meta name="theme-color" content="#0A0D08">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-180.png" type="image/png" sizes="180x180">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Airpocket">
+<meta property="og:url" content="https://airpocket.sh/claude-code-on-iphone">
+<meta property="og:title" content="Claude Code on your iPhone">
+<meta property="og:description" content="See the Claude Code sessions on your Macs from your iPhone: read along, reply, answer its menus, change model and effort, stop a run. How the hooks work, and what the phone can't do.">
+<meta property="og:image" content="https://airpocket.sh/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="AIRPOCKET, with the dart beside it, over a dark map: Your agents fly the missions. This is the cockpit.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Claude Code on your iPhone">
+<meta name="twitter:description" content="See the Claude Code sessions on your Macs from your iPhone: read along, reply, answer its menus, change model and effort, stop a run. How the hooks work, and what the phone can't do.">
+<meta name="twitter:image" content="https://airpocket.sh/og.png">
+<meta name="twitter:image:alt" content="AIRPOCKET, with the dart beside it, over a dark map: Your agents fly the missions. This is the cockpit.">
+</head>
+<body>
+
+<div class="hud">
+  <div class="tl"></div><div class="tr"></div><div class="bl"></div><div class="br"></div>
+  <div class="sl"></div><div class="ml"></div><div class="sr"></div><div class="mr"></div>
+</div>
+
+<header class="strip">
+  <div class="hdr-row">
+    <a class="brand" href="/"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 18.5l13-6.5-13-6.5v4.2l7 2.3-7 2.3z"/></svg><span>AIRPOCKET</span></a>
+    <a class="hdr-gh" href="https://github.com/oncelozguleso/airpocket"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>GITHUB</a>
+    <nav class="hdr-nav" aria-label="Guides">
+      <a href="/install-tailscale"><span></span>TAILNET</a>
+      <a href="/claude-code-on-iphone" aria-current="page"><span></span>CLAUDE</a>
+      <a href="/codex-on-iphone"><span></span>CODEX</a>
+      <a href="/any-terminal"><span></span>TERMINALS</a>
+    </nav>
+  </div>
+  <div class="scanline"><div></div></div>
+</header>
+
+<main class="guide">
+
+<div class="guide-hero">
+  <div class="eyebrow"><b>G2</b><i></i>GUIDE · CLAUDE CODE</div>
+  <h1>Claude Code on your iPhone</h1>
+  <p class="lead">Airpocket puts the Claude Code sessions running on your Macs on your iPhone, and lets you answer them: read along, reply, pick an option, switch the model, stop a run. It is a web app on your Home Screen that talks to each Mac over your own Tailscale network, with nothing in between.</p>
+</div>
+
+<div class="guide-body">
+<article class="prose">
+
+<section id="phone">
+  <div class="sec-head"><div class="sec-num">01</div><div class="sec-title"><div class="eyebrow">FROM THE PHONE</div><h2>What you can do from the phone</h2></div></div>
+  <ul>
+    <li><strong>See which session needs you.</strong> Every session on every paired Mac in one list, the ones waiting on you first, each marked by what it waits for: a permission, the answer to a question, or a look at a finished turn.</li>
+    <li><strong>Read the conversation</strong>, not the raw terminal: your messages, Claude's replies and one short line per step, updated as it works.</li>
+    <li><strong>Reply</strong> from the message box, with up to four photos if a screenshot says it better.</li>
+    <li><strong>Answer a menu.</strong> When Claude asks before running a command, or offers numbered choices, they become buttons. A tap presses that key in the terminal the session runs in.</li>
+    <li><strong>Change model and effort</strong>, from the models Claude Code itself offers on that Mac and the effort levels the model takes. Switch permission mode, or turn on plan mode.</li>
+    <li><strong>Stop a run</strong> that heads the wrong way. Stop presses Esc in its terminal, after asking you first.</li>
+    <li><strong>Session commands</strong>: compact, context, usage, resume, rewind and clear, and a keypad for single keys.</li>
+    <li><strong>Open what it made</strong>: files the session wrote, edited or linked, as text, code, Markdown or images. PDFs and web pages open in a separate, locked-down view.</li>
+    <li><strong>Start a new session</strong> in a project, on a Mac with Superset.</li>
+  </ul>
+</section>
+
+<section id="hooks">
+  <div class="sec-head"><div class="sec-num">02</div><div class="sec-title"><div class="eyebrow">HOW IT KNOWS</div><h2>Claude Code's own hooks</h2></div></div>
+  <p>Claude Code runs hooks: commands it calls at fixed moments in a session. <code>airpocket setup</code> adds Airpocket's to <code>~/.claude/settings.json</code>, or to the folder <code>$CLAUDE_CONFIG_DIR</code> names. It merges them in, keeps every setting and hook already there, and writes a timestamped backup of the file first.</p>
+  <p>Each hook tells a small service on the same Mac, over loopback, what has happened:</p>
+  <ul>
+    <li>a session started, or ended;</li>
+    <li>you sent a prompt, so a turn is running;</li>
+    <li>the turn finished;</li>
+    <li>Claude is waiting: for a permission, for the answer to a question, or for you.</li>
+  </ul>
+  <p>The hook is silent, gives up after a second and a half, and does nothing when the service isn't running, so it doesn't hold Claude up. The conversation itself the service reads from the transcript Claude Code already writes on the Mac.</p>
+  <p><code>airpocket uninstall</code> takes Airpocket's hooks out again and leaves the rest of the file as it was.</p>
+</section>
+
+<section id="next-prompt">
+  <div class="sec-head"><div class="sec-num">03</div><div class="sec-title"><div class="eyebrow">NOT THERE YET?</div><h2>Why a session appears only when you next prompt it</h2></div></div>
+  <p>Claude Code re-reads its settings while it runs, so a session that was already open before setup picks up the hooks without a restart. But a hook runs only when something happens, and until that session does something, the service has never heard of it.</p>
+  <p>So a session from before setup appears on the phone the next time you prompt it. Sessions started after setup appear as they start.</p>
+  <div class="note"><div>
+    <div class="eyebrow">NO RESTART NEEDED</div>
+    <p>Until then the phone counts them: a line under the list says how many Claude Code agents run on that Mac that haven't checked in yet. Setup prints the same when it finishes. Send each one a prompt and it appears.</p>
+  </div></div>
+</section>
+
+<section id="where">
+  <div class="sec-head"><div class="sec-num">04</div><div class="sec-title"><div class="eyebrow">WHERE IT RUNS</div><h2>Where a session has to run to be answered</h2></div></div>
+  <p>The phone can watch any session. To type into one, Airpocket has to reach its terminal, and it can reach two kinds: a tmux pane and a Superset terminal. A session in any other terminal shows on the phone as read-only, with a line saying how to change that.</p>
+  <p>The change is to start Claude through Airpocket, in whatever terminal you already use:</p>
+  <pre class="cmd"><span class="ps">$ </span>airpocket run claude</pre>
+  <p>Setup can also alias <code>claude</code> to that, so nothing about how you start it changes. <a href="/any-terminal">Answering from any terminal</a> explains what <code>run</code> does and which terminals need it.</p>
+</section>
+
+<section id="limits">
+  <div class="sec-head"><div class="sec-num">05</div><div class="sec-title"><div class="eyebrow">LIMITS</div><h2>What it can't do</h2></div></div>
+  <ul>
+    <li><strong>It can't answer a session it can't reach.</strong> A session in a plain terminal window stays read-only unless it runs through <code>airpocket run</code>, tmux or Superset.</li>
+    <li><strong>Controls wait their turn.</strong> A model change or any other command is refused while a turn runs, while a menu is open, or while unsent text sits in the prompt box, so it never lands in the middle of something.</li>
+    <li><strong>Effort and model changes become your default.</strong> Claude Code saves <code>/effort</code> and <code>/model</code> as the default for new sessions, from the phone as from the keyboard. The phone says so when you change effort.</li>
+    <li><strong>No tool output.</strong> The phone shows one short line per step, never a command's output or the contents of a file the agent read.</li>
+    <li><strong>No file browser.</strong> Only files the session wrote, edited, cited or linked, inside its own folder, never one it only read.</li>
+    <li><strong>A permission refused with Esc on the Mac</strong> stays "needs permission" on the phone until the next prompt, because Claude Code runs no hook for it.</li>
+    <li><strong>A sleeping Mac is offline.</strong> The phone shows it as offline and hides its sessions until it wakes.</li>
+  </ul>
+  <div class="note limit"><div>
+    <div class="eyebrow">KNOW THIS BEFORE YOU PAIR</div>
+    <p>A paired phone can type anything into your agents, shell commands included: in Claude Code, a message that starts with <code>!</code> runs as one, and the phone asks before sending it. A phone's token works until you revoke it on that Mac with <code>airpocket revoke</code>. Pair only phones you control.</p>
+  </div></div>
+</section>
+
+</article>
+
+<nav class="toc glass" aria-label="On this page">
+  <div class="eyebrow">ON THIS PAGE</div>
+  <a href="#phone"><span>01</span>What you can do</a>
+  <a href="#hooks"><span>02</span>Claude Code's own hooks</a>
+  <a href="#next-prompt"><span>03</span>Why at the next prompt</a>
+  <a href="#where"><span>04</span>Where it has to run</a>
+  <a href="#limits"><span>05</span>What it can't do</a>
+</nav>
+</div>
+
+<section class="related">
+  <div class="sec-head"><div class="sec-num">→</div><div class="sec-title"><div class="eyebrow">NEXT</div><h2>The other guides</h2></div></div>
+  <div class="related-grid">
+    <a class="card glass" href="/install-tailscale"><div class="eyebrow">G1 · TAILSCALE</div><b>MagicDNS, HTTPS certificates, and which tailnet you are in</b><span>The two settings Airpocket needs, and why a work email gets in the way.</span></a>
+    <a class="card glass" href="/codex-on-iphone"><div class="eyebrow">G3 · CODEX</div><b>Codex on your iPhone</b><span>The same for Codex, and the two things that differ: hooks read at launch, and trusting them.</span></a>
+    <a class="card glass" href="/any-terminal"><div class="eyebrow">G4 · TERMINALS</div><b>Answering from any terminal</b><span>Which terminals the phone can answer, and what airpocket run and attach do.</span></a>
+  </div>
+  <div class="links"><a class="btn" href="/">The launch page</a><a class="btn-line" href="https://github.com/oncelozguleso/airpocket">The source on GitHub</a></div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-ruler"></div>
+  <div class="foot-row">
+    <a class="foot-brand" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 18.5l13-6.5-13-6.5v4.2l7 2.3-7 2.3z"/></svg><span>AIRPOCKET · MIT LICENCE</span></a>
+    <nav class="foot-nav"><a href="https://github.com/oncelozguleso/airpocket">GITHUB</a><a href="https://github.com/oncelozguleso/airpocket/blob/main/LICENSE">LICENCE</a><a href="/#security">SECURITY</a><a href="/#faq">FAQ</a></nav>
+    <span class="foot-note">Made by the Airpocket contributors.</span>
+    <nav class="foot-guides" aria-label="Guides"><span>GUIDES</span><a href="/install-tailscale">TAILNET</a><a href="/claude-code-on-iphone">CLAUDE CODE</a><a href="/codex-on-iphone">CODEX</a><a href="/any-terminal">ANY TERMINAL</a></nav>
+  </div>
+</footer>
+
+</body>
+</html>

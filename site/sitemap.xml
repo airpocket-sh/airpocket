@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Every page of airpocket.sh, by its canonical address. Nothing here changes on launch day:
+     robots.txt and the noindex lines are what keep search engines out until then (site/README.md).
+     A new page goes here, in the header and footer lists of every page, and in the README. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://airpocket.sh/</loc></url>
+  <url><loc>https://airpocket.sh/install-tailscale</loc></url>
+  <url><loc>https://airpocket.sh/claude-code-on-iphone</loc></url>
+  <url><loc>https://airpocket.sh/codex-on-iphone</loc></url>
+  <url><loc>https://airpocket.sh/any-terminal</loc></url>
+</urlset>
