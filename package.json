@@ -6,6 +6,8 @@
   "license": "MIT",
   "main": "src/server.js",
   "bin": { "airpocket": "src/cli.js" },
+  "files": ["src/", "SECURITY.md"],
+  "os": ["darwin"],
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node src/server.js",

@@ -232,6 +232,9 @@ function planSetup(f) {
       if (f.portsInUse[name]) problems.push(`Port ${port} on 127.0.0.1 (${name}) is already taken by another program. Free it, or move Airpocket with AIRPOCKET_PORT.`);
     }
   }
+  if (/\/(\.nvm|\.fnm|\.volta|\.asdf|\.local\/share\/(fnm|mise)|\.nodenv)\//.test(ctx.node)) {
+    notes.push(`Node comes from a version manager (${ctx.node}). The hooks and the login item run that exact Node: if you remove it, run setup again.`);
+  }
   const socketBytes = Buffer.byteLength(ctx.paths.socket) + 1;
   if (socketBytes > SOCKET_MAX) notes.push(`The data folder's path is long: a terminal socket inside it would be ${socketBytes} bytes, over macOS's ${SOCKET_MAX}. Fine for now; a shorter AIRPOCKET_DIR avoids trouble later.`);
 

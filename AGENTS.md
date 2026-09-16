@@ -81,7 +81,16 @@ status line.
   [--model] [--effort] --prompt P`; `workspaces create --local --project P
   --branch B --agent A --prompt P`; `agents list --local --json`; `projects
   list --json`. Never read `~/.superset/config.json`.
-- **Hooks**: Codex reads `~/.codex/hooks.json` once at launch. Superset puts
+- **Hooks**: Codex reads `~/.codex/hooks.json` once at launch. Codex (0.154)
+  runs a hook only after you trust it: new ones are listed as "N hooks need
+  review before they can run", reviewed in `/hooks`, and remembered in
+  `config.toml` as `[hooks.state."<hooks.json>:<snake_event>:<group>:<hook>"]`
+  with a `trusted_hash`. The key is a position, so add groups at the end and
+  never insert. Codex's events: PreToolUse, PermissionRequest, PostToolUse,
+  PreCompact, PostCompact, SessionStart, SessionEnd, UserPromptSubmit,
+  SubagentStart, SubagentStop, Stop, Interrupt; handlers take `timeout`.
+  Superset's `codex` wrapper may set `CODEX_HOME` to its own account folder
+  inside a Superset terminal. Superset puts
   `SUPERSET_TERMINAL_ID` and `SUPERSET_WORKSPACE_ID` in the agent's
   environment; tmux puts `TMUX_PANE`. Claude's hook input carries
   `transcript_path`, which also covers `CLAUDE_CONFIG_DIR` setups.
@@ -158,6 +167,13 @@ status line.
   `~/.claude/settings.json`, anything in `~/.codex`, or the private tool's
   data (`overlay/sessions`, `queue.json`,
   `~/Library/Application Support/claude-overlay`).
+- **Only `airpocket setup`, run by Öncel himself, may write the agents'
+  config files** (`~/.claude/settings.json`, `$CODEX_HOME/hooks.json`) or the
+  login item in `~/Library/LaunchAgents`. No test, no trial and no agent may.
+  Tests and trials run setup, doctor and uninstall with `HOME` (and
+  `CODEX_HOME`) pointed at a temp folder, a stand-in launchctl and a
+  stand-in Tailscale (`test/setup.test.js`), and check the real files'
+  modification times at the end.
 - Checking against real sessions: start a throwaway server instance on another
   loopback port with a temporary pairing store, give it an empty waiting list
   and a panel stub that blocks `/dequeue`, so nothing real changes.
@@ -182,10 +198,10 @@ status line.
 
 ## Where the code stands
 
-- Steps 4 to 9, 11 (first half) and 12 are merged (PR #1 to #7, #9).
-  `npm start` runs one process: the service with its hook endpoint, the phone
-  server and the file-only server, all on 127.0.0.1. 123 tests. PR #8 (a
-  lock race in `takeLock`) is open, not merged.
+- Steps 4 to 9, 11 (first half) and 12 are merged (PR #1 to #7, #9), and
+  the lock-race fix (#8). `npm start` runs one process: the service with its
+  hook endpoint, the phone server and the file-only server, all on
+  127.0.0.1. 123 tests before #8.
 - CI (`.github/workflows/test.yml`, step 12): macOS, Node 20 and 22, a syntax
   check, `node --test` with a real tmux, and `.github/smoke.js` (the real app
   on loopback with a temporary data folder and HOME).

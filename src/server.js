@@ -832,7 +832,7 @@ function createServer(opts = {}) {
   // The models each agent offers, from its own lists (Claude Code's in ~/.claude, Codex's in CODEX_HOME).
   deps.models = opts.models || createModels({ claudeDir: opts.claudeDir || path.join(deps.homeDir, ".claude"), codexHome: deps.codexHome });
   // Where the file-only origin is reached from the phone: this Mac's tailnet name on
-  // its own port, published by `airpocket serve`. Loopback when there is no tailnet.
+  // its own port, published by `airpocket setup`. Loopback when there is no tailnet.
   const filePort = opts.filePort ?? (opts.port != null ? opts.port + 1 : PORTS.file);
   const publicFilePort = opts.publicFilePort ?? PORTS.publicFile;
   let fileBaseCache = null;
