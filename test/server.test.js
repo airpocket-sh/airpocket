@@ -27,7 +27,7 @@ const newCode = store.newCode;
 store.newCode = (...a) => { const r = newCode(...a); codes.push(r.code); return r; };
 const now = Math.floor(Date.now() / 1000);
 const CLAUDE = "cb2d94c7-3e54-464a-8086-79db7d007c02";
-const CODEX = "01a09c74-c19c-79d0-926f-81a420e20565";
+const CODEX = "0199bbbb-cccc-7ddd-8eee-ffffffffffff";
 const PLAIN = "aaaaaaaa-0000-0000-0000-000000000000";
 const SESS = [
   { session_id: PLAIN, bridge_id: "local:" + PLAIN, title: "plain", agent: "claude", last_seen: now - 120 },
@@ -58,7 +58,7 @@ fs.writeFileSync(path.join(proj, CLAUDE2 + ".jsonl"), [
 ].join("\n"));
 // A Codex session in a Superset terminal, mid-turn. Its session file already has
 // the steps so far; the screen has Codex's dot animation over the prompt line.
-const CODEX_T = "01a0a069-1fef-7a71-b5f1-1db10d06b25c";
+const CODEX_T = "0199cccc-dddd-7eee-8fff-000000000000";
 SESS.push({ session_id: CODEX_T, bridge_id: "codex:" + CODEX_T, title: "PM", agent: "codex", pid: process.pid, started: ME,last_seen: now - 3, terminal: "term-3", workspace: "ws-3" });
 const D1 = String.fromCharCode(0x2801), D2 = String.fromCharCode(0x2840);
 const BRAILLE_RE = new RegExp("[" + String.fromCharCode(0x2800) + "-" + String.fromCharCode(0x28ff) + "]");
@@ -898,14 +898,20 @@ test("serve never takes a tailnet port that publishes something else, and unserv
 
 test("nothing in the app points at the private tool it came from", () => {
   const src = path.join(__dirname, "..", "src");
-  const files = [];
-  const walk = (d) => { for (const n of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, n.name); if (n.isDirectory()) walk(p); else if (!n.name.endsWith(".png")) files.push(p); } };
-  walk(src);
-  for (const f of files) {
+  const walk = (d, files = []) => { for (const n of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, n.name); if (n.isDirectory()) walk(p, files); else if (!n.name.endsWith(".png")) files.push(p); } return files; };
+  // Real session ids from the Mac this was built on; tests use invented ones. Joined
+  // here, so this file doesn't hold the ids it looks for.
+  const realIds = [["01a09c74", "c19c-79d0-926f-81a420e20565"], ["01a0a069", "1fef-7a71-b5f1-1db10d06b25c"]].map((p) => new RegExp(p.join("-"), "i"));
+  for (const f of walk(src)) {
     const t = fs.readFileSync(f, "utf8");
-    for (const bad of [/4782[012]\b/, /claude-overlay/i, /claude-accounts/i, /accounts\.json/, /\/api\/accounts/, /joinvoicedata/i, /[OÖ]ncel/, /mobile:[a-z]/, /\bpanel\b/i]) {
+    for (const bad of [/4782[012]\b/, /claude-overlay/i, /claude-accounts/i, /accounts\.json/, /\/api\/accounts/, /joinvoicedata/i, /[OÖ]ncel/, /mobile:[a-z]/, /\bpanel\b/i, ...realIds]) {
       assert.ok(!bad.test(t), `${path.relative(src, f)} matches ${bad}`);
     }
+  }
+  // The tests and their fixtures too, for the ids (the other patterns appear in tests on purpose).
+  for (const f of walk(__dirname)) {
+    const t = fs.readFileSync(f, "utf8");
+    for (const bad of realIds) assert.ok(!bad.test(t), `${path.relative(__dirname, f)} holds a real session id`);
   }
 });
 
