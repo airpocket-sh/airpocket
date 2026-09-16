@@ -50,8 +50,10 @@ placeholder carried over from the private tool.
 
 Decide first
 1. Runtime: require Node (Homebrew) or ship one self-contained program.
-2. v1 scope: Superset and tmux bridges; the Walkie-style own-terminal mode in
-   v1 or just after; drop the Codex desktop-daemon link.
+2. v1 scope: Superset and tmux bridges, then own-terminal mode in v1 as step
+   10b (decided 2026-09-16: watching already works anywhere, so only typing
+   needs a bridge, and one mechanism covers every terminal); drop the Codex
+   desktop-daemon link.
 3. Its own ports, so it runs beside the private tool during the build.
 
 Build
@@ -71,6 +73,15 @@ Build
    Accounts screen, first-run guidance, QR pairing.
 10. setup / doctor / uninstall: hooks, login item, Tailscale for both
     addresses, QR; uninstall removes exactly what setup added.
+10b. Own-terminal mode, so the phone works whatever terminal people use:
+    `airpocket run claude|codex` starts the agent in a private tmux session
+    (docs/OWN-TERMINAL.md, option A) with the user's own terminal attached, and
+    `airpocket attach` brings a detached one back. Setup offers the alias
+    (`alias claude='airpocket run claude'`) so muscle memory doesn't change.
+    Inside tmux or Superset it starts the agent directly instead of nesting. A
+    session started the old way stays read-only and says in one line how to
+    reach it. Prove in a real session: Esc with no delay, Shift+Enter,
+    clipboard, pasting an image, resize and scrollback.
 11. Security pass: threat model, review, secret scan of code and history,
     dependency audit, SECURITY.md.
 12. Tests on GitHub Actions (macOS) for every change.
