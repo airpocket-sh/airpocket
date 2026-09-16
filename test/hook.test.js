@@ -327,3 +327,20 @@ test("sessions from several Claude accounts land in one list, each with its own 
     await s.close();
   }
 });
+
+test("after the service stops, a hook sends nothing, even to a program that took its port", async () => {
+  const w = world();
+  const s = await service();
+  await s.close();
+  assert.ok(!fs.existsSync(path.join(s.dir, "hook.json")), "a stopped service leaves no hook.json");
+  // Something else takes the port the service had.
+  const got = [];
+  const squatter = net.createServer((c) => { got.push(c); c.destroy(); });
+  await new Promise((ok, fail) => { squatter.once("error", fail); squatter.listen(s.port, "127.0.0.1", ok); });
+  try {
+    const r = await fire("claude", { session_id: CLAUDE_ID, hook_event_name: "UserPromptSubmit", prompt: "deploy it", cwd: w.repo },
+      { HOME: w.home, AIRPOCKET_DIR: s.dir, TMUX_PANE: "%3" });
+    quiet(r, "no service");
+    assert.equal(got.length, 0, "no connection reached the port");
+  } finally { squatter.close(); }
+});

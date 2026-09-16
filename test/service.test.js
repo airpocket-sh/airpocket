@@ -688,3 +688,50 @@ test("one odd read of the lock isn't enough to stop: it must look wrong twice, a
   }
   assert.equal(fs.readFileSync(lockFile, "utf8"), svc.identity, "a service that stopped leaves the lock alone, even its own");
 });
+
+test("hook.json goes when the service stops, and one a crash left goes before the next service listens", async () => {
+  const t = await setup();
+  const hookFile = path.join(t.dir, "hook.json");
+  assert.ok(fs.existsSync(hookFile));
+  await t.close();
+  assert.ok(!fs.existsSync(hookFile), "a clean stop leaves nothing that points hooks at the port");
+
+  // release() alone (what the process's exit handler runs) does the same.
+  const dir = tempDir();
+  const svc = createService({ dir });
+  await new Promise((ok) => svc.listen(0, ok));
+  svc.release();
+  assert.ok(!fs.existsSync(path.join(dir, "hook.json")));
+  await new Promise((ok) => svc.close(ok));
+
+  // A crash leaves hook.json behind; the next service removes it at once, not only when it listens.
+  const crashed = tempDir();
+  fs.writeFileSync(path.join(crashed, "hook.json"), JSON.stringify({ port: 47873, secret: "S".repeat(43) }));
+  const next = createService({ dir: crashed });
+  try {
+    assert.ok(!fs.existsSync(path.join(crashed, "hook.json")), "gone before the endpoint listens (its port may be taken)");
+  } finally { next.release(); }
+});
+
+test("a service that loses its folder removes its own hook.json, never the new service's", async () => {
+  // The lock is simply gone: nobody listens for this service's secret any more.
+  const dir = tempDir();
+  const svc = createService({ dir, onLost: () => {} });
+  await new Promise((ok) => svc.listen(0, ok));
+  fs.unlinkSync(path.join(dir, "airpocket.lock"));
+  assert.equal(svc.stillHeld(), false);
+  assert.ok(!fs.existsSync(path.join(dir, "hook.json")));
+  await new Promise((ok) => svc.close(ok));
+
+  // Another service took the folder and wrote its own hook.json: that one stays.
+  const dir2 = tempDir();
+  const old = createService({ dir: dir2, onLost: () => {} });
+  await new Promise((ok) => old.listen(0, ok));
+  const theirs = JSON.stringify({ port: 40000, secret: "T".repeat(43) });
+  fs.writeFileSync(path.join(dir2, "airpocket.lock"), `${process.ppid} ${startTimeOf(process.ppid)}`);
+  fs.writeFileSync(path.join(dir2, "hook.json"), theirs);
+  assert.equal(old.stillHeld(), false);
+  old.release();
+  await new Promise((ok) => old.close(ok));
+  assert.equal(fs.readFileSync(path.join(dir2, "hook.json"), "utf8"), theirs);
+});
