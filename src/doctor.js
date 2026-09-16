@@ -7,7 +7,7 @@ const path = require("path");
 const cfg = require("./agentconfig");
 const ts = require("./tailscale");
 const li = require("./loginitem");
-const { survey, readLock, probe, versionOf, majorOf, SOCKET_MAX } = require("./setup");
+const { survey, probe, majorOf, SOCKET_MAX } = require("./setup");
 
 const SNAKE = (event) => event.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
 
@@ -57,18 +57,25 @@ async function checks(ctx) {
   else if (lock && lock.alive && lock.pid !== f.job.pid) add("FAIL", "Login item", `process ${f.job.pid} is waiting: process ${lock.pid} holds the data folder`, `Stop process ${lock.pid} (an Airpocket started by hand?); the login item takes over.`);
   else add("PASS", "Login item", `running as process ${f.job.pid}${f.job.runs > 1 ? `, started ${f.job.runs} times` : ""}`);
 
+  // Each port must answer, and be answered by the process that holds the lock, not some other program.
   const up = lock && lock.alive;
-  const appStatus = await probe(ctx.ports.app, "/manifest.webmanifest");
-  if (appStatus === 200) add("PASS", "App port", `127.0.0.1:${ctx.ports.app} answers`);
-  else add("FAIL", "App port", `127.0.0.1:${ctx.ports.app} ${appStatus ? "answers " + appStatus : "doesn't answer"}`, up ? `The service runs but doesn't serve; see ${t(P.logFile)}` : "Start the service (see Lock).");
+  const start = up ? `Restart the service: launchctl kickstart -k gui/${ctx.uid}/${ctx.label}` : "Start the service (see Lock).";
+  const portCheck = (name, port, answered, detail) => {
+    const owner = listenerPid(ctx, port);
+    if (!answered) add("FAIL", name, `127.0.0.1:${port} ${detail}`, owner && !(up && owner === lock.pid) ? `Process ${owner} holds this port: stop it, or move Airpocket with AIRPOCKET_PORT.` : start);
+    else if (!up || owner !== lock.pid) add("FAIL", name, `127.0.0.1:${port} is answered by ${owner ? "process " + owner : "a process lsof can't name"}, not the service holding the lock`, `Stop that process, then: launchctl kickstart -k gui/${ctx.uid}/${ctx.label}`);
+    else add("PASS", name, `127.0.0.1:${port} answers (process ${owner})`);
+  };
+  const manifest = await probe(ctx.ports.app, "/manifest.webmanifest", "GET", true);
+  let isApp = false;
+  try { isApp = manifest.status === 200 && JSON.parse(manifest.body).name === "Airpocket"; } catch {}
+  portCheck("App port", ctx.ports.app, isApp, manifest.status ? `answers, but not with Airpocket's app (${manifest.status})` : "doesn't answer");
   const fileStatus = await probe(ctx.ports.file, "/");
-  if (fileStatus) add("PASS", "File port", `127.0.0.1:${ctx.ports.file} answers`);
-  else add("FAIL", "File port", `127.0.0.1:${ctx.ports.file} doesn't answer`, up ? `See ${t(P.logFile)}` : "Start the service (see Lock).");
+  portCheck("File port", ctx.ports.file, fileStatus === 404, fileStatus ? `answers ${fileStatus}, not like the file-only origin` : "doesn't answer");
   const hook = readHookJson(P.hookFile);
   const hookStatus = await probe(ctx.ports.hook, "/hook/touch", "POST");
-  if (hookStatus === 401 && hook && hook.port === ctx.ports.hook) add("PASS", "Hook port", `127.0.0.1:${ctx.ports.hook} answers, hook.json matches`);
-  else add("FAIL", "Hook port", hookStatus === 401 ? `hook.json ${hook ? `says port ${hook.port}` : "is missing"}` : `127.0.0.1:${ctx.ports.hook} ${hookStatus ? "answers " + hookStatus : "doesn't answer"}`,
-    up ? `Restart the service: launchctl kickstart -k gui/${ctx.uid}/${ctx.label}` : "Start the service (see Lock).");
+  if (hookStatus === 401 && !(hook && hook.port === ctx.ports.hook)) add("FAIL", "Hook port", `hook.json ${hook ? `says port ${hook.port}` : "is missing"}`, start);
+  else portCheck("Hook port", ctx.ports.hook, hookStatus === 401, hookStatus ? `answers ${hookStatus}, not like the hook endpoint` : "doesn't answer");
 
   // The hooks.
   const hookJs = path.join(P.appDir, "src", "hook.js");
@@ -90,7 +97,8 @@ async function checks(ctx) {
       const untrusted = codexUntrusted(ctx, file, state);
       if (untrusted === null) add("INFO", "Codex hook review", "couldn't read Codex's config.toml to see whether you trusted them");
       else if (untrusted.length) add("WARN", "Codex hook review", `not reviewed yet: ${untrusted.join(", ")}`, "Codex runs new hooks only once you trust them: start Codex, open /hooks, trust Airpocket's.");
-      else add("PASS", "Codex hook review", "trusted in Codex");
+      // Codex's hash can't be recomputed here, so a trust entry is all that can be seen.
+      else add("INFO", "Codex hook review", "each hook has a trust entry in config.toml (if setup changed a command since, Codex asks again)");
     }
   }
 
@@ -132,6 +140,13 @@ function looseFiles(dir) {
   };
   walk(dir, 0);
   return out;
+}
+
+/** The pid listening on 127.0.0.1:port, from lsof, or 0. */
+function listenerPid(ctx, port) {
+  const r = ctx.run("/usr/sbin/lsof", ["-nP", "-a", `-iTCP@127.0.0.1:${port}`, "-sTCP:LISTEN", "-Fp"], { timeout: 5000 });
+  const m = /^p(\d+)$/m.exec(r.stdout || "");
+  return m ? Number(m[1]) : 0;
 }
 
 function readHookJson(file) {

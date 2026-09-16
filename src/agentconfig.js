@@ -168,6 +168,26 @@ function removeHooks(config, created = null) {
   return { config: next, removed };
 }
 
+/**
+ * The events where a hook that isn't ours comes after one of ours (later in the
+ * same group, or in a later group). Removing ours moves those, and Codex, which
+ * remembers trusted hooks by position, would ask for them to be reviewed again.
+ */
+function hooksAfterOurs(config) {
+  const out = [];
+  if (!isObject(config.hooks)) return out;
+  for (const [event, groups] of Object.entries(config.hooks)) {
+    if (!Array.isArray(groups)) continue;
+    let seen = false, hit = false;
+    for (const g of groups) {
+      if (!isObject(g) || !Array.isArray(g.hooks)) continue;
+      for (const h of g.hooks) { if (isOurs(h)) seen = true; else if (seen) hit = true; }
+    }
+    if (hit) out.push(event);
+  }
+  return out;
+}
+
 /** Which of an agent's events have our hook, and whether each has exactly one, with this command. */
 function hookState(config, agent, command) {
   const out = {};
@@ -237,4 +257,4 @@ function removeConfig(file, expect) {
 }
 
 module.exports = { MARKER, EVENTS, TIMEOUT_S, isOurs, shellQuote, hookCommand, configPaths, readConfig, addHooks, removeHooks, hookState,
-  hasAnyOurs, serialize, backup, writeConfig, removeConfig };
+  hasAnyOurs, hooksAfterOurs, serialize, backup, writeConfig, removeConfig };

@@ -72,7 +72,7 @@ function snapshot(root) {
  * A stand-in for this Mac's launchctl and Tailscale. launchd's part starts the real
  * service. `throttleMs` stands for ThrottleInterval, shortened.
  */
-function fakeMac({ serve = { TCP: {}, Web: {} }, backend = "Running", certs = true, throttleMs = 150 } = {}) {
+function fakeMac({ serve = { TCP: {}, Web: {} }, backend = "Running", certs = true, throttleMs = 150, serveFails = 0, neverServed = false } = {}) {
   const calls = [];
   const jobs = new Map();                      // label -> { def, child, pid, runs, exit, stopped }
   const table = JSON.parse(JSON.stringify(serve));
@@ -139,7 +139,8 @@ function fakeMac({ serve = { TCP: {}, Web: {} }, backend = "Running", certs = tr
       if (args[0] === "status") {
         return ok(JSON.stringify({ BackendState: backend, Version: "1.102.4-tabc", Self: { DNSName: backend === "Running" ? DNS + "." : "" }, CertDomains: certs ? [DNS] : null }));
       }
-      if (args[0] === "serve" && args[1] === "status") return ok(JSON.stringify(table));
+      // A Mac that never published anything prints "null".
+      if (args[0] === "serve" && args[1] === "status") return ok(neverServed && !Object.keys(table.TCP).length ? "null\n" : JSON.stringify(table));
       if (args[0] === "serve") {
         const https = args.find((x) => x.startsWith("--https="));
         const port = Number(https.split("=")[1]);
@@ -149,6 +150,7 @@ function fakeMac({ serve = { TCP: {}, Web: {} }, backend = "Running", certs = tr
           return ok();
         }
         assert.ok(args.includes("--bg"), "serve runs in the background");
+        if (serveFails && serveFails-- > 0) return no(1, "serve: something went wrong");
         table.TCP[port] = { HTTPS: true };
         table.Web[`${DNS}:${port}`] = { Handlers: { "/": { Proxy: args[args.length - 1] } } };
         return ok();
@@ -417,7 +419,7 @@ test("the login item never restart-loops on a data folder another Airpocket hold
   };
 
   // Started by hand, it exits with its own code at once.
-  const byHand = spawnSync(process.execPath, [path.join(ROOT, "src", "server.js")], { env: { ...process.env, HOME: w.home, AIRPOCKET_DIR: P.dataDir, AIRPOCKET_PORT: String(w.base) }, encoding: "utf8", timeout: 10000 });
+  const byHand = spawnSync(process.execPath, [path.join(ROOT, "src", "server.js")], { env: { PATH: process.env.PATH, HOME: w.home, AIRPOCKET_DIR: P.dataDir, AIRPOCKET_PORT: String(w.base) }, encoding: "utf8", timeout: 10000 });
   assert.equal(byHand.status, li.EXIT_LOCKED);
   assert.match(byHand.stderr, /already running/);
 
@@ -482,6 +484,13 @@ test("doctor: a broken service, a missing hook and a stale lock each fail, with 
   assert.match(r.text, /^FAIL  Lock +stale: process 999999 is gone\n +The service takes a stale lock over when it starts/m);
   assert.match(r.text, /^FAIL  Login item +installed but not loaded/m);
 
+  // Another program on the file port: it answers, but it isn't the service.
+  const impostor = require("http").createServer((req, res) => { res.writeHead(404); res.end(); }).listen(w.base + 1, "127.0.0.1");
+  await new Promise((ok) => impostor.once("listening", ok));
+  r = await report();
+  assert.match(r.text, new RegExp(`^FAIL  File port +127\\.0\\.0\\.1:${w.base + 1} is answered by process ${process.pid}, not the service holding the lock`, "m"));
+  await new Promise((ok) => impostor.close(ok));
+
   // Loose permissions and a Tailscale address that went away.
   fs.chmodSync(P.install, 0o644);
   ts.serveOff(TS, 8443, w.mac.run);
@@ -508,6 +517,83 @@ test("doctor reads Codex's trust in our hooks from config.toml", () => {
   fs.writeFileSync(path.join(home, ".codex", "config.toml"), `model = "x"\n\n[hooks.state]\n\n${toml}`);
   assert.equal(state.Stop.at.group, 1, "ours come after the user's Stop hook");
   assert.deepEqual(doctor.codexUntrusted(ctx, file, state), ["Interrupt"]);
+});
+
+test("a Mac that never used tailscale serve (status prints null) sets up, and uninstalls", async () => {
+  const w = await world({ mac: { neverServed: true } });
+  await setupOk(w);
+  assert.ok(ts.oursOn(w.mac.table, 443, `http://127.0.0.1:${w.base}`));
+  assert.equal(await setup.runUninstall(w.ctx, ["--remove-data"]), 0);
+  assert.match(w.output(), /removed: Tailscale/);
+  assert.deepEqual(w.mac.table, { TCP: {}, Web: {} });
+});
+
+test("a setup that stopped half way is still removed whole by uninstall", async () => {
+  const claudeText = '{\n  "theme": "dark"\n}\n';
+  const w = await world({ claude: claudeText, mac: { serveFails: 1 } });
+  const P = w.ctx.paths;
+  assert.equal(await setup.runSetup(w.ctx), 1);
+  const out = w.output();
+  assert.match(out, /6\. Tailscale: FAILED\n +tailscale serve on port 443 failed: serve: something went wrong/);
+  assert.match(out, /airpocket uninstall removes it/);
+  assert.ok(w.mac.jobs.get(li.LABEL).pid, "the steps before it were done");
+  assert.equal(await setup.runUninstall(w.ctx, ["--remove-data"]), 0);
+  w.output();
+  assert.equal(fs.readFileSync(P.claude, "utf8"), claudeText);
+  assert.equal(fs.existsSync(P.codex), false);
+  assert.equal(fs.existsSync(P.plist), false);
+  assert.equal(fs.existsSync(P.dataDir), false);
+  assert.deepEqual(w.mac.table, { TCP: {}, Web: {} });
+});
+
+test("uninstall: a config that changes meanwhile isn't overwritten, and the copy and the record stay for the next try", async () => {
+  const w = await world({ claude: '{"model":"opus"}' });
+  const P = w.ctx.paths;
+  await setupOk(w);
+  // Claude Code writes its settings just as uninstall is about to (the plan is printed, then applied).
+  let touched = false;
+  const ctx = setup.context({ env: w.ctx.env, home: w.home, run: w.mac.run, tailscaleBin: TS, tty: false, color: false, uid: 501, tmuxBins: w.ctx.tmuxBins,
+    out: (l = "") => { if (!touched && /Claude Code hooks/.test(l)) { touched = true; const c = json(P.claude); c.effortLevel = "high"; fs.writeFileSync(P.claude, JSON.stringify(c)); } } });
+  assert.equal(await setup.runUninstall(ctx, ["--keep-data"]), 1);
+  assert.equal(json(P.claude).effortLevel, "high", "Claude's own write survives");
+  assert.ok(fs.existsSync(path.join(P.appDir, "src", "hook.js")), "the hooks still point at a copy that exists");
+  assert.ok(fs.existsSync(P.install), "and the record stays");
+  assert.equal(await setup.runUninstall(w.ctx, ["--keep-data"]), 0);
+  w.output();
+  assert.deepEqual(json(P.claude), { model: "opus", effortLevel: "high" });
+  assert.equal(fs.existsSync(P.install), false);
+});
+
+test("the data folder can't be the home folder, and uninstall never deletes a folder holding other things", async () => {
+  const w = await world({ env: {} });
+  const ctx = setup.context({ env: { ...w.ctx.env, AIRPOCKET_DIR: w.home }, home: w.home, run: w.mac.run, tailscaleBin: TS, tty: false, color: false, uid: 501,
+    tmuxBins: w.ctx.tmuxBins, out: w.ctx.out });
+  assert.equal(await setup.runSetup(ctx), 1);
+  assert.match(w.output(), /is your home folder or holds it/);
+  assert.equal(setup.unsafeDataDir("/", "/Users/me"), "is the root folder");
+  assert.equal(setup.unsafeDataDir("/Users", "/Users/me"), "is your home folder or holds it");
+  assert.equal(setup.unsafeDataDir("/Users/me/ap", "/Users/me"), "");
+  assert.equal(await setup.runUninstall(ctx, ["--remove-data"]), 1);
+  assert.match(w.output(), /Kept the data folder ~: it is your home folder or holds it/);
+  assert.ok(fs.existsSync(path.join(w.home, ".claude")));
+
+  await setupOk(w);
+  fs.writeFileSync(path.join(w.ctx.paths.dataDir, "notes.txt"), "mine");
+  assert.equal(await setup.runUninstall(w.ctx, ["--remove-data"]), 1);
+  assert.match(w.output(), /Kept the data folder .*: it holds things that aren't Airpocket's \(notes\.txt\)/);
+  assert.ok(fs.existsSync(path.join(w.ctx.paths.dataDir, "notes.txt")));
+});
+
+test("uninstall warns when removing ours moves the user's own Codex hooks", async () => {
+  const w = await world();
+  await setupOk(w);
+  const codex = json(w.ctx.paths.codex);
+  codex.hooks.Stop.push({ hooks: [{ type: "command", command: "added later" }] });
+  fs.writeFileSync(w.ctx.paths.codex, JSON.stringify(codex));
+  assert.deepEqual(cfg.hooksAfterOurs(codex), ["Stop"]);
+  assert.equal(await setup.runUninstall(w.ctx, ["--keep-data"]), 0);
+  assert.match(w.output(), /your own Stop hook comes after Airpocket's\. Codex remembers trusted hooks by position, so it will ask you to review it again/);
+  assert.deepEqual(json(w.ctx.paths.codex), { hooks: { Stop: [{ hooks: [{ type: "command", command: "added later" }] }] } });
 });
 
 test("the real ~/.claude/settings.json and ~/.codex/hooks.json were not touched by these tests", () => {

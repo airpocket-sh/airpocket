@@ -49,6 +49,22 @@ const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); }
 const versionOf = (dir) => { const j = readJson(path.join(dir, "package.json")); return j && j.name === "airpocket" ? String(j.version || "") : ""; };
 const majorOf = (v) => Number(String(v).replace(/^v/, "").split(".")[0]) || 0;
 
+/**
+ * Why a folder can't be Airpocket's data folder, or "": the home folder itself,
+ * or anything that holds it (say AIRPOCKET_DIR=$HOME), would get its mode
+ * changed by setup and could be deleted whole by uninstall --remove-data.
+ */
+function unsafeDataDir(dir, home) {
+  if (!path.isAbsolute(dir)) return "is not an absolute path";
+  const d = path.resolve(dir), h = path.resolve(home);
+  if (d === path.parse(d).root) return "is the root folder";
+  if (d === h || h.startsWith(d + path.sep)) return "is your home folder or holds it";
+  return "";
+}
+
+/** What Airpocket keeps in its data folder. Anything else there means it isn't only Airpocket's. */
+const OWN_ENTRY = /^(devices\.json|pairing\.json|hook\.json|queue\.json|install\.json|airpocket\.lock(\..+)?|sessions|logs|app(\.(new|old)-[0-9a-f]+)?|tmux|.+\.tmp)$/;
+
 /** A command-line option: --name. */
 const flag = (argv, name) => argv.includes("--" + name);
 
@@ -130,13 +146,20 @@ function listening(port) {
   });
 }
 
-/** One request to 127.0.0.1; resolves the status, or 0. */
-function probe(port, pathname = "/", method = "GET") {
+/** One request to 127.0.0.1; resolves the status, or 0 (with `withBody`, { status, body }, the body up to 64 KB). */
+function probe(port, pathname = "/", method = "GET", withBody = false) {
   return new Promise((resolve) => {
+    const done = (status, body = "") => resolve(withBody ? { status, body } : status);
     const req = http.request({ host: "127.0.0.1", port, path: pathname, method, agent: false, timeout: 2000,
-      headers: method === "POST" ? { "Content-Type": "application/json", "Content-Length": 2 } : {} }, (res) => { res.resume(); resolve(res.statusCode); });
+      headers: method === "POST" ? { "Content-Type": "application/json", "Content-Length": 2 } : {} }, (res) => {
+      const chunks = [];
+      let size = 0;
+      res.on("data", (c) => { size += c.length; if (size <= 65536) chunks.push(c); });
+      res.on("end", () => done(res.statusCode, Buffer.concat(chunks).toString("utf8")));
+      res.on("error", () => done(res.statusCode));
+    });
     req.on("timeout", () => req.destroy());
-    req.on("error", () => resolve(0));
+    req.on("error", () => done(0));
     req.end(method === "POST" ? "{}" : undefined);
   });
 }
@@ -235,6 +258,8 @@ function planSetup(f) {
   if (/\/(\.nvm|\.fnm|\.volta|\.asdf|\.local\/share\/(fnm|mise)|\.nodenv)\//.test(ctx.node)) {
     notes.push(`Node comes from a version manager (${ctx.node}). The hooks and the login item run that exact Node: if you remove it, run setup again.`);
   }
+  const unsafe = unsafeDataDir(ctx.paths.dataDir, ctx.home);
+  if (unsafe) problems.push(`The data folder ${ctx.paths.dataDir} ${unsafe}. Point AIRPOCKET_DIR at a folder of Airpocket's own.`);
   const socketBytes = Buffer.byteLength(ctx.paths.socket) + 1;
   if (socketBytes > SOCKET_MAX) notes.push(`The data folder's path is long: a terminal socket inside it would be ${socketBytes} bytes, over macOS's ${SOCKET_MAX}. Fine for now; a shorter AIRPOCKET_DIR avoids trouble later.`);
 
@@ -328,7 +353,11 @@ function planSetup(f) {
       fs.mkdirSync(path.dirname(ctx.paths.plist), { recursive: true });
       writeAtomic(ctx.paths.plist, item.xml);
       fs.chmodSync(ctx.paths.plist, 0o644);
-      const r = li.load(ctx.run, ctx.uid, ctx.paths.plist, ctx.label);
+      // A running copy stops first, and lets go of the data folder, so the new one doesn't wait for it.
+      if (await li.unloadAndWait(ctx.run, ctx.uid, ctx.label)) {
+        for (let i = 0; i < 40; i++) { const l = readLock(ctx); if (!l || !l.alive) break; await new Promise((r) => setTimeout(r, 250)); }
+      }
+      const r = await li.load(ctx.run, ctx.uid, ctx.paths.plist, ctx.label);
       if (!r.ok) throw new Error(r.why);
       const up = await waitForService(ctx);
       if (!up.ok) throw new Error(up.why);
@@ -512,8 +541,8 @@ function planUninstall(f) {
     steps.push({
       title: "Login item",
       lines: [`${f.job.loaded ? "stop and unload it" : "not loaded"}${f.plistOurs ? `; remove ${t(ctx.paths.plist)}` : ""}`],
-      apply() {
-        li.unload(ctx.run, ctx.uid, ctx.label);
+      async apply() {
+        await li.unloadAndWait(ctx.run, ctx.uid, ctx.label);
         if (f.plistOurs) fs.unlinkSync(ctx.paths.plist);
       },
     });
@@ -552,8 +581,12 @@ function planUninstall(f) {
     const { config, removed } = cfg.removeHooks(read.config, created);
     const empty = !Object.keys(config).length;
     const drop = empty && install.hooks && install.hooks[file] && install.hooks[file].createdFile;
+    const codex = path.basename(file) === "hooks.json";
+    const shifted = codex ? cfg.hooksAfterOurs(read.config) : [];
+    if (shifted.length) notes.push(`In ${t(file)}, your own ${shifted.join(", ")} hook${shifted.length > 1 ? "s come" : " comes"} after Airpocket's. Codex remembers trusted hooks by position, so it will ask you to review ${shifted.length > 1 ? "them" : "it"} again.`);
     steps.push({
-      title: path.basename(file) === "hooks.json" ? "Codex hooks" : "Claude Code hooks",
+      title: codex ? "Codex hooks" : "Claude Code hooks",
+      kind: "config",
       lines: [`${t(file)}: remove Airpocket's ${removed.join(", ")}${drop ? "; the file only held those, so it goes (setup created it)" : ", nothing else"}`,
         `backup first: ${t(file)}.airpocket-backup-<time>`],
       apply(done) {
@@ -565,10 +598,10 @@ function planUninstall(f) {
   }
 
   if (versionOf(ctx.paths.appDir)) {
-    steps.push({ title: "Airpocket itself", lines: [`remove the copy in ${t(ctx.paths.appDir)}`], apply() { fs.rmSync(ctx.paths.appDir, { recursive: true, force: true }); } });
+    steps.push({ title: "Airpocket itself", last: true, lines: [`remove the copy in ${t(ctx.paths.appDir)}`], apply() { fs.rmSync(ctx.paths.appDir, { recursive: true, force: true }); } });
   }
   if (exists(ctx.paths.install)) {
-    steps.push({ title: "Install record", lines: [`remove ${t(ctx.paths.install)}`], apply() { fs.rmSync(ctx.paths.install, { force: true }); } });
+    steps.push({ title: "Install record", last: true, lines: [`remove ${t(ctx.paths.install)}`], apply() { fs.rmSync(ctx.paths.install, { force: true }); } });
   }
   return { steps, notes };
 }
@@ -593,6 +626,9 @@ async function runUninstall(ctx, argv = []) {
   let failed = false;
   if (plan.steps.length) out("");
   for (const [i, step] of plan.steps.entries()) {
+    // After a failure, the copy the hooks run and the record of what setup added stay, so the
+    // hooks keep working and the next uninstall still knows what to remove.
+    if (step.last && failed) { out(`  kept: ${step.title} (something above didn't come off; run airpocket uninstall again)`); continue; }
     const done = [];
     try { await step.apply(done); out(`  removed: ${step.title}${done.length ? " (" + done.join("; ") + ")" : ""}`); }
     catch (err) { failed = true; out(`  ${i + 1}. ${step.title}: FAILED: ${err.message}`); }
@@ -608,7 +644,12 @@ async function runUninstall(ctx, argv = []) {
         : false;
       if (!ctx.tty) out(`\n  Kept the data folder ${t(ctx.paths.dataDir)}. To remove it too: airpocket uninstall --remove-data`);
     }
-    if (remove && lock && lock.alive) {
+    const unsafe = unsafeDataDir(ctx.paths.dataDir, ctx.home);
+    const strangers = (() => { try { return fs.readdirSync(ctx.paths.dataDir).filter((n) => !OWN_ENTRY.test(n)); } catch { return []; } })();
+    if (remove && (unsafe || strangers.length)) {
+      out(`  Kept the data folder ${t(ctx.paths.dataDir)}: it ${unsafe || `holds things that aren't Airpocket's (${strangers.slice(0, 3).join(", ")})`}. Remove what you want yourself.`);
+      failed = true;
+    } else if (remove && lock && lock.alive) {
       out(`  Kept the data folder: Airpocket is still running there as process ${lock.pid}. Stop it, then run airpocket uninstall --remove-data.`);
       failed = true;
     } else if (remove) {
@@ -633,4 +674,4 @@ function listBackups(ctx) {
 }
 
 module.exports = { context, stableNode, survey, planSetup, runSetup, planUninstall, runUninstall, pairingLines, readLock, readInstall,
-  probe, listening, versionOf, majorOf, SOCKET_MAX, copyApp, tail };
+  probe, listening, versionOf, majorOf, SOCKET_MAX, copyApp, tail, unsafeDataDir };

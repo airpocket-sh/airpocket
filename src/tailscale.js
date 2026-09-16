@@ -55,8 +55,10 @@ function serveStatus(bin, run = runReal) {
   if (!bin) return null;
   const r = run(bin, ["serve", "status", "--json"], { timeout: 8000 });
   if (r.status !== 0) return null;
+  // A Mac that has never published anything answers "null".
+  if (/^\s*null\s*$/.test(r.stdout)) return {};
   const st = parse(r.stdout);
-  return st && typeof st === "object" ? st : null;
+  return st && typeof st === "object" && !Array.isArray(st) ? st : null;
 }
 
 const proxyOf = (h) => String((h && h.Proxy) || "").replace(/\/+$/, "");

@@ -72,16 +72,35 @@ function jobStatus(run, uid, label = LABEL) {
            exit: /^\d+$/.test(exit) ? Number(exit) : null };
 }
 
-/** Load the job (after unloading an older copy of it), or say why not. */
-function load(run, uid, plistFile, label = LABEL) {
-  run(LAUNCHCTL, ["bootout", `${domain(uid)}/${label}`], { timeout: 15000 });  // not loaded is fine
-  const r = run(LAUNCHCTL, ["bootstrap", domain(uid), plistFile], { timeout: 15000 });
-  if (r.status === 0) return { ok: true };
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Load the job, or say why not. An older copy is unloaded first and waited for:
+ * right after a bootout, launchd often refuses to load the same label again
+ * ("5: Input/output error") while the old process is still stopping. So a
+ * refused load is tried a few more times before it counts.
+ */
+async function load(run, uid, plistFile, label = LABEL, { tries = 4, gapMs = 1000 } = {}) {
+  await unloadAndWait(run, uid, label);
+  let r;
+  for (let i = 0; i < tries; i++) {
+    r = run(LAUNCHCTL, ["bootstrap", domain(uid), plistFile], { timeout: 15000 });
+    if (r.status === 0) return { ok: true };
+    await pause(gapMs);
+  }
   const text = (r.stderr || r.stdout || "").trim();
-  // 5: Input/output error, which is what a login item switched off in System Settings gives.
+  // 5: Input/output error, which is also what a login item switched off in System Settings gives.
   const hint = r.status === 5 || /Input\/output error/i.test(text)
     ? " If Airpocket is switched off in System Settings > General > Login Items & Extensions, switch it on and run setup again." : "";
-  return { ok: false, why: `launchctl bootstrap failed (${r.status}): ${text.split("\n")[0] || "no message"}.${hint}` };
+  return { ok: false, why: `launchctl bootstrap failed ${tries} times (${r.status}): ${text.split("\n")[0] || "no message"}.${hint}` };
+}
+
+/** Unload the job if it is loaded, and wait (up to 15 s) until launchd no longer has it. True if it was loaded. */
+async function unloadAndWait(run, uid, label = LABEL) {
+  if (!jobStatus(run, uid, label).loaded) return false;
+  run(LAUNCHCTL, ["bootout", `${domain(uid)}/${label}`], { timeout: 15000 });
+  for (let i = 0; i < 60 && jobStatus(run, uid, label).loaded; i++) await pause(250);
+  return true;
 }
 
 /** Unload the job; true if it was loaded. */
@@ -100,4 +119,4 @@ function isOurPlist(file, label = LABEL) {
   } catch { return false; }
 }
 
-module.exports = { LABEL, EXIT_LOCKED, THROTTLE_S, LAUNCHCTL, loginItem, jobStatus, load, unload, isOurPlist };
+module.exports = { LABEL, EXIT_LOCKED, THROTTLE_S, LAUNCHCTL, loginItem, jobStatus, load, unload, unloadAndWait, isOurPlist };
