@@ -1036,6 +1036,7 @@
   // ---- new session (Superset) --------------------------------------------------------
   function renderNew() {
     screenIs("new", "on");
+    launchDone();
     setBar({ close: "#/", title: "New session" });
     // Only Macs with Superset can start one. Before any list has said, offer them all.
     const able = hosts.filter((x) => startable.has(x.id));
