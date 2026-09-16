@@ -95,6 +95,13 @@ Prove it, then launch
     trial it seemed to wait for something on screen), then set it back.
     Claude saves /effort as the default for new sessions of that model, so
     no trial or test may run it.
+    Also once, on the phone: add Airpocket to the Home Screen, tap "Scan the
+    code on your Mac", and see whether iOS grants the camera in a Home Screen
+    web app, whether it asks again on every launch, and whether the stream
+    survives the app going to the background. Step 9 could not test this (no
+    simulator, and a tailnet trial needed Öncel's OK), so pairing opens on the
+    six digits and the scan is one tap away. If it works, flip SCAN_FIRST in
+    app.js.
 14. Fresh-Mac test from the README alone: Superset and tmux, Claude and Codex,
     a second Mac, a real iPhone including a PDF.
 15. Launch material: README with screenshots, a short demo video, FAQ, first
