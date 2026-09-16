@@ -745,6 +745,37 @@ test("files: PDFs and pages open from the file-only origin, through a short link
   put("out/report.pdf", PDF);
 });
 
+test("DNS rebinding: the app and the file origin answer only to the tailnet name or loopback", async () => {
+  const rebound = ["attacker.example", "attacker.example:47871", "127.0.0.1.attacker.example", "ts.net.attacker.example",
+                   "mac.tail1234.ts.net.attacker.example", "192.168.1.5", "[::1]", "localhost.", "mac..ts.net"];
+  for (const host of rebound) {
+    assert.equal((await req("GET", "/", { headers: { Host: host } })).status, 403, "the static app, Host " + JSON.stringify(host));
+  }
+  // Pairing: a rebound page can't spend the code's tries.
+  const { code } = store.newCode();
+  for (let i = 0; i < 6; i++) {
+    const r = await req("POST", "/api/pair", { headers: { Host: "attacker.example" }, body: { code: "000000" } });
+    assert.equal(r.status, 403);
+  }
+  // X-Forwarded-Host is the page's to set; only Host counts.
+  assert.equal((await req("GET", "/", { headers: { Host: "attacker.example", "X-Forwarded-Host": "mac-b.tail1234.ts.net" } })).status, 403);
+  assert.equal((await req("GET", "/api/hello", { headers: { ...auth(), Host: "attacker.example" } })).status, 403, "a token doesn't help");
+  for (const host of ["mac-b.tail1234.ts.net", "MAC-B.tail1234.ts.net:443", "127.0.0.1", "localhost:47871"]) {
+    assert.equal((await req("GET", "/", { headers: { Host: host } })).status, 200, "Host " + host);
+  }
+  const paired = await req("POST", "/api/pair", { headers: { Host: "mac-b.tail1234.ts.net" }, body: { code, name: "rebind test" } });
+  assert.equal(paired.status, 200, "the code still had all its tries");
+  store.revoke(paired.json.deviceId);
+
+  // A file link: refused under a rebound name, and the refusal doesn't count as a use.
+  const files = await fileList();
+  const o = await req("POST", "/api/file/open", { headers: auth(), body: { id: FILES, ref: refOf(files, "report.pdf") } });
+  for (let i = 0; i < 41; i++) assert.equal((await get(o.json.url, { Host: "attacker.example" })).status, 403);
+  assert.equal((await get(o.json.url, { Host: "mac-b.tail1234.ts.net:8443" })).status, 200);
+  assert.equal((await get(o.json.url)).status, 200, "loopback");
+  assert.equal((await req("POST", "/api/send", { headers: { ...auth(), Host: "attacker.example" }, body: { id: CLAUDE, text: "hi" } })).status, 403);
+});
+
 test("files: a session's folder must be a real folder inside home, not home itself and not a hidden one", () => {
   assert.equal(sessionRoot(HOME, HOME), null);
   assert.equal(sessionRoot("/", HOME), null);

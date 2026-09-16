@@ -48,6 +48,12 @@ const SESSION_ID = /^[A-Za-z0-9_-]{6,100}$/;
 const BEARER = /^Bearer ([A-Za-z0-9_-]{32,128})$/;
 const JSON_TYPE = /^application\/json(\s*;.*)?$/i;
 const ORIGIN_OK = /^(https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net|http:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?)$/i;
+// The names the app and file servers answer to: this Mac's tailnet name (what
+// tailscale serve passes on) or loopback. A web page that rebinds its own name to
+// 127.0.0.1 still sends that name, so it reaches nothing, not even the static app,
+// pairing or a file link. Only Host counts: a page can set X-Forwarded-Host itself.
+const HOST_OK = /^([a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net|127\.0\.0\.1|localhost)(:\d{1,5})?$/i;
+const hostOk = (req) => HOST_OK.test(String(req.headers.host || ""));
 const BRAILLE = new RegExp("[" + String.fromCharCode(0x2800) + "-" + String.fromCharCode(0x28ff) + "]", "g");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // What Codex shows, greyed out, in an empty prompt box (older versions rotate examples).
@@ -1514,6 +1520,7 @@ function createServer(opts = {}) {
 
   const server = http.createServer((req, res) => {
     const started = Date.now();
+    if (!hostOk(req)) { req.resume(); deps.log(`${req.method} 403 (host)`); return send(res, 403, "", "text/plain"); }
     let url;
     try { url = new URL(req.url || "/", "http://airpocket.invalid"); } catch { res.writeHead(400); return res.end(); }
     route(req, res, url)
@@ -1530,6 +1537,7 @@ function createServer(opts = {}) {
   server.requestTimeout = 30000;
   // The file-only origin: nothing but two-minute file links. No API, no app, no cookies.
   const fileServer = http.createServer((req, res) => {
+    if (!hostOk(req)) { req.resume(); deps.log(`file ${req.method} 403 (host)`); return send(res, 403, "", "text/plain"); }
     let status;
     try { status = fileRoute(req, res); } catch (err) { deps.log("file server error:", err && err.message); if (!res.headersSent) { res.writeHead(500); res.end(); } }
     if (status >= 400 && status !== 404) deps.log(`file ${req.method} ${status}`);
@@ -1561,7 +1569,7 @@ function start(opts = {}) {
   return app;
 }
 
-module.exports = { start, createServer, tidyScreen, cleanText, KEYS, liveState, claudeItems, describeTool, codexStep, shellLabel, sessionInfo,
+module.exports = { start, createServer, HOST_OK, tidyScreen, cleanText, KEYS, liveState, claudeItems, describeTool, codexStep, shellLabel, sessionInfo,
   mergeInfo, claudeMode, codexContext, effortsFor, sessionRoot, fileMeta, mentions };
 
 if (require.main === module) {
