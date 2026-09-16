@@ -188,9 +188,17 @@ status line.
   (`queue.json`) in the data folder (`~/Library/Application Support/Airpocket`
   or `$AIRPOCKET_DIR`); folders 0700, files 0600, every write whole
   (temp file, fsync, rename). One service per data folder: `airpocket.lock`
-  holds `"<pid> <start time>"`, written to a temp file and linked into place;
-  a stale lock is renamed aside, and a live one moved by mistake is put
-  back. A second service throws `ELOCKED` and writes nothing.
+  holds `"<pid> <start time>"`, written to a temp file and linked into place.
+  A lock is never overwritten or unlinked unless stale: to take over a stale
+  one, a service first links the takeover marker (`airpocket.lock.takeover`,
+  itself taken over only when its process is gone), reads the lock again and
+  moves it aside only if it is still exactly what it judged stale, then links
+  its own (a newcomer that linked in between wins). A second service throws
+  `ELOCKED` and writes nothing. A running service calls `stillHeld()` on
+  every sweep and hook: if the lock is gone or names another process (read
+  wrong twice, 5 ms apart) it stops for good: no more writes, hooks get 503,
+  the hook endpoint closes, the list empties, the lock is left alone, and
+  `onLost` runs (by default the process exits).
 - Hook endpoint on 127.0.0.1:47873 (`AIRPOCKET_HOOK_PORT`), never published.
   `hook.json` = `{ port, secret }`, 0600, written only once it listens, new
   secret every start. `POST /hook/session | enqueue | dequeue | touch` with
