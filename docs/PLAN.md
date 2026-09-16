@@ -105,8 +105,15 @@ Prove it, then launch
     And Codex end to end: use Codex once so its login refreshes, then run
     `node docs/reference/try-codex.js`. Step 10 stopped short of this because a
     throwaway copy would have refreshed the login and signed the real one out.
+    With Codex logged in, also try its prompt box through `airpocket run`:
+    step 10b could not, and Codex asks for the kitty keyboard protocol, which
+    is why the tmux conf uses `extended-keys always`.
 14. Fresh-Mac test from the README alone: Superset and tmux, Claude and Codex,
-    a second Mac, a real iPhone including a PDF.
+    a second Mac, a real iPhone including a PDF. Include Terminal.app, the
+    terminal a new Mac actually has: if it doesn't answer XTVERSION, `airpocket
+    run` gives a 500 ms Esc for the first five seconds (tmux waiting on a
+    terminal query, see docs/OWN-TERMINAL.md), which is the first thing a new
+    user would feel.
 15. Launch material: README with screenshots, a short demo video, FAQ, first
     release.
 16. Go public: final secret scan, remove `private: true` from package.json,
