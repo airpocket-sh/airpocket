@@ -37,12 +37,14 @@ const { processAlive } = require("./proc");
 const { SECRET_CONTENT } = require("./secrets");
 const { createBridges, KEYS, runFile, runSuperset, runTmux, findTmux, supersetInstalled } = require("./bridges");
 const { createModels } = require("./models");
+const { createUploads } = require("./uploads");
 const { codexTrust } = require("./agentconfig");
 
 const PUBLIC = path.join(__dirname, "public");
 
 const MAX_BODY = 32 * 1024;
 const MAX_TEXT = 8000;
+const MAX_PHOTOS = 4;                 // per message, so one send can never fill a prompt with paths
 const TAIL_BYTES = 4 * 1024 * 1024;   // read only the end of a transcript; some are 100 MB
 const MAX_ITEMS = 160;
 const CODEX_WINDOW_MAX = 32 * 1024 * 1024;   // how far back a first look at a Codex file may go
@@ -172,6 +174,25 @@ function readJson(req, res, extra) {
       if (!body || typeof body !== "object" || Array.isArray(body)) { json(res, 400, { error: "bad_json" }, extra); return resolve(null); }
       resolve(body);
     });
+    req.on("error", () => { if (!done) { done = true; resolve(null); } });
+  });
+}
+
+/**
+ * The request body as bytes, or null after answering the error itself. Used by
+ * the one endpoint that takes something other than JSON: a photo.
+ */
+function readBinary(req, res, extra, max) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0, done = false;
+    req.on("data", (c) => {
+      if (done) return;
+      size += c.length;
+      if (size > max) { done = true; json(res, 413, { error: "too_large", message: "That photo is too big." }, extra); req.resume(); return resolve(null); }
+      chunks.push(c);
+    });
+    req.on("end", () => { if (!done) resolve(Buffer.concat(chunks)); });
     req.on("error", () => { if (!done) { done = true; resolve(null); } });
   });
 }
@@ -839,6 +860,8 @@ function createServer(opts = {}) {
     homeDir: opts.homeDir || os.homedir(),
     ticketMs: opts.ticketMs || 120000,
   };
+  // Photos the phone sends, in the data folder beside the paired devices.
+  deps.uploads = opts.uploads || createUploads({ dir: store.dir, log });
   // The models each agent offers, from its own lists (Claude Code's in ~/.claude, Codex's in CODEX_HOME).
   deps.models = opts.models || createModels({ claudeDir: opts.claudeDir || path.join(deps.homeDir, ".claude"), codexHome: deps.codexHome });
   // Where the file-only origin is reached from the phone: this Mac's tailnet name on
@@ -1205,14 +1228,49 @@ function createServer(opts = {}) {
   async function sendText(res, body, cors) {
     const e = find(body.id);
     if (!e) return json(res, 404, { error: "unknown_session", message: "That session is gone." }, cors);
-    const text = cleanText(body.text);
-    if (text === null || !text.trim()) return json(res, 400, { error: "empty", message: "Nothing to send." }, cors);
-    if (text.length > MAX_TEXT) return json(res, 400, { error: "too_long", message: `Keep it under ${MAX_TEXT} characters.` }, cors);
+    // A message can be a photo and nothing else, but anything that isn't text is still refused.
+    const text = body.text == null ? "" : cleanText(body.text);
+    if (text === null) return json(res, 400, { error: "empty", message: "Nothing to send." }, cors);
+    // Photos the phone uploaded first. The refs become quoted absolute paths
+    // here, at the last moment: the phone never handles a path, and the agent
+    // gets something it can open with the tools it already has.
+    const refs = Array.isArray(body.refs) ? body.refs.slice(0, MAX_PHOTOS) : [];
+    const shots = refs.map((r) => deps.uploads.pathFor(r));
+    if (shots.some((f) => !f)) return json(res, 410, { error: "photo_gone", message: "That photo isn't on the Mac any more. Add it again." }, cors);
+    const said = text.trim();
+    if (!said && !shots.length) return json(res, 400, { error: "empty", message: "Nothing to send." }, cors);
+    const lead = said || (shots.length > 1 ? "Look at these photos:" : "Look at this photo:");
+    const full = [lead, ...shots.map((f) => `"${f}"`)].join(" ");
+    if (full.length > MAX_TEXT) return json(res, 400, { error: "too_long", message: `Keep it under ${MAX_TEXT} characters.` }, cors);
     const submit = body.submit !== false;
     const bridge = await writableOr409(e, res, cors);
     if (!bridge) return res.statusCode;
-    await bridge.type(text, submit);
-    return json(res, 200, { ok: true, via: "terminal", submitted: submit }, cors);
+    await bridge.type(full, submit);
+    return json(res, 200, { ok: true, via: "terminal", submitted: submit, photos: shots.length }, cors);
+  }
+
+  /**
+   * One photo from the phone, straight into the data folder. The session has to
+   * exist before anything is written, the bytes have to be an image the agents
+   * can read, and the answer is a ref, never a path.
+   */
+  async function uploadPhoto(req, res, url, cors) {
+    const e = find(url.searchParams.get("id"));
+    if (!e) { req.resume(); return json(res, 404, { error: "unknown_session", message: "That session is gone." }, cors); }
+    const type = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+    if (!deps.uploads.types.includes(type)) { req.resume(); return json(res, 415, { error: "bad_type", message: "Send a PNG, JPEG, GIF or WebP." }, cors); }
+    const buf = await readBinary(req, res, cors, deps.uploads.maxBytes);
+    if (!buf) return res.statusCode;
+    let saved;
+    try { saved = deps.uploads.save(buf, type); }
+    catch (err) { deps.log("photo failed:", err && err.message); return json(res, 500, { error: "write_failed", message: "The Mac couldn't save that photo." }, cors); }
+    if (saved.error) {
+      const why = { empty: "That photo was empty.", too_large: "That photo is too big.",
+                    not_an_image: "That file isn't a PNG, JPEG, GIF or WebP.",
+                    type_mismatch: "That file isn't the kind of image it says it is." }[saved.error] || "The Mac wouldn't take that photo.";
+      return json(res, saved.error === "too_large" ? 413 : 400, { error: saved.error, message: why }, cors);
+    }
+    return json(res, 200, { ref: saved.ref, name: saved.name, bytes: saved.bytes, type: saved.type }, cors);
   }
 
   async function pressKey(res, body, cors) {
@@ -1538,6 +1596,8 @@ function createServer(opts = {}) {
       return json(res, 404, { error: "not_found" }, cors);
     }
     if (req.method === "POST") {
+      // The one endpoint that isn't JSON: the bytes of a photo.
+      if (p === "/api/upload") return uploadPhoto(req, res, url, cors);
       const handler = { "/api/send": sendText, "/api/key": pressKey, "/api/command": command,
                         "/api/seen": seen, "/api/new": newSession, "/api/file/open": openFile }[p];
       if (!handler) return json(res, 404, { error: "not_found" }, cors);

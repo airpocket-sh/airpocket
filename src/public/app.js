@@ -101,7 +101,7 @@
   const BASE_OK = (b) => /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net(:\d{1,5})?$/i.test(b) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?$/i.test(b);
 
   // ---- api -------------------------------------------------------------------
-  async function api(host, path, { method = "GET", body, timeout = 9000, signal } = {}) {
+  async function api(host, path, { method = "GET", body, raw, type, timeout = 9000, signal } = {}) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout);
     if (signal) { if (signal.aborted) ctrl.abort(); else signal.addEventListener("abort", () => ctrl.abort(), { once: true }); }
@@ -109,8 +109,9 @@
       const headers = {};
       if (host.token) headers.Authorization = "Bearer " + host.token;
       if (body !== undefined) headers["Content-Type"] = "application/json";
+      else if (raw !== undefined) headers["Content-Type"] = type || "application/octet-stream";
       const res = await fetch((host.base || "") + path, {
-        method, headers, body: body === undefined ? undefined : JSON.stringify(body),
+        method, headers, body: body !== undefined ? JSON.stringify(body) : raw,
         signal: ctrl.signal, cache: "no-store", credentials: "omit",
       });
       let data = {};
@@ -836,23 +837,118 @@
       sheet = openSheet({ title: "Controls", right, body, keys, tall: true, onClose: () => { sheet = null; } });
     }
 
-    // The message box and one send button, which lights up once there is text.
+    // The message box, the photo button and one send button, which lights up
+    // once there is something to send.
     const box = h("textarea", { class: "input", rows: "1", placeholder: "Message the agent", autocapitalize: "sentences", "aria-label": "Message" });
     const sendBtn = h("button", { class: "send", "aria-label": "Send" }, icon("send"));
+
+    // ---- photos ------------------------------------------------------------
+    // A picked photo is shrunk here and sent to the Mac straight away, so the
+    // message itself goes the moment it is written. Drawing it through a canvas
+    // also drops what the camera wrote into the file — the place it was taken
+    // included — and the Mac answers with a ref, never a path.
+    const MAX_PHOTOS = 4, MAX_SIDE = 2200;
+    const tray = h("div", { class: "tray", hidden: true });
+    const picker = h("input", { type: "file", class: "picker", accept: "image/*", multiple: true, "aria-hidden": "true", tabindex: "-1" });
+    const clipBtn = h("button", { class: "clip", "aria-label": "Add a photo" }, icon("image", 22));
+    let shots = [];
+
+    const ready = () => !!box.value.trim() || shots.some((s) => s.ref);
+    const paintTray = () => {
+      tray.hidden = !shots.length;
+      fill(tray, ...shots.map((s) => s.chip));
+      clipBtn.disabled = shots.length >= MAX_PHOTOS;
+      sendBtn.classList.toggle("ready", ready());
+      measure();
+    };
+    const drop = (shot) => {
+      shots = shots.filter((s) => s !== shot);
+      if (shot.url) URL.revokeObjectURL(shot.url);
+      paintTray();
+    };
+    const clearShots = () => {
+      for (const s of shots) if (s.url) URL.revokeObjectURL(s.url);
+      shots = [];
+      paintTray();
+    };
+
+    /** Decode, scale to fit MAX_SIDE, re-encode: PNG stays PNG, everything else becomes JPEG. */
+    async function shrink(file) {
+      let src = null;
+      // from-image: a photo held sideways comes out the way it was taken.
+      try { src = await createImageBitmap(file, { imageOrientation: "from-image" }); } catch {}
+      if (!src) { try { src = await createImageBitmap(file); } catch {} }
+      if (!src) {
+        const url = URL.createObjectURL(file);
+        try {
+          src = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("no")); i.src = url; });
+        } finally { URL.revokeObjectURL(url); }
+      }
+      const w0 = src.width || src.naturalWidth, h0 = src.height || src.naturalHeight;
+      if (!w0 || !h0) throw new Error("That photo couldn't be read.");
+      const k = Math.min(1, MAX_SIDE / Math.max(w0, h0));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(w0 * k));
+      c.height = Math.max(1, Math.round(h0 * k));
+      c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+      if (src.close) src.close();
+      const png = file.type === "image/png" && c.width * c.height <= 4e6;
+      const blob = await new Promise((ok) => c.toBlob(ok, png ? "image/png" : "image/jpeg", png ? undefined : 0.85));
+      if (!blob || !blob.size) throw new Error("That photo couldn't be read.");
+      return blob;
+    }
+
+    async function addShot(file) {
+      if (shots.length >= MAX_PHOTOS) { toast(`${MAX_PHOTOS} photos at a time.`, true); return; }
+      const shot = { ref: "", url: "", busy: true };
+      shot.img = h("img", { alt: "" });
+      const x = h("button", { class: "x", "aria-label": "Remove photo" }, icon("close", 14, { sw: 2 }));
+      x.addEventListener("click", () => drop(shot));
+      shot.chip = h("div", { class: "chip busy" }, shot.img, x);
+      shots.push(shot);
+      paintTray();
+      try {
+        const blob = await shrink(file);
+        if (!shots.includes(shot)) return;
+        shot.url = URL.createObjectURL(blob);
+        shot.img.src = shot.url;
+        const d = await api(host, `/api/upload?id=${encodeURIComponent(id)}`, { method: "POST", raw: blob, type: blob.type, timeout: 60000 });
+        if (!shots.includes(shot)) return;
+        shot.ref = d.ref;
+        shot.busy = false;
+        shot.chip.classList.remove("busy");
+      } catch (err) {
+        shot.busy = false;
+        shot.chip.classList.remove("busy");
+        shot.chip.classList.add("bad");
+        toast(err.message || "That photo didn't go over.", true);
+      }
+      paintTray();
+    }
+
+    picker.addEventListener("change", () => {
+      const picked = [...(picker.files || [])];
+      picker.value = "";
+      for (const f of picked.slice(0, MAX_PHOTOS)) addShot(f);
+    });
+    clipBtn.addEventListener("click", () => picker.click());
+
     const paintSend = () => {
       fill(sendBtn, icon(typeOnly ? "type" : "send", 24, { sw: typeOnly ? 2 : 1.5 }));
       sendBtn.setAttribute("aria-label", typeOnly ? "Type without sending" : "Send");
-      sendBtn.classList.toggle("ready", !!box.value.trim());
+      sendBtn.classList.toggle("ready", ready());
     };
     const fit = () => {
       box.style.height = "auto";
       box.style.height = Math.min(Math.max(box.scrollHeight + 2, 48), 136) + "px";
-      sendBtn.classList.toggle("ready", !!box.value.trim());
+      sendBtn.classList.toggle("ready", ready());
     };
     box.addEventListener("input", fit);
     const submit = async (enter) => {
       const text = box.value.trim();
-      if (!text) { box.focus(); if (!enter) toast("Write something first."); return; }
+      const refs = shots.filter((s) => s.ref).map((s) => s.ref);
+      if (shots.some((s) => s.busy)) { toast("That photo is still going over."); return; }
+      if (!text && !refs.length) { box.focus(); if (!enter) toast("Write something first."); return; }
       // A message that starts with "!" is a shell command to Claude Code (and Codex), run on the Mac as it is.
       // The Mac drops control characters, so they don't hide the "!" from this check.
       if (SHELL_MODE.test(text) && !(await confirmDialog({ title: "Run a shell command?",
@@ -860,8 +956,9 @@
           (enter ? "" : " Typed into its box, it runs when Enter is pressed."), action: enter ? "Run it" : "Type it" }))) return;
       sendBtn.disabled = true;
       try {
-        await api(host, "/api/send", { method: "POST", body: { id, text, submit: enter } });
+        await api(host, "/api/send", { method: "POST", body: { id, text, refs, submit: enter }, timeout: 15000 });
         box.value = "";
+        clearShots();
         fit();
         toast(enter ? "Sent" : "Typed into its box, not sent");
         refreshSoon(800);
@@ -873,7 +970,7 @@
     };
     sendBtn.addEventListener("click", () => submit(!typeOnly));
     const statusEl = h("div", { class: "status" }, ind, liveText, h("span", { class: "spacer" }), infoEl, stopBtn);
-    const cmEl = h("div", { class: "cm" }, h("div", { class: "fw" }, box), sendBtn);
+    const cmEl = h("div", { class: "cm" }, tray, h("div", { class: "cm-row" }, h("div", { class: "fw" }, box), clipBtn, sendBtn), picker);
     const roEl = h("div", { class: "ro", hidden: true });
     const keysEl = h("div");
     const paintKeys = () => {

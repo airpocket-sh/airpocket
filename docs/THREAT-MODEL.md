@@ -63,7 +63,8 @@ event, which is why it stays 0700 like the rest.
 `GET /api/hello`, `/api/sessions`, `/api/screen`, `/api/models`,
 `/api/new/options`, `/api/files`, `/api/file/text`, `/api/file/image`;
 `POST /api/send`, `/api/key`, `/api/command`, `/api/seen`, `/api/new`,
-`/api/file/open`. The checklist lists what each one takes and checks.
+`/api/file/open`, `/api/upload`. The checklist lists what each one takes and
+checks.
 
 **A paired phone is as strong as the keyboard** at every agent terminal on that
 Mac that has a bridge (Superset or tmux) and a running agent. It can also start
@@ -89,6 +90,18 @@ owner of a valid token may type.
 - **New-session options:** Superset project and workspace names and ids, agent
   presets, model names. No paths or repository addresses.
 
+### What the phone can put on the Mac
+
+One thing, in one place: a photo, through `POST /api/upload`. It is written
+only inside the data folder (`uploads/`, 0600 in a 0700 folder), never in a
+project, never anywhere the phone names — the phone sends bytes and a session
+id and gets back a ref, and only the Mac ever turns that ref into a path, as it
+types the message. The bytes have to be a PNG, JPEG, GIF or WebP by their own
+magic number and match the type the request declared, at most 8 MB, at most
+four in a message. Photos older than a week are deleted, and never more than
+forty are kept. Nothing runs them: they are files an agent may read if you ask
+it to, under its own rules.
+
 ### What is kept, and where
 
 On the Mac, in `~/Library/Application Support/Airpocket` (or
@@ -106,10 +119,12 @@ On the Mac, in `~/Library/Application Support/Airpocket` (or
 | `app/` | The copy of Airpocket the hooks and login item run | `setup.js` |
 | `logs/service.log` | The service's log (launchd, umask 077) | launchd |
 | `tmux/sock` | The socket of Airpocket's own tmux server, which runs the agents started with `airpocket run` | tmux, started by `ownterm.js` |
+| `uploads/<stamp>-<random>.<ext>` | Photos sent from a phone, until a week old or the forty-first arrives | `uploads.js` |
 | `tmux/start-<random>.sh` | For a moment while an agent starts: the starting shell's environment and the agent's arguments. 0600; the script deletes itself as its first line; a leftover (the window closed at once) is removed by the next `run` after a minute | `ownterm.js` |
 
 Files are created 0600. Only in memory: the file-ref key (`FILE_SECRET`), file
-tickets, parsed transcripts.
+tickets, parsed transcripts, and the refs for uploaded photos — a restart
+forgets them, and a ref it has forgotten is refused.
 
 On the phone, in the web app's local storage: for each paired Mac its address,
 name, device id and token, in plain text. The service worker caches the app

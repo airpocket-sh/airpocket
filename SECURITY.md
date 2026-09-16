@@ -101,6 +101,10 @@ accepted.
 - **The phone asks, the Mac decides.** The phone names a session and an
   action. It never sends a file path, a terminal, or the text of a Controls
   command; the Mac looks those up in its own records and fixed tables.
+- **One way in, one place to land.** The only thing a phone can put on the Mac
+  is a photo for a session, and it lands in Airpocket's own data folder, 0600,
+  never in a project. The bytes have to be an image the agents can read, the
+  phone gets a ref rather than a path, and old photos are swept.
 
 How Airpocket defends each of these, and what it knowingly doesn't, is in
 [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).

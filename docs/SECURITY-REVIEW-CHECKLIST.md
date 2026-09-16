@@ -80,6 +80,7 @@ handler runs):
 | `GET /api/file/text` | `id`, `ref` | Ref shape; `lookupFile`; text kinds only; 512 KB; key patterns over everything sent. |
 | `GET /api/file/image` | `id`, `ref` | `lookupFile`; image kinds only; own sandbox CSP. SVG scan covers 4 KB only (residual 6). |
 | `POST /api/file/open` | `id`, `ref` | `lookupFile`; PDF and page only; ticket rules (below); the returned origin comes from the Host header only if it is a `*.ts.net` name (*step 11*: it read `X-Forwarded-Host` first; now Host only). |
+| `POST /api/upload` | `id` (query), the photo's bytes | The only non-JSON body. Session must exist first; `Content-Type` must be one of four image types and must match what the bytes say they are; 8 MB; written 0600 under `uploads/` in the data folder with a name the Mac chooses; answers a ref, never a path. Old photos swept (a week, forty files). |
 | anything else | | 401 without a token, 404 with one, 405 for other methods. |
 
 - [x] A revoked token fails on the very next request.
@@ -88,6 +89,9 @@ handler runs):
       *Step 11: the Host check runs before everything.*
 - [x] The phone can't name a terminal, a path or a transcript in any route, nor
       the text of a Controls command.
+- [x] A photo is the only thing the phone can write to the Mac, and it cannot
+      say where it goes: `/api/send` turns refs into paths itself, and a ref
+      this process never issued (or has forgotten) is refused with 410.
 
 ### File-only origin (47872)
 

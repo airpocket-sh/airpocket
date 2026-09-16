@@ -24,6 +24,8 @@ account and no relay.
   (with Superset).
 - **Open files** a session wrote or linked: text, Markdown, code, images,
   PDFs, pages, under strict rules.
+- **Send a photo**: a screenshot, a whiteboard, the thing on your desk, from
+  the phone's camera or its library, with or without a message.
 - **A web app**, added to your home screen. No App Store.
 
 ## Install (macOS)
@@ -104,6 +106,27 @@ sessions, and Codex against recorded session files and a real Codex's hooks
 (installed, trusted, firing). Codex with real model replies driven from the
 phone has not been run end to end yet. `airpocket run` with a real Claude in a
 hidden terminal window (keys, paste, resize, scrollback, detach and attach).
+
+## Photos
+
+The message box has a photo button. Pick from the library or take one, up to
+four to a message, and send it with or without words.
+
+The phone shrinks each photo to 2200px and re-encodes it before it goes, which
+also drops what the camera wrote into the file, the place it was taken
+included. The Mac keeps it in Airpocket's own data folder
+(`~/Library/Application Support/Airpocket/uploads`, 0600), never in the project
+the agent is working in, and types the path into the session as part of your
+message, so the agent reads it with the tools it already has. Photos are
+deleted after a week, and only the last forty are kept.
+
+Because they sit outside the project, the agent may ask before reading one —
+answer that from the phone like any other prompt. To stop it asking, allow that
+one folder in `~/.claude/settings.json`:
+
+```json
+{ "permissions": { "allow": ["Read(//Users/you/Library/Application Support/Airpocket/uploads/**)"] } }
+```
 
 ## Any terminal
 
