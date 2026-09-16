@@ -626,6 +626,27 @@ test("new session: Superset lists without paths, argv built from checked values 
   assert.ok(calls.superset.slice(n).every((a) => a[1] === "list"), "nothing was started for a refused request");
 });
 
+test("the app's own files by name: fonts, map, icons, launch images; the camera for the app's origin only", async () => {
+  const r = await req("GET", "/");
+  assert.match(r.headers["content-security-policy"], /font-src 'self'/);
+  assert.match(r.headers["permissions-policy"], /camera=\(self\), microphone=\(\), geolocation=\(\)/);
+  for (const [p, type] of [["/fonts/b612-400.woff2", "font/woff2"], ["/fonts/plex-600.woff2", "font/woff2"], ["/map.svg", "image/svg+xml"],
+    ["/icon-maskable-512.png", "image/png"], ["/launch/390x844@3.jpg", "image/jpeg"], ["/qr.js", "text/javascript; charset=utf-8"], ["/where.js", "text/javascript; charset=utf-8"]]) {
+    const g = await get(base + p);
+    assert.equal(g.status, 200, p);
+    assert.equal(g.headers["content-type"], type, p);
+  }
+  for (const p of ["/fonts/OFL-B612.txt", "/fonts/", "/launch/", "/launch/1x1@1.jpg", "/fonts/app.js", "/fonts/b612-400.woff2.map", "/agent-claude.png"]) {
+    assert.equal((await get(base + p)).status, 404, p);
+  }
+  // Everything the page and the service worker ask for is there.
+  const wanted = [...r.body.matchAll(/(?:href|src)="(\/[^"]*)"/g)].map((m) => m[1]);
+  const sw = (await get(base + "/sw.js")).body.toString();
+  for (const list of sw.match(/const (SHELL|ASSETS) = \[[^\]]*\]/g)) wanted.push(...[...list.matchAll(/"(\/[^"]*)"/g)].map((m) => m[1]));
+  assert.ok(wanted.length > 25);
+  for (const p of wanted) assert.equal((await get(base + p)).status, 200, p);
+});
+
 test("the Accounts screen is gone: its routes answer 404", async () => {
   assert.equal((await req("GET", "/api/accounts", { headers: auth() })).status, 404);
   assert.equal((await req("POST", "/api/accounts/switch", { headers: auth(), body: { name: "a@x.com" } })).status, 404);

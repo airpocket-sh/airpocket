@@ -37,4 +37,5 @@ two-minute links.
 
 ## License
 
-MIT
+MIT. The fonts in `src/public/fonts` (B612, B612 Mono, IBM Plex Sans) are under the
+SIL Open Font License; their licences sit next to them.
