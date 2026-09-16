@@ -183,10 +183,14 @@ function takeLock(file, identity, seams = {}) {
   const dropMarker = () => { try { if (fs.readFileSync(marker, "utf8") === mark) fs.unlinkSync(marker); } catch {} };
 
   try {
+    // A look that found things changing waits a moment before the next, and never
+    // while holding the marker: the marker is let go first.
+    let wait = false;
     for (const until = Date.now() + (seams.patience || 5000); Date.now() < until;) {
+      if (wait) { pause(5); wait = false; }
       try { fs.linkSync(tmp, file); return; } catch (err) { if (err.code !== "EEXIST") throw err; }
       let seen;
-      try { seen = fs.readFileSync(file, "utf8"); } catch (err) { if (err.code === "ENOENT") continue; throw err; }
+      try { seen = fs.readFileSync(file, "utf8"); } catch (err) { if (err.code === "ENOENT") { wait = true; continue; } throw err; }
       if (held(seen)) {
         const l = lockOf(seen);
         const err = new Error(`Airpocket is already running for ${path.dirname(file)} (process ${l.pid}).`);
@@ -194,7 +198,8 @@ function takeLock(file, identity, seams = {}) {
         throw err;
       }
       if (seams.onStale) seams.onStale();
-      if (!takeMarker()) { pause(5); continue; }
+      if (!takeMarker()) { wait = true; continue; }
+      wait = true;                                         // unless it returns below, it looks again
       try {
         let again;
         try { again = fs.readFileSync(file, "utf8"); } catch (err) { if (err.code === "ENOENT") continue; throw err; }
@@ -293,8 +298,12 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
    */
   function stillHeld() {
     if (lost) return false;
-    let content;
-    try { content = fs.readFileSync(lockFile, "utf8"); } catch (err) { if (err.code !== "ENOENT") return true; content = ""; }
+    // Stopping ends the whole process by default, so a lock must look wrong twice,
+    // a few ms apart, before this one gives up. A read that fails otherwise proves nothing.
+    const read = () => { try { return fs.readFileSync(lockFile, "utf8"); } catch (err) { return err.code === "ENOENT" ? "" : identity; } };
+    if (read() === identity) return true;
+    pause(5);
+    const content = read();
     if (content === identity) return true;
     lost = true;
     locked = false;

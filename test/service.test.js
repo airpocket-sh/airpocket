@@ -540,11 +540,12 @@ test("eight services over a stale lock, twenty times: one holds it each time, an
   const { spawn } = require("child_process");
   const dir = tempDir();
   const file = path.join(dir, "airpocket.lock");
-  const [ROUNDS, GAP, KIDS] = [20, 100, 8];
+  const [ROUNDS, GAP, KIDS] = [20, 400, 8];
   const at = Date.now() + 1000;
-  // Round r starts at at + r*GAP. A lock from an earlier round counts as gone
-  // (its "start time" is its round), so every round starts over a stale lock.
-  // alive() takes a moment, as ps does, which is what widened the old gap.
+  // Round r starts at at + r*GAP, and its locks say "<pid> <r+1>". A lock from an
+  // earlier round counts as gone, so every round starts over a stale lock; one from
+  // a later round is running (a child running late mustn't call the future stale).
+  // alive() waits a moment, as ps does (which is what widened the old gap), without using the CPU.
   const code = `const fs = require("fs");
     const { takeLock } = require(${JSON.stringify(path.join(__dirname, "..", "src", "service"))});
     const sleepUntil = (t) => { const w = t - Date.now() - 2; if (w > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, w); while (Date.now() < t) {} };
@@ -552,7 +553,7 @@ test("eight services over a stale lock, twenty times: one holds it each time, an
     for (let r = 0; r < ${ROUNDS}; r++) {
       sleepUntil(at + r * ${GAP});
       const me = process.pid + " " + (r + 1);
-      const alive = (pid, started) => { const until = Date.now() + 1; while (Date.now() < until) {} return started === r + 1; };
+      const alive = (pid, started) => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1); return started >= r + 1; };
       // Times in ms from the round's start: began, took (or was refused), checked.
       const since = () => Date.now() - (at + r * ${GAP});
       const times = [since()];
@@ -560,7 +561,8 @@ test("eight services over a stale lock, twenty times: one holds it each time, an
       try { takeLock(file, me, { alive }); got = "ok"; } catch (e) { got = (e.code || e.message).replace(/\\s+/g, "_"); }
       times.push(since());
       if (got === "ok") {
-        sleepUntil(at + r * ${GAP} + ${GAP * 0.7});
+        // Check the hold soon, well inside this round, before the next round may rightly take over.
+        sleepUntil(Date.now() + 20);
         try { found = fs.readFileSync(file, "utf8"); } catch (e) { found = e.code; }
         times.push(since());
         got = found === me ? "held" : "lost";
@@ -578,15 +580,25 @@ test("eight services over a stale lock, twenty times: one holds it each time, an
   const rounds = Array.from({ length: ROUNDS }, () => []);
   const stray = [];
   for (const line of outs.join("").trim().split("\n")) {
-    const [, r, got] = line.split(" ");
-    if (rounds[Number(r)]) rounds[Number(r)].push({ got, line }); else stray.push(line);
+    const [, r, got, at] = line.split(" ");
+    const times = String(at).slice(3).split(",").map(Number);
+    if (rounds[Number(r)]) rounds[Number(r)].push({ got, line, began: times[0], checked: times[2] }); else stray.push(line);
   }
-  // On a failure, every child's line for that round and the ones either side, so the log explains itself.
+  // A slow runner can crowd rounds together, and then the next round rightly takes
+  // an old round's lock. Such a round proves nothing either way: a child that began
+  // after half the round, or a holder that checked late. Otherwise exactly one holds,
+  // and a child that began on time and checked in time must never lose its lock.
   const want = ["ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "held"].join(" ");
-  const bad = rounds.map((x, r) => (x.map((c) => c.got).sort().join(" ") === want ? -1 : r)).filter((r) => r >= 0);
+  const inTime = (c) => c.began <= GAP / 2 && !(c.checked > GAP * 0.75);
+  const judged = rounds.map((x) => (x.length === KIDS && x.every(inTime) ? "judged" : "crowded"));
+  const bad = rounds.map((x, r) => ((judged[r] === "judged" && x.map((c) => c.got).sort().join(" ") !== want) ||
+    x.some((c) => c.got === "lost" && inTime(c)) ? r : -1)).filter((r) => r >= 0);
   const show = [...new Set(bad.flatMap((r) => [r - 1, r, r + 1]))].filter((r) => rounds[r])
-    .map((r) => `round ${r}${bad.includes(r) ? " (failed)" : ""}:\n  ` + rounds[r].map((c) => c.line).join("\n  "));
+    .map((r) => `round ${r} (${bad.includes(r) ? "failed" : judged[r]}):\n  ` + rounds[r].map((c) => c.line).join("\n  "));
   assert.deepEqual([bad, stray], [[], []], `failed rounds ${bad.join(", ")}; lines as "pid round outcome at=began,took,checked":\n${show.join("\n")}`);
+  const count = judged.filter((j) => j === "judged").length;
+  assert.ok(count >= ROUNDS / 2, `only ${count} of ${ROUNDS} rounds ran in time to judge:\n` +
+    rounds.map((x, r) => `round ${r} (${judged[r]}):\n  ` + x.map((c) => c.line).join("\n  ")).join("\n"));
   assert.deepEqual(fs.readdirSync(dir), ["airpocket.lock"], "no marker, no lock copies left behind");
 });
 
@@ -646,4 +658,25 @@ test("release() on a service whose lock was replaced, before any sweep noticed, 
   fs.writeFileSync(path.join(dir, "airpocket.lock"), other);
   svc.release();
   assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), other);
+});
+
+test("one odd read of the lock isn't enough to stop: it must look wrong twice, a few ms apart", () => {
+  const dir = tempDir();
+  let lostCalls = 0;
+  const svc = createService({ dir, onLost: () => lostCalls++ });
+  const lockFile = path.join(dir, "airpocket.lock");
+  const real = fs.readFileSync;
+  let odd = 1;
+  fs.readFileSync = function (f, ...rest) { return f === lockFile && odd-- > 0 ? "1 1" : real.call(this, f, ...rest); };
+  try {
+    assert.equal(svc.stillHeld(), true, "the second read shows this process's lock");
+    assert.equal(lostCalls, 0);
+    odd = 2;
+    assert.equal(svc.stillHeld(), false, "wrong twice: stops");
+    assert.equal(lostCalls, 1);
+  } finally {
+    fs.readFileSync = real;
+    svc.release();
+  }
+  assert.equal(fs.readFileSync(lockFile, "utf8"), svc.identity, "a service that stopped leaves the lock alone, even its own");
 });
