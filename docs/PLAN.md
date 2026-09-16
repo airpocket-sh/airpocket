@@ -126,10 +126,15 @@ Prove it, then launch
       owner's name appear in AGENTS.md, PLAN.md and `docs/reference/shoot.js`;
     - Node 20 reached end of life in April and is still in `engines` and CI.
 
-    On the day itself, two settings only a public repository can have: switch on
+    On the day itself, three settings only a public repository can have: switch on
     private vulnerability reporting (SECURITY.md and the code of conduct both
     send people to it, and GitHub only offers it once the repository is public),
-    and give the repository its topics.
+    give the repository its topics, and protect `main` — a pull request and the
+    CI checks before anything lands, no force pushes, no deleting it, admins
+    allowed to bypass so a one-line fix doesn't need ceremony. Branch protection
+    is a paid feature on a private repository, so it cannot be set beforehand;
+    it becomes available the moment the repository is public, which is also the
+    moment `main` starts being what strangers install.
 
     npm last, after the repository is public and not before: publishing puts the
     source on npm, so doing it earlier would open the code while the repository
