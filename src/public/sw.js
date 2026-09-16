@@ -4,7 +4,7 @@
 // The shell is network first: a reachable Mac always serves the current version.
 // Fonts, the map and the icons never change within a version: cache first, fetched once.
 // The API is never cached: session data must be live or absent, never stale.
-const CACHE = "airpocket-shell-v2";
+const CACHE = "airpocket-shell-v3";
 const SHELL = ["/", "/app.js", "/app.css", "/md.js", "/qr.js", "/where.js", "/manifest.webmanifest", "/icon-180.png"];
 const ASSETS = ["/map.svg", "/fonts/b612-400.woff2", "/fonts/b612-700.woff2", "/fonts/b612-mono-400.woff2", "/fonts/b612-mono-700.woff2",
                 "/fonts/plex-400.woff2", "/fonts/plex-500.woff2", "/fonts/plex-600.woff2"];

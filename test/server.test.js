@@ -276,6 +276,42 @@ test("sending: argv only, line breaks become spaces, Enter optional, limits enfo
   assert.equal(calls.superset.length, n, "none of the refused sends reached Superset");
 });
 
+test("photos: the bytes decide, the phone only gets a ref, the message carries the path", async () => {
+  const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+  const shot = (headers, raw, id = CLAUDE) => req("POST", "/api/upload?id=" + id, { headers, raw });
+  const ok = { ...auth(), "Content-Type": "image/png" };
+  assert.equal((await shot({ "Content-Type": "image/png" }, PNG)).status, 401, "not paired");
+  assert.equal((await shot(ok, PNG, "nope-nope")).status, 404, "no such session");
+  assert.equal((await shot({ ...auth(), "Content-Type": "image/heic" }, PNG)).status, 415, "a kind the agents can't read");
+  assert.equal((await shot({ ...auth(), "Content-Type": "application/json" }, PNG)).status, 415);
+  assert.equal((await shot(ok, "MZ this is a program, honestly")).status, 400, "not an image at all");
+  assert.equal((await shot({ ...auth(), "Content-Type": "image/jpeg" }, PNG)).status, 400, "a PNG calling itself a JPEG");
+  assert.equal((await shot(ok, Buffer.concat([PNG, Buffer.alloc(8 * 1024 * 1024)]))).status, 413, "too big");
+
+  const up = await shot(ok, PNG);
+  assert.equal(up.status, 200);
+  assert.match(up.json.ref, /^[A-Za-z0-9_-]{20,}$/);
+  assert.equal(up.json.type, "image/png");
+  assert.equal(up.body.includes(store.dir), false, "no path reaches the phone");
+  assert.equal(up.body.includes(os.homedir()), false, "not even the home folder");
+  const file = path.join(store.dir, "uploads", up.json.name);
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600, "the photo is private");
+  assert.equal(fs.statSync(path.dirname(file)).mode & 0o777, 0o700, "so is the folder");
+  assert.equal(path.dirname(path.dirname(file)), store.dir, "it lands in the data folder, not in a project");
+
+  assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: CLAUDE, text: "what is wrong here?", refs: [up.json.ref] } })).status, 200);
+  assert.equal(last()[last().indexOf("--text") + 1], `what is wrong here? "${file}"`);
+
+  const up2 = await shot(ok, PNG);
+  assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: CLAUDE, refs: [up2.json.ref] } })).status, 200, "a photo on its own");
+  assert.match(last()[last().indexOf("--text") + 1], /^Look at this photo: "/);
+
+  const n = calls.superset.length;
+  assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: CLAUDE, text: "hi", refs: ["not-a-ref-of-ours"] } })).status, 410, "a ref this Mac never issued");
+  assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: CLAUDE, refs: [] } })).status, 400, "nothing at all");
+  assert.equal(calls.superset.length, n, "neither reached the terminal");
+});
+
 test("keys are an allow-list: digits and Esc without Enter, Enter alone", async () => {
   await req("POST", "/api/key", { headers: auth(), body: { id: CLAUDE, key: "esc" } });
   assert.deepEqual(last().slice(-3), ["--text", ESC, "--no-submit"]);
