@@ -256,5 +256,45 @@ function removeConfig(file, expect) {
   fs.unlinkSync(file);
 }
 
+const SNAKE = (event) => event.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+
+/**
+ * Codex remembers each hook you trusted in config.toml, next to hooks.json, under
+ * [hooks.state."<hooks.json>:<event>:<group>:<hook>"] with a trusted_hash. This
+ * reads only those headers: the events whose entry of ours has none. null when
+ * config.toml can't be read. (A trusted hash for a changed command isn't
+ * caught: that would need Codex's own hashing.)
+ */
+function codexUntrusted(file, state) {
+  let text;
+  try {
+    const toml = path.join(path.dirname(file), "config.toml");
+    if (fs.statSync(toml).size > MAX_FILE) return null;
+    text = fs.readFileSync(toml, "utf8");
+  } catch (err) { return err.code === "ENOENT" ? EVENTS.codex.slice() : null; }
+  return EVENTS.codex.filter((event) => {
+    const at = state[event].at;
+    const key = `${file}:${SNAKE(event)}:${at.group}:${at.index}`;
+    const i = text.indexOf(`[hooks.state.${JSON.stringify(key)}]`);
+    if (i < 0) return true;
+    const body = text.slice(i).split("\n").slice(1).join("\n").split(/\n\[/)[0];
+    return !/^\s*trusted_hash\s*=/m.test(body) || /^\s*enabled\s*=\s*false/m.test(body);
+  });
+}
+
+/**
+ * Whether Codex will run Airpocket's hooks, as doctor's "Codex hook review" sees
+ * it: "untrusted" when all of ours are in hooks.json and some have no trust entry,
+ * "ok" when all have one, "" when ours aren't all there or a file can't be read.
+ */
+function codexTrust(file) {
+  const read = readConfig(file);
+  if (!read.exists || read.problem) return "";
+  const state = hookState(read.config, "codex");
+  if (EVENTS.codex.some((e) => state[e].count === 0)) return "";
+  const untrusted = codexUntrusted(file, state);
+  return untrusted === null ? "" : untrusted.length ? "untrusted" : "ok";
+}
+
 module.exports = { MARKER, EVENTS, TIMEOUT_S, isOurs, shellQuote, hookCommand, configPaths, readConfig, addHooks, removeHooks, hookState,
-  hasAnyOurs, hooksAfterOurs, serialize, backup, writeConfig, removeConfig };
+  codexUntrusted, codexTrust, hasAnyOurs, hooksAfterOurs, serialize, backup, writeConfig, removeConfig };

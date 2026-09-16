@@ -35,7 +35,7 @@ const cfg = require("./agentconfig");
 const ts = require("./tailscale");
 const li = require("./loginitem");
 const { dataDirFor, portsFrom } = require("./ports");
-const { processAlive } = require("./proc");
+const { processAlive, scanProcesses, unrecordedAgents, byAgent } = require("./proc");
 const { writeAtomic } = require("./service");
 const { createStore } = require("./store");
 const { TMUX_BINS } = require("./bridges");
@@ -94,6 +94,7 @@ function context(opts = {}) {
     tmuxBins: opts.tmuxBins || TMUX_BINS,
     color: opts.color ?? (!!process.stdout.isTTY && !env.NO_COLOR),
     waitMs: opts.waitMs || 20000,
+    processes: opts.processes || scanProcesses,
   };
   const dataDir = dataDirFor(env, home);
   ctx.paths = {
@@ -609,8 +610,36 @@ async function runSetup(ctx, argv = []) {
     }
     if (step.title !== "Pairing") ctx.out(`  ${i + 1}. ${step.title}: done${done.length ? " (" + done.join("; ") + ")" : ""}`);
   }
+  const unseen = unseenLines(ctx);
+  if (unseen.length) { ctx.out(""); for (const line of unseen) ctx.out(line); ctx.out(""); }
   ctx.out(`Airpocket is set up. Check it any time with: airpocket doctor`);
   return 0;
+}
+
+// The phone says the same (app.js, UNSEEN); a test keeps the two in step. For each
+// agent: the line for one, and the line for several after their number.
+const UNSEEN = {
+  claude: ["1 Claude agent hasn't checked in. It appears the next time you prompt it.", "Claude agents haven't checked in. They appear the next time you prompt them."],
+  codex: ["1 Codex agent hasn't checked in. Codex takes its hooks at launch, so it needs restarting.", "Codex agents haven't checked in. Codex takes its hooks at launch, so they need restarting."],
+  hooks: "Codex hooks aren't trusted yet: start Codex, run /hooks, trust Airpocket's.",
+};
+const unseenLine = (kind, n) => (n === 1 ? UNSEEN[kind][0] : `${n} ${UNSEEN[kind][1]}`);
+
+/**
+ * Why the phone may not show every agent yet, right after setup: agents running
+ * in a terminal that no session record names, and Codex hooks not trusted yet.
+ */
+function unseenLines(ctx) {
+  const records = [];
+  const dir = path.join(ctx.paths.dataDir, "sessions");
+  let names = [];
+  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch {}
+  for (const name of names.slice(0, 5000)) { const r = readJson(path.join(dir, name)); if (r && typeof r === "object") records.push(r); }
+  const scan = ctx.processes() || {};
+  const n = byAgent(unrecordedAgents(Array.isArray(scan.agents) ? scan.agents : [], records));
+  const lines = ["claude", "codex"].filter((kind) => n[kind]).map((kind) => unseenLine(kind, n[kind]));
+  if (exists(path.dirname(ctx.paths.codex)) && cfg.codexTrust(ctx.paths.codex) === "untrusted") lines.push(UNSEEN.hooks);
+  return lines;
 }
 
 // ---------------------------------------------------------------- uninstall
@@ -790,5 +819,5 @@ function listBackups(ctx) {
   return out.sort();
 }
 
-module.exports = { context, stableNode, survey, planSetup, runSetup, planUninstall, runUninstall, pairingLines, readLock, readInstall,
+module.exports = { context, stableNode, survey, planSetup, runSetup, unseenLines, unseenLine, UNSEEN, planUninstall, runUninstall, pairingLines, readLock, readInstall,
   probe, listening, versionOf, majorOf, SOCKET_MAX, copyApp, tail, unsafeDataDir, ownSessions };

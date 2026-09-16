@@ -8,7 +8,7 @@ const os = require("os");
 const fs = require("fs");
 const path = require("path");
 const { createService, takeLock } = require("../src/service");
-const { startTimeOf, processAlive, parseLstart } = require("../src/proc");
+const { startTimeOf, processAlive, parseLstart, parseProcesses, unrecordedAgents, byAgent } = require("../src/proc");
 const { start, createServer } = require("../src/server");
 const { createStore } = require("../src/store");
 const { createBridges } = require("../src/bridges");
@@ -283,6 +283,36 @@ test("a process is its pid and its start time: a reused pid is someone else", ()
   assert.equal(processAlive(spawnSync(process.execPath, ["-e", ""]).pid, 0), false, "gone");
 });
 
+test("one ps call finds the agents running in a terminal: never a daemon, a child of another agent or another user's", () => {
+  const at = (d) => `Tue Sep 15 ${d} 2026`;
+  const out = [
+    `    1     0     0   ?? ${at("09:54:22")}     /sbin/launchd`,
+    `  500     1   501 16/2 ${at("10:00:00")}     /Users/me/.local/bin/claude`,                       // counted
+    `  501     1   501 16/3 ${at("10:00:01")}     /Users/me/.local/share/claude/versions/2.1.263`,    // counted: the installer's own file
+    `  502     1   501   ?? ${at("10:00:02")}     /Users/me/.local/share/claude/versions/2.1.263`,    // no terminal: an app's, not a session
+    `  600     1   501 16/4 ${at("10:00:03")}     /bin/bash`,
+    `  601   600   501 16/4 ${at("10:00:04")}     /opt/homebrew/bin/codex`,                           // counted
+    `  602   601   501 16/4 ${at("10:00:05")}     /opt/homebrew/Cellar/node/22/bin/node`,
+    `  603   602   501 16/4 ${at("10:00:06")}     /Applications/ChatGPT.app/Contents/Resources/codex`, // started by the Codex above
+    `  700     1   502 16/5 ${at("10:00:07")}     /Users/other/.local/bin/claude`,                    // someone else's
+    `  701     1   501 16/6 ${at("10:00:08")}     /usr/local/bin/node`,                               // Claude through npm: not told apart
+    `  702     1   501 16/7 ${at("10:00:09")}     /Users/me/bin/claude-panel`,
+    `  703     1   501 16/8 garbage`,
+  ].join("\n");
+  const { starts, agents } = parseProcesses(out, 501);
+  assert.deepEqual(agents.map((a) => [a.pid, a.agent]), [[500, "claude"], [501, "claude"], [601, "codex"]]);
+  assert.equal(agents[0].started, parseLstart(at("10:00:00")));
+  assert.equal(starts.get(700), parseLstart(at("10:00:07")), "start times for every process, anyone's");
+  assert.equal(starts.size, 11);
+  assert.deepEqual(parseProcesses("", 501), { starts: new Map(), agents: [] }, "ps failed: nothing");
+
+  // A record names an agent by its pid, and by its start time when both have one.
+  const recorded = unrecordedAgents(agents, [{ pid: 500, started: agents[0].started }, { pid: 501, started: 7 }, { pid: 601 }, {}]);
+  assert.deepEqual(recorded.map((a) => a.pid), [501], "a pid now running another process isn't that record's agent");
+  assert.deepEqual(byAgent(agents), { claude: 2, codex: 1 });
+  assert.deepEqual(byAgent([]), { claude: 0, codex: 0 });
+});
+
 test("a reused pid can't keep a dead session alive, on the list or waiting", async () => {
   const dir = tempDir();
   const svc = createService({ dir });                           // the real process table
@@ -312,7 +342,8 @@ test("a reused pid can't keep a dead session alive, on the list or waiting", asy
 test("a start time that can't be read proves nothing: sessions and waiting entries stay", async () => {
   const { spawnSync } = require("child_process");
   const dir = tempDir();
-  const svc = createService({ dir, readStarts: () => new Map() });   // ps failing or timing out, every time
+  // ps failing or timing out, every time
+  const svc = createService({ dir, readStarts: () => new Map(), readProcesses: () => ({ starts: new Map(), agents: [] }) });
   const port = await new Promise((ok) => svc.listen(0, ok));
   const secret = JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).secret;
   const hook = (event, body) => call(port, "/hook/" + event, body, { Authorization: "Bearer " + secret });
@@ -331,16 +362,18 @@ test("a start time that can't be read proves nothing: sessions and waiting entri
   } finally { await new Promise((ok) => svc.close(ok)); }
 });
 
-test("liveness costs one ps call per second, however many sessions and phone polls", async () => {
+test("liveness and the unseen count cost one ps call per second, however many sessions and phone polls", async () => {
   const dir = tempDir();
   const own = startTimeOf(process.pid);
   let clock = Date.parse("2026-09-15T10:00:00Z");
-  const reads = [];
-  const svc = createService({ dir, now: () => clock, readStarts: (pids) => { reads.push(pids.length); return new Map(pids.map((p) => [p, own])); } });
+  const reads = [], single = [];
+  // Every process on the Mac: this one, which the eight sessions record, and a Claude and two Codex no hook has named yet.
+  const svc = createService({ dir, now: () => clock, readStarts: (pids) => { single.push(pids); return new Map(); },
+    readProcesses: () => { reads.push(1); return { starts: new Map([[process.pid, own]]), agents: [{ pid: process.pid, started: own, agent: "claude" }, { pid: 99997, started: 5, agent: "claude" }, { pid: 99998, started: 5, agent: "codex" }, { pid: 99999, started: 5, agent: "codex" }] }; } });
   const hookPort = await new Promise((ok) => svc.listen(0, ok));
   const secret = JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).secret;
   const store = createStore(dir);
-  const app = createServer({ store, service: svc, log: () => {} });
+  const app = createServer({ store, service: svc, log: () => {}, codexHome: tempDir() });
   await new Promise((ok) => app.server.listen(0, "127.0.0.1", ok));
   const api = (method, p, body, token) => new Promise((resolve, reject) => {
     const data = body ? Buffer.from(JSON.stringify(body)) : null;
@@ -358,11 +391,13 @@ test("liveness costs one ps call per second, however many sessions and phone pol
     const { token } = await api("POST", "/api/pair", { code: store.newCode().code });
     reads.length = 0;
     for (let i = 0; i < 5; i++) {
-      const { sessions } = await api("GET", "/api/sessions", null, token);
+      const { sessions, unseen } = await api("GET", "/api/sessions", null, token);
       assert.equal(sessions.length, 8);
       assert.ok(sessions.every((s) => s.live), "every session is live");
+      assert.deepEqual(unseen, { claude: 1, codex: 2 }, "the recorded agent isn't counted, the others are, by agent");
     }
     assert.equal(reads.length, 1, "five polls of eight sessions: one ps call");
+    assert.deepEqual(single, [], "no ps call per row");
     const { sessions } = await api("GET", "/api/sessions", null, token);
     assert.ok(sessions.every((x) => x.status && x.status.state === "idle"), "every row says working or idle");
     await call(hookPort, "/hook/dequeue", { session_id: "aaaaaaaa-0000-4000-8000-000000000003", why: "prompt", pid: process.pid, started: own },

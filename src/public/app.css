@@ -225,6 +225,8 @@ body.sheet-open #toast{top:calc(var(--top) + 4px)}          /* over the dimmed s
 .row .r3 span{overflow:hidden;text-overflow:ellipsis}
 .empty{padding:28px 20px;text-align:center;font-family:var(--font-read);font-size:15px;color:var(--fg-3);border-bottom:var(--stroke-w) solid var(--stroke)}
 .empty.bare{border:0}
+.empty .unseen{margin:0}
+.empty .unseen+.unseen{margin-top:var(--s-3)}
 .offline{margin:var(--s-3) 20px 0;border:var(--stroke-w) solid var(--red);display:flex;flex-direction:column}
 .offline .hz{height:4px;background:var(--hazard)}
 .offline .o1{padding:var(--s-3) 14px;display:flex;align-items:center;gap:10px}

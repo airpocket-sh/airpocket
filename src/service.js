@@ -58,7 +58,7 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
-const { processAlive, startTimes, startTimeOf, pidOf } = require("./proc");
+const { processAlive, startTimes, startTimeOf, scanProcesses, unrecordedAgents, byAgent, pidOf } = require("./proc");
 const { SECRET_CONTENT } = require("./secrets");
 
 const DAY_S = 24 * 3600;
@@ -238,6 +238,7 @@ function takeLock(file, identity, seams = {}) {
  * process exits, so the phone server doesn't go on beside another service.
  */
 function createService({ dir, log = () => {}, now = Date.now, alive = processAlive, readStarts = startTimes,
+                         readProcesses = scanProcesses,
                          onLost = () => process.exit(1) } = {}) {
   if (!dir) throw new Error("createService needs a data folder");
   const sessionsDir = path.join(dir, "sessions");
@@ -280,18 +281,23 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
   const saveRecord = (r) => persist("a session", () => writeAtomic(path.join(sessionsDir, r.session_id + ".json"), JSON.stringify(r, null, 2)));
   const dropRecord = (sid) => { records.delete(sid); try { fs.unlinkSync(path.join(sessionsDir, sid + ".json")); } catch {} };
 
-  // When the recorded processes started: one ps call for all of them, reused for
-  // a second, since every phone poll sweeps and lists. A pid that call didn't
-  // cover is read on its own, once per second too. 0 means it couldn't be read.
-  let starts = { at: -Infinity, map: new Map() };
-  function startedAt(pid) {
+  // Every process on the Mac: one ps call, reused for a second, since every phone
+  // poll sweeps and lists. It gives when the recorded processes started and which
+  // agents run in a terminal. A pid it didn't cover (a hook newer than the call) is
+  // read on its own, once per second too. 0 means it couldn't be read.
+  let procs = { at: -Infinity, starts: new Map(), agents: [] };
+  function scan() {
     const t = now();
-    if (t - starts.at >= 1000) {
-      const pids = [...records.values(), ...queue].filter((x) => x.pid && x.started).map((x) => x.pid);
-      starts = { at: t, map: readStarts(pids) };
+    if (t - procs.at >= 1000) {
+      const r = readProcesses() || {};
+      procs = { at: t, starts: r.starts instanceof Map ? r.starts : new Map(), agents: Array.isArray(r.agents) ? r.agents : [] };
     }
-    if (!starts.map.has(pid)) starts.map.set(pid, readStarts([pid]).get(pid) || 0);
-    return starts.map.get(pid);
+    return procs;
+  }
+  function startedAt(pid) {
+    const { starts } = scan();
+    if (!starts.has(pid)) starts.set(pid, readStarts([pid]).get(pid) || 0);
+    return starts.get(pid);
   }
   const here = (x) => !x.pid || alive(x.pid, x.started || 0, startedAt);
   /** Is a record's process still there? For the phone's list; false without a pid. */
@@ -400,6 +406,16 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
   function knownSessions() {
     sweep();
     return [...records.values()].sort((a, b) => (b.last_seen || 0) - (a.last_seen || 0)).map((r) => ({ ...r }));
+  }
+  /**
+   * Agents running in a terminal that no record names: sessions whose hooks
+   * haven't fired yet (idle since setup, or a Codex started before it). From the
+   * same cached ps call as liveness. { claude, codex }: the two need different
+   * things (Claude picks up hooks while it runs, Codex only when it starts).
+   */
+  function unseenAgents() {
+    if (!stillHeld()) return byAgent([]);
+    return byAgent(unrecordedAgents(scan().agents, [...records.values()]));
   }
   function getQueue() {
     sweep();
@@ -519,7 +535,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     else if (cb) cb();
   }
 
-  return { dir, hookFile, lockFile, identity, stillHeld, knownSessions, getQueue, dequeue, isLive, sweep, hookServer, listen, release, close };
+  return { dir, hookFile, lockFile, identity, stillHeld, knownSessions, getQueue, dequeue, isLive, unseenAgents, sweep, hookServer, listen, release, close };
 }
 
 module.exports = { createService, takeLock, transcriptPath, kindOf, writeAtomic, TTL_MS, REASONS };
