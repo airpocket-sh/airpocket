@@ -136,6 +136,13 @@ Prove it, then launch
     and a pull request. Worth having anyway, if it is ever wanted: no force
     pushes and no deleting the branch, neither of which stops anyone working.
 
+    Before any of it: `v0.1.0` was tagged on 2026-09-17, before step 14 had been
+    run on a Mac that isn't the owner's. If step 13 or 14 changes anything at
+    all, cut the next version and let strangers land on that one rather than on
+    a tag that predates the only test that matters. The social preview picture
+    is `docs/images/social-preview.png`; GitHub has no API for it, so it is
+    uploaded by hand under Settings.
+
     npm last, after the repository is public and not before: publishing puts the
     source on npm, so doing it earlier would open the code while the repository
     is still shut. The name `airpocket` was free on 2026-09-17 and is being left
