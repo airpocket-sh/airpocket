@@ -206,6 +206,10 @@ a custom Claude status line.
   one carried over from the private tool).
 - Never send text, keys or commands into the owner's real sessions while
   testing.
+- Another program may be running on the Mac you work on: one that serves the
+  same phone, or one that holds a port you want. Read it if you must; **never
+  modify it, never restart it, never change its data or ports.** Copy ideas,
+  not files.
 - Another program may already publish HTTPS ports on this Mac (on the Mac
   Airpocket was built on, 443 and 8443 are taken). Do not change Tailscale
   serve settings without the owner's OK.
