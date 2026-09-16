@@ -238,6 +238,32 @@ const stripTags = (s) => String(s)
   .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/g, "")
   .trim();
 
+/**
+ * A photo this Mac sent is typed into the session as a quoted absolute path
+ * inside Airpocket's uploads folder, so the agent can open it. Showing that
+ * message back would hand the phone the path, so the path comes out and a
+ * count goes in, the way pasted images read "[1 image]". Only the exact names
+ * uploads.js gives, in that exact folder: nothing else in the message changes.
+ * A `clipped` text (a hook's note, cut to length with "…") may also end part
+ * way through one, and that part goes too.
+ */
+function sentPhotos(text, uploadsDir, { clipped = false } = {}) {
+  if (!uploadsDir || typeof text !== "string") return text;
+  const dir = uploadsDir + path.sep;
+  const esc = dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let n = 0;
+  let left = text.includes(dir) ? text.replace(new RegExp(`\\s*"${esc}\\d{8}-\\d{6}-[0-9a-f]{6}\\.(?:png|jpg|gif|webp)"`, "g"), () => { n++; return ""; }) : text;
+  if (clipped && left.endsWith("…")) {
+    const q = left.lastIndexOf('"');
+    const cut = q >= 0 ? left.slice(q + 1, -1) : "";
+    if (cut.length >= 8 && (dir.startsWith(cut) || (cut.startsWith(dir) && /^[0-9a-z.-]*$/.test(cut.slice(dir.length))))) {
+      left = left.slice(0, q);
+      n++;
+    }
+  }
+  return n ? [left.trim(), `[${n} photo${n > 1 ? "s" : ""}]`].filter(Boolean).join("\n") : text;
+}
+
 function describeTool(name, input) {
   const n = String(name || "Tool");
   if (n.startsWith("mcp__")) {
@@ -297,7 +323,7 @@ function claudeCommandOutput(info, raw) {
  * Transcript lines -> chat items: user, command, agent, tool, note. What Claude
  * recorded about the session's settings goes into `info` on the way.
  */
-function claudeItems(lines, info = {}) {
+function claudeItems(lines, info = {}, { uploads } = {}) {
   const items = [], errors = new Set();
   const push = (it) => {
     const prev = items[items.length - 1];
@@ -314,7 +340,7 @@ function claudeItems(lines, info = {}) {
     if (d.type === "attachment") {
       const a = d.attachment || {};
       if (a.type === "queued_command" && typeof a.prompt === "string" && a.prompt.trim()) {
-        push({ type: "user", id: String(d.uuid || ""), text: stripTags(a.prompt).slice(0, 8000), at: a.timestamp || at, queued: true });
+        push({ type: "user", id: String(d.uuid || ""), text: sentPhotos(stripTags(a.prompt), uploads).slice(0, 8000), at: a.timestamp || at, queued: true });
       }
       continue;
     }
@@ -347,7 +373,7 @@ function claudeItems(lines, info = {}) {
       const bash = /<bash-input>([\s\S]*?)<\/bash-input>/.exec(raw);
       if (bash) { push({ type: "command", id: String(d.uuid || ""), text: clip("! " + bash[1], 200), at }); continue; }
       if (/^\[Request interrupted/.test(raw.trim())) { turnEnd(info, at); push({ type: "note", id: String(d.uuid || ""), text: "You interrupted" }); continue; }
-      const text = stripTags(raw);
+      const text = sentPhotos(stripTags(raw), uploads);
       if (!text && !images) continue;
       const pics = images ? `[${images} image${images > 1 ? "s" : ""}]` : "";
       push({ type: "user", id: String(d.uuid || ""), text: [text, pics].filter(Boolean).join("\n").slice(0, 8000), at });
@@ -469,13 +495,13 @@ const partsText = (content) => (Array.isArray(content) ? content : [])
   .filter((c) => c && typeof c.text === "string").map((c) => c.text).join("");
 
 /** One finished Codex item -> a chat item, or null for what the phone does not show. */
-function codexStep(it, fallbackId) {
+function codexStep(it, fallbackId, { uploads } = {}) {
   const id = String(it.id || fallbackId);
   const failed = /fail|declin|error/i.test(String(it.status || ""));
   switch (it.type) {
     case "UserMessage": {
       const pics = (Array.isArray(it.content) ? it.content : []).filter((c) => c && /image/i.test(String(c.type))).length;
-      const text = [partsText(it.content).trim(), pics ? `[${pics} image${pics > 1 ? "s" : ""}]` : ""].filter(Boolean).join("\n");
+      const text = [sentPhotos(partsText(it.content).trim(), uploads), pics ? `[${pics} image${pics > 1 ? "s" : ""}]` : ""].filter(Boolean).join("\n");
       return text ? { type: "user", id, text: text.slice(0, 8000) } : null;
     }
     case "AgentMessage": {
@@ -556,7 +582,7 @@ function codexLine(s, line) {
   if (!p || typeof p !== "object") return;
   s.n++;
   if (p.type === "item_completed" && p.item && typeof p.item === "object") {
-    const it = codexStep(p.item, "x" + s.n);
+    const it = codexStep(p.item, "x" + s.n, { uploads: s.uploads });
     if (!it) return;
     const k = s.items.findLastIndex((x) => x.id === it.id);
     if (k >= 0) s.items[k] = it; else s.items.push(it);
@@ -977,7 +1003,7 @@ function createServer(opts = {}) {
     const hit = parsed.get(file);
     if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit;
     const info = {};
-    const items = claudeItems(readTail(file, st.size, TAIL_BYTES), info);
+    const items = claudeItems(readTail(file, st.size, TAIL_BYTES), info, { uploads: deps.uploads.dir });
     const out = { size: st.size, mtimeMs: st.mtimeMs, items, info };
     parsed.set(file, out);
     if (parsed.size > 24) parsed.delete(parsed.keys().next().value);
@@ -1033,7 +1059,7 @@ function createServer(opts = {}) {
       // A browser or MCP result can be a megabyte on one line, so a fixed tail
       // may hold only a handful of steps. Widen it until it holds enough.
       for (let window = TAIL_BYTES; ; window *= 2) {
-        s = { ino: st.ino, start: Math.max(0, st.size - window), offset: Math.max(0, st.size - window), cut: st.size > window, items: [], running: null, n: 0 };
+        s = { ino: st.ino, start: Math.max(0, st.size - window), offset: Math.max(0, st.size - window), cut: st.size > window, items: [], running: null, n: 0, uploads: deps.uploads.dir };
         readOn(s, file, st.size);
         if (s.items.length >= 40 || window >= st.size || window >= CODEX_WINDOW_MAX) break;
       }
@@ -1130,7 +1156,7 @@ function createServer(opts = {}) {
         agent: e.agent === "codex" ? "codex" : "claude",
         account: String(e.account || "").split("@")[0],
         branch: String(e.branch || ""),
-        note: String((q && q.message) || e.note || "").slice(0, 240),
+        note: sentPhotos(String((q && q.message) || e.note || ""), deps.uploads.dir, { clipped: true }).replace(/\n/g, " ").slice(0, 240),
         lastSeen: e.last_seen || 0,
         live,
         waiting: !!q,
@@ -1666,7 +1692,7 @@ function start(opts = {}) {
   return app;
 }
 
-module.exports = { start, createServer, HOST_OK, tidyScreen, cleanText, KEYS, liveState, claudeItems, describeTool, codexStep, shellLabel, sessionInfo,
+module.exports = { start, createServer, HOST_OK, tidyScreen, cleanText, sentPhotos, KEYS, liveState, claudeItems, describeTool, codexStep, shellLabel, sessionInfo,
   mergeInfo, claudeMode, codexContext, effortsFor, sessionRoot, fileMeta, mentions };
 
 if (require.main === module) {
