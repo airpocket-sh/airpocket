@@ -227,6 +227,55 @@ test("read-only sessions still show model, effort, mode and working or idle, fro
   } finally { s.close(); }
 });
 
+test("the list's rows say working or idle, and what they run with, exactly as the session view does", async () => {
+  const h = homes({ cache: fixture("codex-models_cache.json") });
+  const proj = path.join(h.claudeDir, "projects", "-Users-someone-proj");
+  fs.mkdirSync(proj, { recursive: true });
+  const transcript = path.join(proj, CLAUDE_RO + ".jsonl");
+  fs.writeFileSync(transcript, fixture("claude-transcript.jsonl"));
+  const day = path.join(h.codexHome, "sessions", "2026", "09", "15");
+  fs.mkdirSync(day, { recursive: true });
+  const rollout = path.join(day, `rollout-2026-09-15T09-00-00-${CODEX_RO}.jsonl`);
+  fs.writeFileSync(rollout, fixture("codex-rollout.jsonl"));
+  const doneFile = path.join(day, `rollout-2026-09-15T09-00-00-${CODEX_DONE}.jsonl`);
+  fs.writeFileSync(doneFile, fixture("codex-rollout.jsonl").split("\n").slice(0, 7).join("\n") + "\n");
+  const now = Math.floor(Date.now() / 1000);
+  const claude = { session_id: CLAUDE_RO, bridge_id: "local:" + CLAUDE_RO, agent: "claude", title: "ro", cwd: "/Users/someone/proj", transcript,
+                   pid: process.pid, started: ME, last_seen: now, working_since: Date.now() - 185000 };
+  const sessions = [claude,
+    { session_id: CODEX_RO, bridge_id: "codex:" + CODEX_RO, agent: "codex", title: "cx", transcript: rollout, pid: process.pid, started: ME, last_seen: now },
+    { session_id: CODEX_DONE, bridge_id: "codex:" + CODEX_DONE, agent: "codex", title: "cx2", transcript: doneFile, pid: process.pid, started: ME, last_seen: now,
+      working_since: Date.now() - 5000 }];
+  const s = await serve(sessions, h, "");
+  const rowOf = async (id) => (await s.get("/api/sessions")).json.sessions.find((x) => x.id === id);
+  const agree = async (id, state, why) => {
+    const row = await rowOf(id), view = (await s.get("/api/screen?id=" + id)).json;
+    assert.equal(row.status && row.status.state, state, why + ": the list");
+    assert.equal(view.live && view.live.state, state, why + ": the session view");
+    assert.deepEqual(row.info, view.info, why + ": the same model, effort and mode");
+    return row;
+  };
+  try {
+    let row = await agree(CLAUDE_RO, "working", "a prompt started a turn");
+    assert.match(row.status.elapsed, /^3m 0\ds$/, "the same elapsed time the session view shows");
+    assert.deepEqual(Object.keys(row.status).sort(), ["elapsed", "state"], "only the state and the time: no menu, nothing typed");
+    assert.deepEqual(row.info, { model: "claude-fable-5-1", name: "Fable 5.1", effort: "xhigh", mode: "bypass permissions" });
+    claude.working_since = Date.parse("2026-09-15T10:02:05.000Z");
+    await agree(CLAUDE_RO, "idle", "interrupted after that prompt: the transcript ends the turn on both");
+    claude.working_since = 0;
+    row = await agree(CLAUDE_RO, "idle", "Stop ended it");
+    assert.equal(row.status.elapsed, "");
+    await agree(CODEX_RO, "working", "a Codex turn running in its file");
+    await agree(CODEX_DONE, "idle", "the file knows the Codex turn finished, whatever the hooks last said");
+    claude.started = ME - 60;
+    row = await rowOf(CLAUDE_RO);
+    assert.equal(row.live, false);
+    assert.equal(row.status, null, "its agent has exited: no state on the row");
+    assert.equal(row.info, null, "and nothing read for it");
+    assert.equal((await s.get("/api/screen?id=" + CLAUDE_RO)).json.live, null, "nor in the session view");
+  } finally { s.close(); }
+});
+
 test("Codex: settings from before a long tail are found, reading back for them alone", async () => {
   const h = homes({ cache: fixture("codex-models_cache.json") });
   const ID = "01a0b000-0000-7000-8000-00000000eeee";
