@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#0A0D08;--bezel:#0D110C;--glass:rgba(14,18,12,.55);--glass-2:rgba(20,26,17,.74);--glass-line:rgba(231,233,222,.07);--stroke:#2B3327;--stroke-2:#626E57;--fg:#E7E9DE;--fg-2:#AEB5A1;--fg-3:#929A83;--green:#8FD14F;--amber:#E9A227;--red:#E4614D;--red-solid:#C8382A;--sand:#D7C49E;--on-sand:#14180F;--green-dim:rgba(143,209,79,.14);--amber-dim:rgba(233,162,39,.14);--red-dim:rgba(228,97,77,.14);--sand-dim:rgba(215,196,158,.14);--map-0:#0B0E09;--map-1:#0D110B;--map-2:#0F140C;--map-3:#11170E;--map-4:#131A10;--map-5:#151D11;--map-6:#172013;--map-7:#192316;--map-ink:var(--map-3);--map-line:rgba(143,209,79,.055);--map-index:rgba(143,209,79,.08);--map-grid:rgba(231,233,222,.03);--glow-green:0 0 4px rgba(143,209,79,.35);--glow-amber:0 0 4px rgba(233,162,39,.35);--glow-red:0 0 4px rgba(228,97,77,.35);--glow-sand:0 0 4px rgba(215,196,158,.3);--hazard:repeating-linear-gradient(135deg,#E9A227 0 10px,#0B0B0B 10px 20px);--blur:blur(18px) saturate(.85);--display:var(--glass-2);--pane:rgba(231,233,222,.04);--pane-2:rgba(231,233,222,.09);--font-ui:'B612',system-ui,sans-serif;--font-mono:'B612 Mono',ui-monospace,monospace;--font-read:'IBM Plex Sans',system-ui,sans-serif;--stroke-w:1px;--stroke-w-focus:2px;--r-1:2px;--r-2:4px;--s-1:4px;--s-2:8px;--s-3:12px;--s-4:16px;--s-5:24px;--s-6:32px;--map:url("map.svg")}
+body{margin:0;background:#070906;color:var(--fg);font-family:var(--font-ui);-webkit-font-smoothing:antialiased}
+a{color:var(--sand);text-decoration:none}a:hover{color:#EAD9B8}
+@keyframes sweep{to{transform:rotate(360deg)}}
+@keyframes scan{0%{left:0}100%{left:calc(100% - 8px)}}
+@keyframes caution{0%,100%{opacity:1}50%{opacity:.4}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+@media (prefers-reduced-transparency:reduce){[style*="backdrop-filter"]{background:var(--ground)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:inset 0 0 0 1px var(--stroke)!important}[data-screen-label]{background-image:linear-gradient(rgba(10,13,8,.6),rgba(10,13,8,.6)),var(--map)!important}}
+</style>
+</helmet>
+<div style="max-width:1120px;margin:0 auto;padding:40px 24px 96px;display:flex;flex-direction:column;gap:56px">
+
+<header style="display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--stroke);padding-bottom:24px">
+  <nav style="display:flex;gap:16px;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase"><a href="Airpocket.dc.html">Index</a><a href="Airpocket Screens A.dc.html">Screens A</a><a href="Airpocket Screens B.dc.html">Screens B</a><a href="Airpocket Screens C.dc.html">Screens C</a><a href="Airpocket Map and Glass.dc.html">Map &amp; glass</a></nav>
+  <div style="font-family:var(--font-mono);font-size:13px;letter-spacing:.14em;color:var(--fg-2)">AIRPOCKET · DESIGN SYSTEM · REV 2</div>
+  <h1 style="margin:0;font-size:28px;font-weight:400">Cockpit display language</h1>
+  <p style="margin:0;max-width:640px;font-family:var(--font-read);font-size:15px;line-height:1.55;color:var(--fg-2)">One multi-function display in a thin dark bezel. Symbology is thin, crisp and colour-coded by avionics convention; the conversation is calm reading text. Every value on screen is real app data. Four signal colours — green, amber, red, sand — on bone, olive and stroke; a dark sector map sits under everything behind frosted glass.</p>
+</header>
+
+<!-- 01 COLOUR -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">01 · COLOUR ROLES</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+    <div style="border:1px solid var(--stroke);padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:40px;background:var(--green)"></div><div style="font-family:var(--font-mono);font-size:11px">--green · #8FD14F</div><div style="font-size:12px;color:var(--fg-2)">Normal, running, finished</div></div>
+    <div style="border:1px solid var(--stroke);padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:40px;background:var(--amber)"></div><div style="font-family:var(--font-mono);font-size:11px">--amber · #E9A227</div><div style="font-size:12px;color:var(--fg-2)">Caution, pilot needed. Loudest colour.</div></div>
+    <div style="border:1px solid var(--stroke);padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:40px;background:var(--sand)"></div><div style="font-family:var(--font-mono);font-size:11px">--sand · #D7C49E</div><div style="font-size:12px;color:var(--fg-2)">Interactive: buttons, links, focused fields, your messages</div></div>
+    <div style="border:1px solid var(--stroke);padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:40px;background:var(--sand);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--on-sand);letter-spacing:.1em">ACTIVE</div><div style="font-family:var(--font-mono);font-size:11px">--sand filled · --on-sand #14180F</div><div style="font-size:12px;color:var(--fg-2)">The active choice: filled sand, dark text. A 1px sand box = selected, not yet active.</div></div>
+    <div style="border:1px solid var(--stroke);padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:40px;display:grid;grid-template-columns:2fr 1fr"><div style="background:var(--red)"></div><div style="background:var(--red-solid)"></div></div><div style="font-family:var(--font-mono);font-size:11px">--red · #E4614D · --red-solid · #C8382A</div><div style="font-size:12px;color:var(--fg-2)">Red as text or thin border: --red (5.4:1 on glass). Filled buttons only: --red-solid with white text.</div></div>
+    <div style="border:1px solid var(--stroke);padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:40px;display:grid;grid-template-columns:1fr 1fr 1fr"><div style="background:var(--fg)"></div><div style="background:var(--fg-2)"></div><div style="background:var(--fg-3)"></div></div><div style="font-family:var(--font-mono);font-size:11px">--fg · --fg-2 · --fg-3</div><div style="font-size:12px;color:var(--fg-2)">Bone text · labels (#AEB5A1, 8.8:1) · meta (#929A83, 6.4:1 on glass). Small text prefers glass; on the brightest band bare it still measures 5.5:1.</div></div>
+    <div style="border:1px solid var(--stroke);padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:40px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;background:var(--ground) var(--map) center/cover"><div style="background:var(--bezel)"></div><div style="background:var(--glass)"></div><div style="background:var(--glass-2)"></div><div style="background:var(--map-ink)"></div></div><div style="font-family:var(--font-mono);font-size:11px">--bezel · --glass · --glass-2 · --map-ink</div><div style="font-size:12px;color:var(--fg-2)">On --ground #0A0D08 with the map showing through</div></div>
+    <div style="border:1px solid var(--stroke);padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:40px;display:grid;grid-template-columns:1fr 1fr"><div style="background:var(--stroke)"></div><div style="background:var(--stroke-2)"></div></div><div style="font-family:var(--font-mono);font-size:11px">--stroke · --stroke-2</div><div style="font-size:12px;color:var(--fg-2)">--stroke: dividers only. --stroke-2 #626E57: field, key and outline-button borders (3.3:1).</div></div>
+    <div style="border:1px solid var(--stroke);padding:12px;display:flex;flex-direction:column;gap:8px"><div style="height:40px;background:var(--hazard)"></div><div style="font-family:var(--font-mono);font-size:11px">--hazard</div><div style="font-size:12px;color:var(--fg-2)">Destructive confirmations (8px bar), and a 3–4px edge on anything that stops, clears or removes: Stop, Clear, New chat, Remove, the offline banner.</div></div>
+  </div>
+</section>
+
+<!-- 02 TYPE -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">02 · TYPE</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">--font-ui · B612 · OFL · LABELS &amp; TITLES</div>
+      <div style="font-size:22px">Sessions</div>
+      <div style="font-size:17px">Fix checkout tests</div>
+      <div style="font-size:15px">Refactor auth</div>
+      <div style="font-size:13px;color:var(--fg-2)">Studio · fix/checkout</div>
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-2)">Needs you · Open · Earlier</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">--font-mono · B612 MONO · READOUTS, CODE, TERMINAL</div>
+      <div style="font-family:var(--font-mono);font-size:28px;color:var(--sand)">000 000</div>
+      <div style="font-family:var(--font-mono);font-size:15px">Opus 5 · high · fast</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--green)">Working 3m 12s</div>
+      <div style="font-family:var(--font-mono);font-size:12px;color:var(--fg-2)">$ npm test · exit 0</div>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">STATUS LIGHT · 10 / .10EM</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">--font-read · IBM PLEX SANS · OFL · THE CONVERSATION</div>
+      <p style="margin:0;font-family:var(--font-read);font-size:16px;line-height:1.55;color:var(--fg)">The failing test was asserting on a stale fixture. I updated <code style="font-family:var(--font-mono);font-size:14px;background:var(--pane-2);padding:1px 4px">checkout.spec.ts</code> to load the cart from the new factory and re-ran the suite.</p>
+      <div style="font-size:12px;color:var(--fg-2)">16px · 1.55 · sentence case · off-white · no glow</div>
+    </div>
+  </div>
+  <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3);display:flex;gap:24px;flex-wrap:wrap"><span>Scale: 11 · 12 · 13 · 15 · 16 · 17 · 22 · 28</span><span>Labels carrying data never below 11px</span><span>Inputs never below 16px</span><span>Prose follows the phone's text size, one or two steps</span><span>Tracking .10–.14em on uppercase labels only</span></div>
+</section>
+
+<!-- 03 SPACING / STROKE / GLOW -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">03 · SPACING · STROKE · CORNERS · GLOW</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">SPACING · 4 GRID</div>
+      <div style="display:flex;align-items:flex-end;gap:8px"><div style="width:4px;height:4px;background:var(--sand)"></div><div style="width:8px;height:8px;background:var(--sand)"></div><div style="width:12px;height:12px;background:var(--sand)"></div><div style="width:16px;height:16px;background:var(--sand)"></div><div style="width:24px;height:24px;background:var(--sand)"></div><div style="width:32px;height:32px;background:var(--sand)"></div></div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-2)">--s-1 4 · --s-2 8 · --s-3 12 · --s-4 16 · --s-5 24 · --s-6 32</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">STROKE · CORNERS</div>
+      <div style="display:flex;gap:12px"><div style="width:56px;height:40px;border:1px solid var(--stroke-2);border-radius:2px"></div><div style="width:56px;height:40px;border:2px solid var(--sand);border-radius:2px"></div><div style="width:56px;height:40px;border:1px solid var(--stroke-2);border-radius:4px"></div></div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-2)">frame 1px · focus 2px · --r-1 2px panes · --r-2 4px keys</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">GLOW · SYMBOLOGY ONLY</div>
+      <div style="display:flex;gap:16px;align-items:center;font-family:var(--font-mono);font-size:14px"><span style="color:var(--green);text-shadow:var(--glow-green)">3m 12s</span><span style="color:var(--amber);text-shadow:var(--glow-amber)">NEEDS PERMISSION</span><span style="color:var(--sand)">Send</span></div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-2)">0 0 4px at 35% of the colour. Status lights and the scan line only, never body text.</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">CORNER BRACKETS · FOCUS</div>
+      <div style="position:relative;width:160px;height:44px;border:1px solid var(--stroke);display:flex;align-items:center;padding:0 12px;font-size:16px">fix/checkout
+        <div style="position:absolute;left:-2px;top:-2px;width:10px;height:10px;border-left:2px solid var(--sand);border-top:2px solid var(--sand)"></div><div style="position:absolute;right:-2px;top:-2px;width:10px;height:10px;border-right:2px solid var(--sand);border-top:2px solid var(--sand)"></div><div style="position:absolute;left:-2px;bottom:-2px;width:10px;height:10px;border-left:2px solid var(--sand);border-bottom:2px solid var(--sand)"></div><div style="position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-right:2px solid var(--sand);border-bottom:2px solid var(--sand)"></div></div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-2)">10px arms, 2px, sand. Focused input or selected pane.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 STATUS LIGHTS -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">04 · STATUS LIGHTS</h2>
+  <p style="margin:0;max-width:640px;font-family:var(--font-read);font-size:14px;line-height:1.5;color:var(--fg-2)">Each light differs in colour, label and shape. Filled = needs you now. Outlined with a glyph = information. Dashed = gone.</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
+    <div style="border:1px solid var(--stroke);padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;background:var(--amber);color:#1a1200;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;font-weight:700;box-shadow:var(--glow-amber);justify-self:start;animation:caution 2.4s ease-in-out infinite"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 1L9.5 9H.5z" fill="none" stroke="#1a1200" stroke-width="1.4"/></svg>NEEDS PERMISSION</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--stroke);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 1L9.5 9H.5z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>NEEDS PERMISSION</span>
+      <div style="grid-column:1/-1;font-size:12px;color:var(--fg-2)">Amber, filled, triangle. Slow caution pulse until seen.</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--sand);color:var(--sand);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-shadow:var(--glow-sand);justify-self:start"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 1l6 4-6 4z" fill="currentColor"/></svg>YOUR TURN</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--stroke);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 1l6 4-6 4z" fill="currentColor"/></svg>YOUR TURN</span>
+      <div style="grid-column:1/-1;font-size:12px;color:var(--fg-2)">Sand, outlined, play marker.</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--green);color:var(--green);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 5.5l2.5 2.5 4.5-6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>FINISHED</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--stroke);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 5.5l2.5 2.5 4.5-6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>FINISHED</span>
+      <div style="grid-column:1/-1;font-size:12px;color:var(--fg-2)">Green, outlined, check.</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
+      <span style="position:relative;display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--green);color:var(--green);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start;overflow:hidden"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5"/></svg>WORKING<span style="position:absolute;left:0;bottom:0;width:8px;height:2px;background:var(--green);animation:scan 1.8s linear infinite alternate"></span></span>
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--stroke);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5"/></svg>WORKING</span>
+      <div style="grid-column:1/-1;font-size:12px;color:var(--fg-2)">Green, dotted ring, scanning bar along the base.</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px dashed var(--fg-3);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" fill="currentColor"/></svg>ENDED</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px dashed var(--stroke);color:var(--stroke-2);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" fill="currentColor"/></svg>ENDED</span>
+      <div style="grid-column:1/-1;font-size:12px;color:var(--fg-2)">Gray, dashed, stop square.</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--red);color:var(--red);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start;text-shadow:var(--glow-red)"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.5"/></svg>OFFLINE</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--stroke);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;justify-self:start"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.5"/></svg>OFFLINE</span>
+      <div style="grid-column:1/-1;font-size:12px;color:var(--fg-2)">Red, outlined, cross.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 BUTTONS / KEYS / CHIPS -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">05 · BUTTONS · SOFT KEYS · CHIPS</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">PRIMARY · SAND · 44PX</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button style="height:44px;padding:0 20px;background:var(--sand);color:var(--on-sand);border:0;border-radius:2px;font:15px var(--font-ui);font-weight:700">Send</button>
+        <button style="height:44px;padding:0 20px;background:var(--sand-dim);color:var(--sand);border:1px solid var(--sand);border-radius:2px;font:15px var(--font-ui)">Pressed</button>
+        <button style="height:44px;padding:0 20px;background:transparent;color:var(--fg-3);border:1px solid var(--stroke);border-radius:2px;font:15px var(--font-ui)">Disabled</button>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">SECONDARY · OUTLINED</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button style="height:44px;padding:0 16px;background:transparent;color:var(--sand);border:1px solid var(--sand);border-radius:2px;font:15px var(--font-ui)">Controls</button>
+        <button style="height:44px;padding:0 16px;background:transparent;color:var(--fg);border:1px solid var(--stroke-2);border-radius:2px;font:15px var(--font-ui)">Cancel</button>
+        <button style="height:44px;padding:0 16px;background:var(--hazard) bottom/100% 3px no-repeat,var(--red-dim);color:var(--red);border:1px solid var(--red);border-radius:2px;font:15px var(--font-ui);display:inline-flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" fill="currentColor"/></svg>Stop</button>
+      </div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">SOFT KEYS · BOTTOM EDGE · 48PX</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--stroke);border:1px solid var(--stroke)">
+        <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">MACS</div></div>
+        <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">REFRESH</div></div>
+        <div style="height:48px;background:var(--pane-2);box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor;box-shadow:var(--glow-sand)"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">NEW</div></div>
+      </div>
+      <div style="font-size:12px;color:var(--fg-2)">Sand label with a tick above it (refs 2, 3, 6). Pressed: raised pane fill and the tick glows. Hidden when unavailable, never disabled.</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">CHIPS · 32PX MIN</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--stroke-2);color:var(--fg-2);font-family:var(--font-mono);font-size:12px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>checkout.spec.ts</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--sand);color:var(--sand);font-family:var(--font-mono);font-size:12px">fix/checkout</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--stroke);color:var(--fg-2);font-size:12px">Studio</span>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">TABS · EDGE (REF 7)</div>
+      <div style="display:flex;gap:1px;background:var(--stroke);border:1px solid var(--stroke);align-self:flex-start">
+        <div style="height:36px;padding:0 14px;display:flex;align-items:center;background:var(--pane-2);color:var(--fg);font-family:var(--font-mono);font-size:12px;box-shadow:inset 0 -2px 0 var(--sand)">CHAT</div>
+        <div style="height:36px;padding:0 14px;display:flex;align-items:center;background:var(--display);color:var(--fg-2);font-family:var(--font-mono);font-size:12px">TERMINAL</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 FIELDS -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">06 · FIELDS · SELECTION · ACTIVE / STANDBY</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">TEXT INPUT · 16PX · 48PX</div>
+      <div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;padding:0 12px;font:16px var(--font-read);color:var(--fg-3)">Message the agent</div>
+      <div style="position:relative;height:48px;border:1px solid var(--sand);display:flex;align-items:center;padding:0 12px;font:16px var(--font-read);color:var(--fg)">Run the tests again<span style="display:inline-block;width:2px;height:20px;background:var(--sand);margin-left:2px"></span>
+        <div style="position:absolute;left:-2px;top:-2px;width:10px;height:10px;border-left:2px solid var(--sand);border-top:2px solid var(--sand)"></div><div style="position:absolute;right:-2px;top:-2px;width:10px;height:10px;border-right:2px solid var(--sand);border-top:2px solid var(--sand)"></div><div style="position:absolute;left:-2px;bottom:-2px;width:10px;height:10px;border-left:2px solid var(--sand);border-bottom:2px solid var(--sand)"></div><div style="position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-right:2px solid var(--sand);border-bottom:2px solid var(--sand)"></div></div>
+      <div style="height:48px;border:1px solid var(--red);display:flex;align-items:center;padding:0 12px;font:16px var(--font-read);color:var(--fg)">feature/</div>
+      <div style="font-family:var(--font-mono);font-size:12px;color:var(--red)">Branch name can't end in a slash</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">OPTION LIST · SAND BOX = SELECTED · FILLED SAND = ACTIVE</div>
+      <div style="display:flex;flex-direction:column;gap:1px;background:var(--stroke);border:1px solid var(--stroke)">
+        <div style="height:44px;background:var(--display);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;color:var(--sand)">Fable 5.1</div>
+        <div style="height:44px;background:var(--sand);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;color:var(--on-sand)">Opus 5<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">ACTIVE</span></div>
+        <div style="height:44px;background:var(--pane-2);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;color:var(--sand);box-shadow:inset 0 0 0 1px var(--sand)">Sonnet 5<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">SELECTED</span></div>
+        <div style="height:44px;background:var(--display);display:flex;align-items:center;padding:0 12px;font-size:15px;color:var(--sand)">Haiku 4.5</div>
+      </div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">ACTIVE / STANDBY PAIR (REF 7)</div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end">
+        <div style="display:flex;flex-direction:column;gap:4px"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">ACTIVE</div><div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;padding:0 10px;font:15px var(--font-mono);color:var(--sand)">high</div></div>
+        <div style="height:44px;width:44px;border:1px solid var(--sand);display:flex;align-items:center;justify-content:center;color:var(--sand);font-family:var(--font-mono);font-size:13px">&lt; &gt;</div>
+        <div style="display:flex;flex-direction:column;gap:4px"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">NEXT</div><div style="height:44px;border:1px solid var(--sand);display:flex;align-items:center;padding:0 10px;font:15px var(--font-mono);color:var(--sand)">xhigh</div></div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);margin-top:4px">TICK SCALE · EFFORT</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px">
+          <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:13px var(--font-mono);color:var(--sand)">low</div>
+          <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:13px var(--font-mono);color:var(--sand)">med</div>
+          <div style="height:44px;border:1px solid var(--sand);background:var(--sand);display:flex;align-items:center;justify-content:center;font:13px var(--font-mono);color:var(--on-sand)">high</div>
+          <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:13px var(--font-mono);color:var(--sand)">xhigh</div>
+          <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:13px var(--font-mono);color:var(--sand)">max</div>
+        </div>
+        <div style="height:8px;background:repeating-linear-gradient(90deg,var(--stroke-2) 0 1px,transparent 1px 8px)"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 07 KEYPAD -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">07 · THE KEYPAD</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start">
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--bezel)">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">KEYS · 56PX · 10PX GAP · ONE HAND</div>
+      <div style="display:grid;grid-template-columns:repeat(4,56px);grid-auto-rows:56px;gap:10px;justify-content:center">
+        <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;text-shadow:0 1px 0 #000">1</div>
+        <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;text-shadow:0 1px 0 #000">2</div>
+        <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;text-shadow:0 1px 0 #000">3</div>
+        <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:11px var(--font-mono);letter-spacing:.1em;color:#C9CDBD;text-shadow:0 1px 0 #000">ESC</div>
+        <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:11px var(--font-mono);letter-spacing:.1em;color:#C9CDBD;text-shadow:0 1px 0 #000">TAB</div>
+        <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;color:#C9CDBD"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div>
+        <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:11px var(--font-mono);letter-spacing:.06em;color:#C9CDBD;text-shadow:0 1px 0 #000;text-align:center;line-height:1.3">SHIFT<br>TAB</div>
+        <div style="grid-row:span 2;border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:11px var(--font-mono);letter-spacing:.1em;color:#C9CDBD;text-shadow:0 1px 0 #000">ENTER</div>
+        <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;color:#C9CDBD"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></div>
+        <div style="border-radius:4px;background:var(--sand-dim);border:1px solid var(--sand);box-shadow:inset 0 2px 4px rgba(0,0,0,.6);transform:translateY(2px);display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+        <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;color:#C9CDBD"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;font-family:var(--font-read);font-size:14px;line-height:1.5;color:var(--fg-2)">
+      <p style="margin:0">Raised keys with a 2px shelf and an engraved label (refs 4, 6). Pressed: the key sinks 2px, the shelf disappears, fill and border go sand. Every keypress sends one keystroke to a live terminal, so keys are 56px with 10px gaps, and a haptic tick confirms each press.</p>
+      <p style="margin:0">Layout is a 4-wide grid: digits and Esc on top, Tab / Shift-Tab beside the arrows, Enter tall on the right edge where the thumb rests.</p>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:4px"><div style="height:44px;padding:0 14px;border:1px solid var(--stroke-2);display:flex;align-items:center;gap:8px;color:var(--sand);font:13px var(--font-ui)"><span style="width:14px;height:14px;border:1px solid var(--sand);display:inline-block"></span>Type it without sending</div><div style="height:44px;padding:0 14px;border:1px solid var(--sand);background:var(--sand-dim);display:flex;align-items:center;gap:8px;color:var(--sand);font:13px var(--font-ui)"><span style="width:14px;height:14px;background:var(--sand);display:inline-block"></span>Type it without sending</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 08 PANES / ROWS / MESSAGES -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">08 · SESSION ROW · MESSAGES · STEPS</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:start">
+    <div style="border:1px solid var(--stroke);background:var(--display)">
+      <div style="padding:12px 14px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CL</span><span style="font-size:15px;flex:1">Fix checkout tests</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">2m</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;background:var(--amber);color:#1a1200;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;font-weight:700"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 1L9.5 9H.5z" fill="none" stroke="#1a1200" stroke-width="1.4"/></svg>NEEDS PERMISSION</span><span style="font-family:var(--font-read);font-size:13px;color:var(--fg-2)">to use Bash</span></div>
+        <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>Studio</span><span>fix/checkout</span></div>
+      </div>
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px;opacity:.55">
+        <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CX</span><span style="font-size:15px;flex:1">Refactor auth</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">3h</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px dashed var(--fg-3);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" fill="currentColor"/></svg>ENDED</span></div>
+        <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>MacBook Air</span><span>main</span></div>
+      </div>
+    </div>
+    <div style="border:1px solid var(--stroke);background:var(--display);padding:14px;display:flex;flex-direction:column;gap:12px">
+      <div style="align-self:flex-end;max-width:85%;border:1px solid var(--sand);padding:10px 12px;font:16px/1.5 var(--font-read);color:var(--fg)">Fix the failing checkout tests.</div>
+      <div style="font:16px/1.55 var(--font-read);color:var(--fg)">Two tests fail because the cart fixture predates the tax change. I'll update the fixture and re-run.</div>
+      <div style="border:1px solid var(--stroke);display:flex;flex-direction:column">
+        <div style="height:40px;display:flex;align-items:center;gap:10px;padding:0 12px;font-family:var(--font-mono);font-size:12px;color:var(--fg-2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>Ran 3 commands<span style="margin-left:auto;color:var(--green)">exit 0</span></div>
+        <div style="border-top:1px solid var(--stroke);padding:8px 12px;font-family:var(--font-mono);font-size:13px;color:var(--fg);background:var(--pane)">$ npm test -- checkout<span style="color:var(--green);margin-left:12px">exit 0 · 4.2s</span></div>
+      </div>
+      <div style="display:flex;gap:8px"><span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--stroke-2);color:var(--sand);font-family:var(--font-mono);font-size:12px">checkout.spec.ts</span></div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3);text-align:center">14:32</div>
+    </div>
+  </div>
+</section>
+
+<!-- 09 FEEDBACK -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">09 · TOAST · CONFIRM · WORKING</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start">
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">TOAST · 2.5S</div>
+      <div style="align-self:center;height:40px;padding:0 16px;border:1px solid var(--green);background:var(--display);display:flex;align-items:center;gap:10px;font:14px var(--font-mono);color:var(--green)"><svg width="12" height="12" viewBox="0 0 10 10"><path d="M1.5 5.5l2.5 2.5 4.5-6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Effort: high</div>
+      <div style="align-self:center;height:40px;padding:0 16px;border:1px solid var(--red);background:var(--display);display:flex;align-items:center;gap:10px;font:14px var(--font-mono);color:var(--red)">Studio didn't answer</div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">DESTRUCTIVE CONFIRM · HAZARD</div>
+      <div style="border:1px solid var(--stroke-2);background:var(--display)">
+        <div style="height:8px;background:var(--hazard)"></div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:17px">Clear this session?</div>
+          <div style="font:14px/1.5 var(--font-read);color:var(--fg-2)">The conversation on Studio is wiped. The agent keeps running.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button style="height:44px;background:transparent;color:var(--fg);border:1px solid var(--stroke-2);border-radius:2px;font:15px var(--font-ui)">Keep</button><button style="height:44px;background:var(--red-solid);color:#fff;border:0;border-radius:2px;font:15px var(--font-ui);font-weight:700">Clear</button></div>
+        </div>
+      </div>
+    </div>
+    <div style="border:1px solid var(--stroke);padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">WORKING · SWEEP (REF 8)</div>
+      <div style="display:flex;gap:24px;align-items:center">
+        <div style="position:relative;width:64px;height:64px;border-radius:50%;border:1px solid var(--green);overflow:hidden"><div style="position:absolute;inset:14px;border-radius:50%;border:1px dashed rgba(63,224,138,.5)"></div><div style="position:absolute;inset:28px;border-radius:50%;border:1px dashed rgba(63,224,138,.5)"></div><div style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(63,224,138,.45),transparent 70deg);animation:sweep 4s linear infinite"></div></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px"><div style="font:13px var(--font-mono);color:var(--green)">Working… 3m 12s</div><div style="position:relative;height:2px;background:var(--stroke)"><div style="position:absolute;top:0;width:8px;height:2px;background:var(--green);box-shadow:var(--glow-green);animation:scan 1.8s linear infinite alternate"></div></div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><span style="position:relative;display:inline-block;width:28px;height:28px;border-radius:50%;border:1px solid rgba(143,209,79,.8);overflow:hidden;flex:none"><span style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(143,209,79,0.7),transparent 90deg);animation:sweep 4s linear infinite"></span></span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--green)">WORKING</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><span style="position:relative;display:inline-block;width:28px;height:28px;border-radius:50%;border:1px solid rgba(215,196,158,.8);overflow:hidden;flex:none"><span style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(215,196,158,0.5),transparent 90deg);animation:sweep 3s linear infinite"></span></span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--sand)">SCANNING</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><span style="position:relative;display:inline-block;width:28px;height:28px;border-radius:50%;border:1px solid rgba(174,181,161,.8);overflow:hidden;flex:none"><span style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(174,181,161,0.8),transparent 90deg);animation:sweep 3s linear infinite"></span></span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">CHECKING</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><span style="position:relative;display:inline-block;width:28px;height:28px;border-radius:50%;border:1px solid rgba(233,162,39,.8);overflow:hidden;flex:none"><span style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(233,162,39,0.45),transparent 90deg);animation:sweep 6s linear infinite"></span></span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--amber)">RETRYING</span></div>
+      </div>
+      <div style="font-size:12px;color:var(--fg-2)">One sweep, four colours, each with one job: green 4s while an agent works; sand 3s while the camera scans or the app connects; grey 3s while a Mac is being checked; amber 6s while retrying. Bar: 1.8s. All stop under reduced motion; the label alone carries the state.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 ICONS -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">10 · ICONS · 24PX GRID · 1.5PX STROKE</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;color:var(--sand)">
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">BACK</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">REFRESH</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="12" rx="1"/><path d="M9 20h6"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">MAC</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">FILES</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9l3 3-3 3M12 15h5"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">TERMINAL</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--red)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="6" width="12" height="12"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">STOP</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 19V5M6 11l6-6 6 6"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">SEND</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">NEW</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/><rect x="7" y="5" width="4" height="4" fill="var(--display)"/><rect x="13" y="10" width="4" height="4" fill="var(--display)"/><rect x="9" y="15" width="4" height="4" fill="var(--display)"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">CONTROLS</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="1"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">KEYS</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="18" height="13" rx="1"/><circle cx="12" cy="13.5" r="4"/><path d="M8 7l1.5-3h5L16 7"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">SCAN</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">CLOSE</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 9l6 6 6-6"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">EXPAND</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--green)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12l5 5 9-10"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">CHECK</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--amber)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l9 17H3z"/><path d="M12 10v5M12 17.5v.5"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">CAUTION</span></div>
+    <div style="border:1px solid var(--stroke);height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20l16-8L4 4v5l9 3-9 3z"/></svg><span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--fg-3)">AIRPOCKET</span></div>
+  </div>
+</section>
+
+<!-- 12 GLASS & MAP -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">11 · THE MAP LAYER · THE GLASS</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start">
+    <div style="border:1px solid var(--stroke);display:flex;flex-direction:column">
+      <div style="height:220px;background:var(--ground) var(--map) center/cover"></div><div style="display:grid;grid-template-columns:repeat(8,1fr);height:24px"><div style="background:var(--map-0)"></div><div style="background:var(--map-1)"></div><div style="background:var(--map-2)"></div><div style="background:var(--map-3)"></div><div style="background:var(--map-4)"></div><div style="background:var(--map-5)"></div><div style="background:var(--map-6)"></div><div style="background:var(--map-7)"></div></div>
+      <div style="padding:14px;display:flex;flex-direction:column;gap:6px;font:13px/1.5 var(--font-read);color:var(--fg-2)"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">--map · ONE SVG · 780×1688 · EIGHT BANDS</div><p style="margin:0">A terrain chart seen through glass: eight bands --map-0 (water) to --map-7 (ridge, 1.20× the ground and the brightest the map may be), each 2–3% above the last and filled with a baked-in radial gradient so slopes blend instead of stepping. Contours at 5.5% green, index contours and the coast at 8%, nothing heavier. The terrain lives in the lower third, fades to nothing by the top third and vignettes at the sides; it covers about a third of the chart. One 30px grid at 3%, one range ring at 4.5%, partly off screen. No text, no filters. Ships as one <span style="font-family:var(--font-mono);color:var(--fg)">map.svg</span> (flat paths and gradients, ~14 KB once the injected &lt;metadata&gt; block is stripped at build) referenced by URL; each screen shows a different crop via background-position.</p></div>
+    </div>
+    <div style="border:1px solid var(--stroke);display:flex;flex-direction:column">
+      <div style="height:220px;background:var(--ground) var(--map) center/cover;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="height:48px;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border:1px solid var(--glass-line);display:flex;align-items:center;padding:0 14px;justify-content:space-between"><span style="font-size:15px">--glass · .55</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-2)">BLUR 18 · SAT .85</span></div>
+        <div style="flex:1;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border:1px solid var(--glass-line);padding:12px 14px;font:15px/1.5 var(--font-read)">--glass-2 · .74. A preference for long reading, not a rescue: with the gentler map, --glass is comfortable everywhere.</div>
+        <div style="height:40px;background:var(--glass-2);border:1px solid var(--glass-line);display:flex;align-items:center;padding:0 14px;font-family:var(--font-mono);font-size:11px;color:var(--fg-2)">FALLBACK · --glass-2 · NO BLUR</div>
+      </div>
+      <div style="padding:14px;display:flex;flex-direction:column;gap:6px;font:13px/1.5 var(--font-read);color:var(--fg-2)"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">PANES · FEW AND LARGE</div><p style="margin:0">Per screen: the top strip, one content sheet, the bottom panel. Rows are never their own glass. A 1px lighter line along the top edge makes the sheet read as glass. <span style="color:var(--fg)">May drop the blur when scrolling costs frames:</span> the session list, the conversation, the terminal, the file viewer, the Controls sheet body. <span style="color:var(--fg)">Always blurred:</span> top strip, soft keys, bottom panel, dialogs, first-run and pairing cards. <span style="color:var(--fg)">Reduce Transparency</span> (prefers-reduced-transparency): every pane becomes solid --ground with a 1px --stroke edge; the map drops to 40%.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 MOTION -->
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2 style="margin:0;font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;color:var(--fg-2)">12 · MOTION</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;font-family:var(--font-read);font-size:14px;line-height:1.5;color:var(--fg-2)">
+    <div style="border:1px solid var(--stroke);padding:16px"><div style="font-family:var(--font-mono);font-size:11px;color:var(--green);margin-bottom:8px">WORKING</div>Radar sweep — green 4s (working), sand 3s (scanning, launch), grey 3s (checking a Mac), amber 6s (retrying) — or an 8px scanning bar (the only glow that moves) on a 2px track, 1.8s each way. Linear, no easing. Only while a turn is running.</div>
+    <div style="border:1px solid var(--stroke);padding:16px"><div style="font-family:var(--font-mono);font-size:11px;color:var(--amber);margin-bottom:8px">NEEDS YOU</div>Opacity 1 → .4 → 1 over 2.4s, ease-in-out. Stops for good the first time the row is scrolled into view or the session is opened.</div>
+    <div style="border:1px solid var(--stroke);padding:16px"><div style="font-family:var(--font-mono);font-size:11px;color:var(--sand);margin-bottom:8px">SHEETS</div>Slide up 180ms, out 140ms, cubic-bezier(.2,.8,.2,1). Toasts fade in 120ms, hold 2.5s, fade 200ms.</div>
+    <div style="border:1px solid var(--stroke);padding:16px"><div style="font-family:var(--font-mono);font-size:11px;color:var(--fg);margin-bottom:8px">IDLE · REDUCED MOTION</div>Nothing moves at rest, the map included. With prefers-reduced-motion every animation is removed; the sweep becomes a static ring, the bar a static dot, the caution light stays lit.</div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>
