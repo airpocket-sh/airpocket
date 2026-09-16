@@ -193,7 +193,7 @@ function createBridges(o = {}) {
     const b = of(e);
     const known = !!(e && e.pid && e.started);
     const can = !!b && known && !!live;
-    const why = !b ? "It isn't in a Superset or tmux terminal." : !known ? "Airpocket doesn't know which process runs it."
+    const why = !b ? "Start it with airpocket run and the phone can answer." : !known ? "Airpocket doesn't know which process runs it."
       : !live ? "Its agent has exited." : "";
     return { bridge: b ? b.name : null, read: !!b, send: can, keys: can, controls: can, why };
   }
@@ -201,7 +201,7 @@ function createBridges(o = {}) {
   /** The bridge to type into, or { error, message } when typing into it isn't safe. Checked at the moment of use. */
   async function writable(e) {
     const b = of(e);
-    if (!b) return { error: "no_route", message: "This session isn't in a terminal Airpocket can type into, so it's read-only here." };
+    if (!b) return { error: "no_route", message: "This session isn't in a terminal Airpocket can type into, so it's read-only here. Start it with airpocket run and the phone can answer." };
     if (!alive(e.pid, e.started)) return { error: "ended", message: "Its agent has exited, so Airpocket won't type into that terminal." };
     let why;
     try { why = await b.ready(); } catch { return { error: "unreachable", message: "Couldn't reach its terminal. It may have been closed." }; }

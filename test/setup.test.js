@@ -295,7 +295,7 @@ test("fresh install: hooks, a running login item, two addresses, a pairing code;
     assert.match(report, new RegExp(`^PASS  ${name}`, "m"), name);
   }
   assert.match(report, /^WARN  Codex hook review +not reviewed yet/m);
-  assert.match(report, /^INFO  tmux +not found/m);
+  assert.match(report, /^WARN  tmux +not installed: airpocket run and sessions in tmux need it\n +brew install tmux$/m);
 
   // Uninstall, removing the data folder too.
   assert.equal(await setup.runUninstall(w.ctx, ["--remove-data"]), 0);
