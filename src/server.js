@@ -386,7 +386,11 @@ function readTail(file, size, max) {
 
 // What the terminal shows right now: working, waiting, a question on screen,
 // or text typed into the prompt but not sent.
-const WORKING = /^\s*\S{1,2}\s+([A-Z][A-Za-z]+…)\s+\((\d+[hms][^·•)]*)/;
+// Claude: "✽ Fermenting… (3m 28s · ↓ 15.0k tokens)". The word is whatever its
+// list holds, and plenty of them are hyphenated or more than one word
+// ("Dilly-dallying…", "Hemming and hawing…"), so anything up to the bracket
+// counts — a word that didn't match used to read as a session sitting idle.
+const WORKING = /^\s*\S{1,2}\s+([A-Z][^()]{0,48}?…)\s+\((\d+[hms][^·•)]*)/;
 // Codex: "• Working (12s • esc to interrupt)"; the word can change with what it is doing.
 const CODEX_WORKING = /^\s*[•◦·*]?\s*([^()]{1,80}?)\s*\((\d+[hms][^·•)]*?)\s*•\s*esc to interrupt/i;
 // Claude marks the highlighted option with ❯, Codex with ›.
@@ -397,7 +401,7 @@ function liveState(text) {
   let working = null;
   for (const l of lines) {
     let m = WORKING.exec(l);
-    if (m) { working = { verb: m[1], elapsed: m[2].trim() }; continue; }
+    if (m) { working = { verb: clip(m[1], 40), elapsed: m[2].trim() }; continue; }
     m = CODEX_WORKING.exec(l);
     if (m) { const v = clip(m[1], 40); working = { verb: /…$/.test(v) ? v : v + "…", elapsed: m[2].trim() }; }
   }

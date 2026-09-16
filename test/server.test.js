@@ -538,6 +538,15 @@ test("codex screens: approval menus, working words, placeholders, history", () =
   const menu = liveState("Would you like to run the following command?\n\n  $ ls\n\n› 1. Yes, proceed (y)\n  2. No, and tell Codex what to do differently (esc)");
   assert.deepEqual(menu.menu.options.map((o) => [o.n, o.cur]), [[1, true], [2, false]]);
   assert.equal(liveState("• Reviewing files (1m 02s • esc to interrupt)").verb, "Reviewing files…");
+  // Claude's spinner word is whatever its own list holds: hyphens and spaces in
+  // it once read as an idle session, which hid the Stop button mid-turn.
+  for (const [line, verb, el] of [["✽ Fermenting… (3m 28s · ↓ 15.0k tokens)", "Fermenting…", "3m 28s"],
+                                  ["✳ Dilly-dallying… (26s · thinking more with xhigh effort)", "Dilly-dallying…", "26s"],
+                                  ["✢ Hemming and hawing… (12s · esc to interrupt)", "Hemming and hawing…", "12s"],
+                                  ["✻ Wibbling… (5s)", "Wibbling…", "5s"]]) {
+    assert.deepEqual([liveState(line).state, liveState(line).verb, liveState(line).elapsed], ["working", verb, el], line);
+  }
+  assert.equal(liveState("a sentence that trails off… (not a timer)").state, "idle", "only a real clock counts");
   assert.equal(liveState("› Ask a follow-up question\n  gpt-6 · ~/x").staged, "");
   assert.equal(liveState("› make it shorter\n  gpt-6 · ~/x").staged, "make it shorter");
 });

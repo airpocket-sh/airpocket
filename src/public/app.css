@@ -318,7 +318,13 @@ body.sheet-open #toast{top:calc(var(--top) + 4px)}          /* over the dimmed s
 .status .ind .ring{width:16px;height:16px;border-radius:50%;border:var(--stroke-w) solid var(--fg-3)}
 .status .ind .caution{color:var(--amber);filter:drop-shadow(var(--glow-amber))}
 .status .lt{flex:0 1 auto;min-width:0;font-family:var(--font-mono);font-size:13px;color:var(--fg-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.status .lt.working{color:var(--green)}
+.status .lt.working{color:var(--green);display:flex;align-items:center;gap:7px}
+/* The working readout: callsign, annunciator, clock, and what Codex says it is doing. */
+.status .lt .hud{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;letter-spacing:.14em;text-shadow:var(--glow-green)}
+.status .lt .blip{flex:none;width:7px;height:12px;background:currentColor;box-shadow:var(--glow-green);animation:annunciate 1.1s infinite}
+.status .lt .clk{flex:none;color:var(--fg-2);font-variant-numeric:tabular-nums}
+/* A lamp, not a fade: full on, then off, the way a caution light blinks. */
+@keyframes annunciate{0%,49.9%{opacity:1}50%,100%{opacity:.08}}
 .status .lt.ask{color:var(--amber)}
 .status .lt.staged{color:var(--sand)}
 .status .lt.wait{color:var(--fg)}

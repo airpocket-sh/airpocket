@@ -105,6 +105,7 @@ async function checks(ctx) {
   // Tailscale.
   if (!ctx.tailscaleBin) add("FAIL", "Tailscale", "not installed", "Install it from https://tailscale.com/download/mac and sign in.");
   else if (!f.tailscale || !f.tailscale.running) add("FAIL", "Tailscale", f.tailscale ? `not signed in (${f.tailscale.state})` : "didn't answer", "Open the Tailscale app and sign in.");
+  else if (!f.tailscale.https) add("FAIL", "Tailscale", "your tailnet has no HTTPS certificates", "Turn on HTTPS Certificates on the DNS page of the Tailscale admin console; only an admin of that tailnet can, and a work email address may put you in your company's tailnet.");
   else if (!f.serve) add("FAIL", "Tailscale", "couldn't read what it publishes", "Open the Tailscale app, then try again.");
   else {
     const ports = install && install.ports;

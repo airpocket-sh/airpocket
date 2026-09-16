@@ -36,11 +36,30 @@ shared server and nothing passes between your Macs: the phone keeps one token
 per Mac and asks each one itself.
 
 You need, on each Mac: macOS, Node 20 or newer,
-[Tailscale](https://tailscale.com/download/mac) signed in with HTTPS
-certificates turned on for your tailnet, and Claude Code or Codex. On the
-phone: Tailscale, signed in to the same tailnet. tmux (`brew install tmux`) is
+[Tailscale](https://tailscale.com/download/mac) signed in with **MagicDNS and
+HTTPS certificates turned on for your tailnet**, and Claude Code or Codex. On
+the phone: Tailscale, signed in to the same tailnet. tmux (`brew install tmux`) is
 what `airpocket run` needs, and what lets the phone answer a session in any
 terminal; without it, only sessions in Superset can be answered.
+
+### Which tailnet you land in
+
+Tailscale sorts people by the email domain they sign in with, so signing in
+with a **work address puts you in your company's tailnet**, not one of your
+own. There you are a member: an admin has to approve your device, the admin
+console won't open for you, and MagicDNS and HTTPS certificates — both
+tailnet-wide, both needed here — are someone else's switch to flip. Setup stops
+with that in plain words rather than half-installing.
+
+Signing in with a **personal account** gives you your own tailnet where you are
+the admin, and turning HTTPS certificates on is one switch on the
+[DNS page](https://console.tailscale.com/admin/dns). Either is fine — a shared
+tailnet only needs its admin to do it once, for everyone. Issuing a certificate
+publishes the machine's DNS name in public certificate-transparency logs; what
+it serves stays inside your tailnet.
+
+Sharing a tailnet doesn't share sessions: every Mac still asks the phone for a
+pairing code of its own, and hands out its own token.
 
 ### Try it from a clone
 
