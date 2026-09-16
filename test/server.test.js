@@ -9,6 +9,7 @@ const net = require("net");
 const os = require("os");
 const fs = require("fs");
 const path = require("path");
+const cfg = require("../src/agentconfig");
 const { createServer, tidyScreen, cleanText, liveState, claudeItems, shellLabel, codexStep, sessionInfo, sessionRoot } = require("../src/server");
 const { createStore } = require("../src/store");
 const { createService } = require("../src/service");
@@ -804,6 +805,49 @@ test("files: a session's folder must be a real folder inside home, not home itse
   }
   fs.mkdirSync(path.join(HOME, ".superset/worktrees/p"), { recursive: true });
   assert.equal(sessionRoot(path.join(HOME, ".superset/worktrees/p"), HOME), fs.realpathSync(path.join(HOME, ".superset/worktrees/p")), "Superset workspaces are fine");
+});
+
+test("the list says why it may be short: agents that haven't checked in, and Codex hooks not trusted, only while true", async () => {
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-data-"));
+  const codexHome = path.join(data, "codex");
+  fs.mkdirSync(codexHome);
+  let running = 0;
+  const own = createStore(data);
+  const mac = createServer({ store: own, log: () => {}, knownSessions: () => [], getQueue: () => [], dequeue: () => 0, unseenAgents: () => running,
+    claudeProjects: path.join(data, "none"), codexHome, hasSuperset: () => false });
+  await new Promise((ok) => mac.server.listen(0, "127.0.0.1", ok));
+  const at = `http://127.0.0.1:${mac.server.address().port}`;
+  try {
+    const t = (await req("POST", "/api/pair", { at, body: { code: own.newCode().code } })).json.token;
+    const unseen = async () => { const r = await req("GET", "/api/sessions", { at, headers: auth(t) }); assert.equal(r.status, 200); return r.json.unseen; };
+    assert.equal(await unseen(), undefined, "nothing to say: no field");
+    running = 3;
+    assert.deepEqual(await unseen(), { agents: 3 });
+
+    // Setup added Codex's hooks; Codex hasn't been told to trust them.
+    const file = path.join(codexHome, "hooks.json");
+    const config = cfg.addHooks({}, "codex", cfg.hookCommand({ node: "/n", hook: "/h", agent: "codex" })).config;
+    fs.writeFileSync(file, JSON.stringify(config));
+    assert.deepEqual(await unseen(), { agents: 3, codex: "untrusted" });
+    running = 0;
+    assert.deepEqual(await unseen(), { agents: 0, codex: "untrusted" }, "the Codex line alone");
+
+    // Trusted in /hooks: Codex writes a trust entry per hook into config.toml.
+    const state = cfg.hookState(config, "codex");
+    const trustAll = (events) => fs.writeFileSync(path.join(codexHome, "config.toml"), events.map((e) =>
+      `[hooks.state."${file}:${e.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()}:${state[e].at.group}:${state[e].at.index}"]\ntrusted_hash = "sha256:00"\n`).join("\n"));
+    trustAll(cfg.EVENTS.codex);
+    assert.equal(await unseen(), undefined, "all trusted and every agent seen: nothing to say");
+    running = 2;
+    assert.deepEqual(await unseen(), { agents: 2, codex: "ok" });
+    trustAll(cfg.EVENTS.codex.filter((e) => e !== "Stop"));
+    assert.deepEqual(await unseen(), { agents: 2, codex: "untrusted" }, "one hook not trusted: the line is back");
+    fs.unlinkSync(file);
+    assert.deepEqual(await unseen(), { agents: 2 }, "no hooks of ours: nothing to say about trust");
+  } finally {
+    mac.server.close();
+    fs.rmSync(data, { recursive: true, force: true });
+  }
 });
 
 test("a server is handed its service; it never makes one by itself", () => {

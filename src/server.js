@@ -7,7 +7,8 @@
 //
 //   POST /api/pair      six-digit code from `airpocket pair` -> device token
 //   GET  /api/hello     which Mac is this
-//   GET  /api/sessions  every session this Mac knows: waiting or not, working or idle, and what each allows
+//   GET  /api/sessions  every session this Mac knows: waiting or not, working or idle, and what each allows;
+//                       and, when there is something to say, why some aren't there yet
 //   GET  /api/screen    one session: its conversation, live state, or terminal screen
 //   POST /api/send      type text into a session, with or without Enter
 //   POST /api/key       one of a few fixed keys: digits, arrows, Tab, Enter, Esc
@@ -36,6 +37,7 @@ const { processAlive } = require("./proc");
 const { SECRET_CONTENT } = require("./secrets");
 const { createBridges, KEYS, runFile, runSuperset, runTmux, findTmux, supersetInstalled } = require("./bridges");
 const { createModels } = require("./models");
+const { codexTrust } = require("./agentconfig");
 
 const PUBLIC = path.join(__dirname, "public");
 
@@ -824,6 +826,8 @@ function createServer(opts = {}) {
     // Is a session's process there: the service's answer, from one cached ps call
     // for all sessions, so a poll of the list costs one ps call at most.
     isLive: opts.isLive || (service ? service.isLive : (e) => alive(e.pid, e.started)),
+    // Agents running in a terminal that no record names yet: the service's count, from that same ps call.
+    unseenAgents: opts.unseenAgents || (service ? service.unseenAgents : () => 0),
     superset: opts.superset || runSuperset,
     // New sessions start through Superset only; without it the phone hides "New".
     hasSuperset: opts.hasSuperset || (opts.superset ? () => true : supersetInstalled),
@@ -859,6 +863,29 @@ function createServer(opts = {}) {
     inspect: opts.inspectAgent,
     gap: opts.typeGap,
   });
+
+  // Whether Codex runs Airpocket's hooks (doctor's "Codex hook review"), read again
+  // only when hooks.json or config.toml changes.
+  const codexHooks = opts.codexHooksFile || path.join(deps.codexHome, "hooks.json");
+  let trust = { key: null, value: "" };
+  function codexTrusted() {
+    const stamp = (f) => { try { const st = fs.statSync(f); return `${st.mtimeMs}:${st.size}`; } catch { return "-"; } };
+    const key = stamp(codexHooks) + "|" + stamp(path.join(path.dirname(codexHooks), "config.toml"));
+    if (key !== trust.key) trust = { key, value: codexTrust(codexHooks) };
+    return trust.value;
+  }
+
+  /**
+   * Why the list may be shorter than what runs on this Mac: { agents, codex? }, or
+   * undefined when there is nothing to say. `agents` running in a terminal haven't
+   * reached a hook yet; `codex` is "untrusted" while Codex won't run the hooks.
+   */
+  function unseen() {
+    const agents = Math.max(0, Number(deps.unseenAgents()) || 0);
+    const codex = codexTrusted();
+    if (!agents && codex !== "untrusted") return undefined;
+    return { agents, ...(codex ? { codex } : {}) };
+  }
 
   // Several polls of one terminal within a second share a single read.
   const reads = new Map();
@@ -1497,7 +1524,7 @@ function createServer(opts = {}) {
       // What this Mac can do beyond its sessions: start new ones (through Superset only).
       const can = () => ({ start: !!deps.hasSuperset() });
       if (p === "/api/hello") return json(res, 200, { host: deps.hostLabel, device: device.name, can: can() }, cors);
-      if (p === "/api/sessions") return json(res, 200, { host: deps.hostLabel, can: can(), sessions: list() }, cors);
+      if (p === "/api/sessions") return json(res, 200, { host: deps.hostLabel, can: can(), sessions: list(), unseen: unseen() }, cors);
       if (p === "/api/screen") return screen(res, url, cors);
       if (p === "/api/new/options") return newOptions(res, cors);
       if (p === "/api/models") { const l = deps.models.lists(); return json(res, 200, { claude: l.claude, codex: l.codex }, cors); }

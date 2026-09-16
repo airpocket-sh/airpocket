@@ -19,6 +19,7 @@ const { spawn, spawnSync } = require("child_process");
 const setup = require("../src/setup");
 const doctor = require("../src/doctor");
 const cfg = require("../src/agentconfig");
+const ID_ONE = "0199aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee";
 const li = require("../src/loginitem");
 const ts = require("../src/tailscale");
 const { startTimeOf } = require("../src/proc");
@@ -166,7 +167,7 @@ function fakeMac({ serve = { TCP: {}, Web: {} }, backend = "Running", certs = tr
 }
 
 /** A temporary HOME with Claude Code and Codex folders, and a context pointed at it and at a fake Mac. */
-async function world({ claude, codex, mac: macOpts, env: extraEnv = {} } = {}) {
+async function world({ claude, codex, mac: macOpts, env: extraEnv = {}, agents = [] } = {}) {
   const home = tempDir("airpocket-home-");
   fs.mkdirSync(path.join(home, ".claude"));
   fs.mkdirSync(path.join(home, ".codex"));
@@ -178,7 +179,7 @@ async function world({ claude, codex, mac: macOpts, env: extraEnv = {} } = {}) {
   const lines = [];
   const env = { HOME: home, PATH: process.env.PATH, AIRPOCKET_PORT: String(base), ...extraEnv };
   const ctx = setup.context({ env, home, run: mac.run, tailscaleBin: TS, tty: false, color: false, uid: 501, waitMs: 15000,
-    out: (l = "") => lines.push(l), tmuxBins: ["/nonexistent/tmux"] });
+    out: (l = "") => lines.push(l), tmuxBins: ["/nonexistent/tmux"], processes: () => ({ starts: new Map(), agents }) });
   assert.ok(!ctx.paths.claude.startsWith(REAL_HOME + "/"), "never the real home");
   const output = () => { const t = lines.join("\n"); lines.length = 0; return t; };
   return { home, mac, ctx, output, base };
@@ -508,8 +509,7 @@ test("doctor reads Codex's trust in our hooks from config.toml", () => {
   const cmd = cfg.hookCommand({ node: "/n", hook: "/h", agent: "codex" });
   const config = cfg.addHooks({ hooks: { Stop: [{ hooks: [{ type: "command", command: "mine" }] }] } }, "codex", cmd).config;
   const state = cfg.hookState(config, "codex");
-  const ctx = { paths: { codex: file } };
-  assert.deepEqual(doctor.codexUntrusted(ctx, file, state), [...cfg.EVENTS.codex], "no config.toml: nothing trusted");
+  assert.deepEqual(cfg.codexUntrusted(file, state), [...cfg.EVENTS.codex], "no config.toml: nothing trusted");
   const toml = cfg.EVENTS.codex.filter((e) => e !== "Interrupt").map((e) => {
     const snake = e.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
     const at = state[e].at;
@@ -517,7 +517,43 @@ test("doctor reads Codex's trust in our hooks from config.toml", () => {
   }).join("\n");
   fs.writeFileSync(path.join(home, ".codex", "config.toml"), `model = "x"\n\n[hooks.state]\n\n${toml}`);
   assert.equal(state.Stop.at.group, 1, "ours come after the user's Stop hook");
-  assert.deepEqual(doctor.codexUntrusted(ctx, file, state), ["Interrupt"]);
+  assert.deepEqual(cfg.codexUntrusted(file, state), ["Interrupt"]);
+});
+
+test("setup ends by saying why the phone may not show every agent yet, only when that's so", async () => {
+  // Three agents run: one has checked in (a session record names it), two haven't.
+  const agents = [{ pid: 4101, started: 100, agent: "claude" }, { pid: 4102, started: 101, agent: "claude" }, { pid: 4103, started: 102, agent: "codex" }];
+  const w = await world({ agents });
+  const sessions = path.join(w.ctx.paths.dataDir, "sessions");
+  fs.mkdirSync(sessions, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(path.join(sessions, ID_ONE + ".json"), JSON.stringify({ session_id: ID_ONE, pid: 4101, started: 100 }));
+  let out = await setupOk(w);
+  assert.ok(out.includes(setup.UNSEEN.many(2)), out);
+  assert.ok(out.includes(setup.UNSEEN.codex), "Codex hasn't trusted the new hooks yet\n" + out);
+  assert.ok(out.indexOf(setup.UNSEEN.many(2)) > out.lastIndexOf(": done") && out.indexOf(setup.UNSEEN.codex) < out.indexOf("Airpocket is set up."), "at the end");
+
+  // One left, and Codex trusts every hook: one line.
+  agents.splice(1, 1);
+  const file = w.ctx.paths.codex;
+  const state = cfg.hookState(json(file), "codex");
+  fs.writeFileSync(path.join(path.dirname(file), "config.toml"), cfg.EVENTS.codex.map((e) =>
+    `[hooks.state."${file}:${e.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()}:${state[e].at.group}:${state[e].at.index}"]\ntrusted_hash = "sha256:00"\n`).join("\n"));
+  out = await setupOk(w);
+  assert.ok(out.includes(setup.UNSEEN.one), out);
+  assert.ok(!out.includes("Codex hooks aren't trusted"), out);
+
+  // Nothing to say: no lines.
+  agents.length = 1;
+  out = await setupOk(w);
+  assert.ok(!/checked in yet|aren't trusted/.test(out), out);
+  assert.equal(await setup.runUninstall(w.ctx, ["--remove-data"]), 0);
+});
+
+test("the phone and setup say the same about agents that haven't checked in", () => {
+  const app = fs.readFileSync(path.join(__dirname, "..", "src", "public", "app.js"), "utf8");
+  assert.ok(app.includes(`"${setup.UNSEEN.one}"`), "one agent");
+  assert.ok(app.includes("`${n}" + setup.UNSEEN.many(0).slice(1) + "`"), "several agents");
+  assert.ok(app.includes(`"${setup.UNSEEN.codex}"`), "Codex hooks");
 });
 
 test("a Mac that never used tailscale serve (status prints null) sets up, and uninstalls", async () => {

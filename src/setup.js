@@ -35,7 +35,7 @@ const cfg = require("./agentconfig");
 const ts = require("./tailscale");
 const li = require("./loginitem");
 const { dataDirFor, portsFrom } = require("./ports");
-const { processAlive } = require("./proc");
+const { processAlive, scanProcesses, unrecordedAgents } = require("./proc");
 const { writeAtomic } = require("./service");
 const { createStore } = require("./store");
 const { TMUX_BINS } = require("./bridges");
@@ -94,6 +94,7 @@ function context(opts = {}) {
     tmuxBins: opts.tmuxBins || TMUX_BINS,
     color: opts.color ?? (!!process.stdout.isTTY && !env.NO_COLOR),
     waitMs: opts.waitMs || 20000,
+    processes: opts.processes || scanProcesses,
   };
   const dataDir = dataDirFor(env, home);
   ctx.paths = {
@@ -609,8 +610,35 @@ async function runSetup(ctx, argv = []) {
     }
     if (step.title !== "Pairing") ctx.out(`  ${i + 1}. ${step.title}: done${done.length ? " (" + done.join("; ") + ")" : ""}`);
   }
+  const unseen = unseenLines(ctx);
+  if (unseen.length) { ctx.out(""); for (const line of unseen) ctx.out(line); ctx.out(""); }
   ctx.out(`Airpocket is set up. Check it any time with: airpocket doctor`);
   return 0;
+}
+
+// The phone says the same (app.js, unseenLines); a test keeps the two in step.
+const UNSEEN = {
+  one: "1 agent is running that hasn't checked in yet. It appears the next time you prompt it.",
+  many: (n) => `${n} agents are running that haven't checked in yet. They appear the next time you prompt them.`,
+  codex: "Codex hooks aren't trusted yet: start Codex, run /hooks, trust Airpocket's.",
+};
+
+/**
+ * Why the phone may not show every agent yet, right after setup: agents running
+ * in a terminal that no session record names, and Codex hooks not trusted yet.
+ */
+function unseenLines(ctx) {
+  const records = [];
+  const dir = path.join(ctx.paths.dataDir, "sessions");
+  let names = [];
+  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch {}
+  for (const name of names.slice(0, 5000)) { const r = readJson(path.join(dir, name)); if (r && typeof r === "object") records.push(r); }
+  const scan = ctx.processes() || {};
+  const n = unrecordedAgents(Array.isArray(scan.agents) ? scan.agents : [], records).length;
+  const lines = [];
+  if (n) lines.push(n === 1 ? UNSEEN.one : UNSEEN.many(n));
+  if (exists(path.dirname(ctx.paths.codex)) && cfg.codexTrust(ctx.paths.codex) === "untrusted") lines.push(UNSEEN.codex);
+  return lines;
 }
 
 // ---------------------------------------------------------------- uninstall
@@ -790,5 +818,5 @@ function listBackups(ctx) {
   return out.sort();
 }
 
-module.exports = { context, stableNode, survey, planSetup, runSetup, planUninstall, runUninstall, pairingLines, readLock, readInstall,
+module.exports = { context, stableNode, survey, planSetup, runSetup, unseenLines, UNSEEN, planUninstall, runUninstall, pairingLines, readLock, readInstall,
   probe, listening, versionOf, majorOf, SOCKET_MAX, copyApp, tail, unsafeDataDir, ownSessions };

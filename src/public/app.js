@@ -333,7 +333,7 @@
 
     startPoll(async () => {
       results = await Promise.all(hosts.map(async (host) => {
-        try { const d = await api(host, "/api/sessions"); return { host, sessions: d.sessions || [], label: d.host, can: d.can || null }; }
+        try { const d = await api(host, "/api/sessions"); return { host, sessions: d.sessions || [], label: d.host, can: d.can || null, unseen: d.unseen || null }; }
         catch (err) { return { host, err }; }
       }));
       asking = false;
@@ -348,6 +348,17 @@
     const perm = /needs your permission to use (.+)$/i.exec(t);
     if (perm) return "to use " + perm[1];
     return /^(Claude is waiting for your input|Claude needs your (permission|attention)|Codex (is waiting|needs).*)$/i.test(t) ? "" : t;
+  }
+
+  // Why a Mac's list may be shorter than what runs there, as that Mac counts it: agents
+  // whose hooks haven't fired yet, and Codex hooks Codex hasn't been told to trust.
+  function unseenLines(u) {
+    const n = Math.floor(Number(u && u.agents) || 0);
+    return {
+      agents: n <= 0 ? "" : n === 1 ? "1 agent is running that hasn't checked in yet. It appears the next time you prompt it."
+        : `${n} agents are running that haven't checked in yet. They appear the next time you prompt them.`,
+      codex: u && u.codex === "untrusted" ? "Codex hooks aren't trusted yet: start Codex, run /hooks, trust Airpocket's." : "",
+    };
   }
 
   // Three groups: what needs you, what is running, and a folded "Earlier" for
@@ -393,6 +404,13 @@
     const showEarlier = !!prefs.showEarlier;
     const hdr = (title, n, tone) => h("div", { class: "hdr" + (n && tone ? " " + tone : "") }, h("span", { text: title }), h("span", { text: String(n) }));
     const rows = (list) => list.map((s) => row(s, multi, io));
+    // Plain lines under Open, nothing to tap; with several Macs, each says which.
+    const notes = { agents: [], codex: [] };
+    for (const r of results) {
+      if (r.err) continue;
+      const l = unseenLines(r.unseen);
+      for (const k of ["agents", "codex"]) if (l[k]) notes[k].push(multi ? name(r.host) + ": " + l[k] : l[k]);
+    }
     fill(view, ...[
       errs.map((r) => h("div", { class: "offline" }, h("div", { class: "hz", "aria-hidden": "true" }),
         h("div", { class: "o1" }, light("off", r.err.status === 401 ? "NOT PAIRED" : "OFFLINE"),
@@ -402,7 +420,8 @@
       hdr("Needs you", waiting.length, "need"),
       waiting.length ? rows(waiting) : h("div", { class: "empty", text: "Nothing is waiting on you." }),
       hdr("Open", open.length, "open"),
-      open.length ? rows(open) : h("div", { class: "empty", text: "No sessions are running." }),
+      open.length ? rows(open) : h("div", { class: "empty", text: notes.agents.length ? notes.agents.join(" ") : "No sessions are running." }),
+      [...(open.length ? notes.agents : []), ...notes.codex].map((t) => h("p", { class: "mac-note", text: t })),
       earlier.length ? h("button", { class: "hdr fold", "aria-expanded": String(showEarlier),
           onclick: () => { prefs.showEarlier = !showEarlier; keep(PREFS_KEY, prefs); drawList(results, { io, refresh }); } },
         h("span", {}, icon(showEarlier ? "down" : "next", 12, { sw: 2 }), "Earlier"), h("span", { text: String(earlier.length) })) : null,

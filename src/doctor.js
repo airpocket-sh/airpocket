@@ -11,8 +11,6 @@ const sa = require("./shellalias");
 const own = require("./ownterm");
 const { survey, probe, majorOf, SOCKET_MAX, ownSessions } = require("./setup");
 
-const SNAKE = (event) => event.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
-
 async function checks(ctx) {
   const f = await survey(ctx);
   const t = ctx.t, P = ctx.paths;
@@ -96,7 +94,7 @@ async function checks(ctx) {
     else if (broken.length) add("FAIL", name, `the command for ${broken.join(", ")} runs a node or hook.js that isn't there`, "Run airpocket setup.");
     else add("PASS", name, `${t(file)}: ${cfg.EVENTS[agent].join(", ")}`);
     if (agent === "codex" && !missing.length) {
-      const untrusted = codexUntrusted(ctx, file, state);
+      const untrusted = cfg.codexUntrusted(file, state);
       if (untrusted === null) add("INFO", "Codex hook review", "couldn't read Codex's config.toml to see whether you trusted them");
       else if (untrusted.length) add("WARN", "Codex hook review", `not reviewed yet: ${untrusted.join(", ")}`, "Codex runs new hooks only once you trust them: start Codex, open /hooks, trust Airpocket's.");
       // Codex's hash can't be recomputed here, so a trust entry is all that can be seen.
@@ -178,26 +176,6 @@ function commandWorks(command, expectHook) {
   return !expectHook || fs.realpathSync(hook) === (() => { try { return fs.realpathSync(expectHook); } catch { return expectHook; } })();
 }
 
-/**
- * Codex remembers each hook you trusted in config.toml, under
- * [hooks.state."<hooks.json>:<event>:<group>:<hook>"] with a trusted_hash. This
- * reads only those headers: the events whose entry of ours has none. null when
- * config.toml can't be read. (A trusted hash for a changed command isn't
- * caught: that would need Codex's own hashing.)
- */
-function codexUntrusted(ctx, file, state) {
-  let text;
-  try { text = fs.readFileSync(path.join(path.dirname(file), "config.toml"), "utf8"); } catch (err) { return err.code === "ENOENT" ? cfg.EVENTS.codex.slice() : null; }
-  return cfg.EVENTS.codex.filter((event) => {
-    const at = state[event].at;
-    const key = `${file}:${SNAKE(event)}:${at.group}:${at.index}`;
-    const i = text.indexOf(`[hooks.state.${JSON.stringify(key)}]`);
-    if (i < 0) return true;
-    const body = text.slice(i).split("\n").slice(1).join("\n").split(/\n\[/)[0];
-    return !/^\s*trusted_hash\s*=/m.test(body) || /^\s*enabled\s*=\s*false/m.test(body);
-  });
-}
-
 /** airpocket doctor. Resolves to an exit code. */
 async function runDoctor(ctx) {
   const list = await checks(ctx);
@@ -214,4 +192,4 @@ async function runDoctor(ctx) {
   return failed ? 1 : 0;
 }
 
-module.exports = { checks, runDoctor, codexUntrusted, commandWorks, looseFiles };
+module.exports = { checks, runDoctor, commandWorks, looseFiles };
