@@ -6,9 +6,9 @@
 // over HTTPS and nowhere else. It exposes a short allow-list:
 //
 //   POST /api/pair      six-digit code from `airpocket pair` -> device token
-//   GET  /api/hello     which Mac is this
+//   GET  /api/hello     which Mac is this, and whether it runs an older copy than the one setup copied from
 //   GET  /api/sessions  every session this Mac knows: waiting or not, working or idle, and what each allows;
-//                       and, when there is something to say, why some aren't there yet
+//                       and, when there is something to say, why some aren't there yet and whether the copy is behind
 //   GET  /api/screen    one session: its conversation, live state, or terminal screen
 //   POST /api/send      type text into a session, with or without Enter
 //   POST /api/key       one of a few fixed keys: digits, arrows, Tab, Enter, Esc
@@ -39,6 +39,7 @@ const { createBridges, KEYS, runFile, runSuperset, runTmux, findTmux, supersetIn
 const { createModels } = require("./models");
 const { createUploads } = require("./uploads");
 const { codexTrust } = require("./agentconfig");
+const { createBehindCheck } = require("./behind");
 
 const PUBLIC = path.join(__dirname, "public");
 
@@ -862,6 +863,9 @@ function createServer(opts = {}) {
     claudeProjects: opts.claudeProjects || path.join(os.homedir(), ".claude", "projects"),
     codexHome: opts.codexHome || process.env.CODEX_HOME || path.join(os.homedir(), ".codex"),
     homeDir: opts.homeDir || os.homedir(),
+    // Whether this Mac runs an older copy than the folder setup copied it from (behind.js):
+    // { behind: true, running?, available? } or undefined, asked at most once a minute. Never a path.
+    copy: opts.copyCheck || createBehindCheck({ dataDir: store.dir }),
     ticketMs: opts.ticketMs || 120000,
   };
   // Photos the phone sends, in the data folder beside the paired devices.
@@ -1589,8 +1593,8 @@ function createServer(opts = {}) {
     if (req.method === "GET") {
       // What this Mac can do beyond its sessions: start new ones (through Superset only).
       const can = () => ({ start: !!deps.hasSuperset() });
-      if (p === "/api/hello") return json(res, 200, { host: deps.hostLabel, device: device.name, can: can() }, cors);
-      if (p === "/api/sessions") return json(res, 200, { host: deps.hostLabel, can: can(), sessions: list(), unseen: unseen() }, cors);
+      if (p === "/api/hello") return json(res, 200, { host: deps.hostLabel, device: device.name, can: can(), copy: deps.copy() }, cors);
+      if (p === "/api/sessions") return json(res, 200, { host: deps.hostLabel, can: can(), sessions: list(), unseen: unseen(), copy: deps.copy() }, cors);
       if (p === "/api/screen") return screen(res, url, cors);
       if (p === "/api/new/options") return newOptions(res, cors);
       if (p === "/api/models") { const l = deps.models.lists(); return json(res, 200, { claude: l.claude, codex: l.codex }, cors); }
