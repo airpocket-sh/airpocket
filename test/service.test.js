@@ -511,3 +511,120 @@ test("six services started at the same moment over a stale lock: one runs, five 
   assert.deepEqual(outs.sort(), ["ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ok"]);
   assert.deepEqual(fs.readdirSync(dir).filter((n) => n.startsWith("airpocket.lock")), ["airpocket.lock"], "no lock copies left behind");
 });
+
+test("a newcomer can't slip a lock in while a stale one is moved: the running holder keeps the folder", () => {
+  const dir = tempDir();
+  const file = path.join(dir, "airpocket.lock");
+  fs.writeFileSync(file, "999999 5");                          // a service long gone
+  const running = new Set(["111 1000", "222 2000", "333 3000"]);
+  const alive = (pid, started) => running.has(`${pid} ${started}`);
+  // B finds the stale lock. Just after B judges it, A takes the folder. Whenever B
+  // then checks a lock that isn't the stale one, C starts too, right then (the
+  // moment the old code had moved A's lock aside and left the name free).
+  const tries = { a: null, c: [] };
+  const aliveB = (pid, started) => {
+    if (`${pid} ${started}` !== "999999 5") {
+      try { takeLock(file, "333 3000", { alive }); tries.c.push("ok"); } catch (err) { tries.c.push(err.code); }
+    }
+    return alive(pid, started);
+  };
+  assert.throws(() => takeLock(file, "222 2000", { alive: aliveB, onStale: () => { if (!tries.a) { takeLock(file, "111 1000", { alive }); tries.a = "ok"; } } }),
+    { code: "ELOCKED" }, "B gives way");
+  assert.equal(tries.a, "ok");
+  assert.ok(tries.c.length > 0 && tries.c.every((c) => c === "ELOCKED"), `C is refused: ${tries.c}`);
+  assert.equal(fs.readFileSync(file, "utf8"), "111 1000", "A's lock is still in place");
+  assert.deepEqual(fs.readdirSync(dir), ["airpocket.lock"], "no marker, nothing aside");
+});
+
+test("eight services over a stale lock, twenty times: one holds it each time, and keeps it", async () => {
+  const { spawn } = require("child_process");
+  const dir = tempDir();
+  const file = path.join(dir, "airpocket.lock");
+  const [ROUNDS, GAP, KIDS] = [20, 100, 8];
+  const at = Date.now() + 1000;
+  // Round r starts at at + r*GAP. A lock from an earlier round counts as gone
+  // (its "start time" is its round), so every round starts over a stale lock.
+  // alive() takes a moment, as ps does, which is what widened the old gap.
+  const code = `const fs = require("fs");
+    const { takeLock } = require(${JSON.stringify(path.join(__dirname, "..", "src", "service"))});
+    const sleepUntil = (t) => { const w = t - Date.now() - 2; if (w > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, w); while (Date.now() < t) {} };
+    const [file, at] = [process.argv[1], Number(process.argv[2])];
+    for (let r = 0; r < ${ROUNDS}; r++) {
+      sleepUntil(at + r * ${GAP});
+      const me = process.pid + " " + (r + 1);
+      const alive = (pid, started) => { const until = Date.now() + 1; while (Date.now() < until) {} return started === r + 1; };
+      let got;
+      try { takeLock(file, me, { alive }); got = "ok"; } catch (e) { got = e.code || e.message; }
+      if (got === "ok") { sleepUntil(at + r * ${GAP} + ${GAP * 0.7}); got = fs.readFileSync(file, "utf8") === me ? "held" : "lost"; }
+      process.stdout.write(r + " " + got + "\\n");
+    }`;
+  const outs = await Promise.all(Array.from({ length: KIDS }, () => new Promise((ok) => {
+    const c = spawn(process.execPath, ["-e", code, file, String(at)]);
+    let out = "";
+    c.stdout.on("data", (d) => (out += d));
+    c.stderr.on("data", (d) => (out += d));
+    c.on("close", () => ok(out));
+  })));
+  const rounds = Array.from({ length: ROUNDS }, () => []);
+  for (const line of outs.join("").trim().split("\n")) { const [r, got] = line.split(" "); rounds[Number(r)].push(got); }
+  rounds.forEach((got, r) => assert.deepEqual(got.sort(), ["ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "held"], `round ${r}`));
+  assert.deepEqual(fs.readdirSync(dir), ["airpocket.lock"], "no marker, no lock copies left behind");
+});
+
+test("a takeover marker left by a process that died mid-takeover doesn't block the folder", () => {
+  const { spawnSync } = require("child_process");
+  const gone = spawnSync(process.execPath, ["-e", ""]).pid;
+  const dir = tempDir();
+  fs.writeFileSync(path.join(dir, "airpocket.lock"), `${gone} 5`);
+  fs.writeFileSync(path.join(dir, "airpocket.lock.takeover"), `${gone} 5\n${gone}.abc`);
+  const svc = createService({ dir });
+  try {
+    assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), svc.identity);
+    assert.deepEqual(fs.readdirSync(dir).filter((n) => n.startsWith("airpocket.lock")), ["airpocket.lock"], "the old marker is gone");
+  } finally { svc.release(); }
+  // One whose process still runs is respected: the start gives up rather than move a lock under it.
+  const dir2 = tempDir();
+  fs.writeFileSync(path.join(dir2, "airpocket.lock"), `${gone} 5`);
+  fs.writeFileSync(path.join(dir2, "airpocket.lock.takeover"), `111 1000\nx`);
+  const alive = (pid, started) => pid === 111 && started === 1000;
+  assert.throws(() => takeLock(path.join(dir2, "airpocket.lock"), "222 2000", { alive, patience: 300 }), /Couldn't take/);
+  assert.equal(fs.readFileSync(path.join(dir2, "airpocket.lock"), "utf8"), `${gone} 5`, "the lock wasn't moved");
+});
+
+test("a service whose lock was replaced stops, and never deletes the other one's lock", async () => {
+  const dir = tempDir();
+  const logs = [];
+  let lostCalls = 0;
+  const svc = createService({ dir, log: (...a) => logs.push(a.join(" ")), onLost: () => lostCalls++ });
+  const port = await new Promise((ok) => svc.listen(0, ok));
+  const secret = JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).secret;
+  const hook = (event, body) => call(port, "/hook/" + event, body, { Authorization: "Bearer " + secret });
+  const other = `${process.ppid} ${startTimeOf(process.ppid)}`;
+  try {
+    await hook("session", { session_id: ID, pid: process.pid, started: startTimeOf(process.pid) });
+    assert.deepEqual(svc.knownSessions().map((r) => r.session_id), [ID]);
+    fs.writeFileSync(path.join(dir, "airpocket.lock"), other);   // another service took the folder
+    assert.deepEqual(svc.knownSessions(), [], "the next sweep notices and stops");
+    assert.equal(lostCalls, 1);
+    assert.ok(logs.some((l) => l.includes(`airpocket.lock now names process ${process.ppid}`) && l.includes("stops")), logs.join("\n"));
+    await new Promise((ok) => setImmediate(ok));
+    assert.equal(svc.hookServer.listening, false, "the hook endpoint is closed");
+    assert.deepEqual(svc.getQueue(), []);
+    svc.knownSessions();
+    assert.equal(lostCalls, 1, "onLost runs once");
+    assert.equal(await hook("touch", { session_id: ID }).catch(() => "refused"), "refused", "no hooks");
+  } finally {
+    svc.release();
+    await new Promise((ok) => svc.close(ok));
+  }
+  assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), other, "release left the other one's lock alone");
+});
+
+test("release() on a service whose lock was replaced, before any sweep noticed, leaves the other lock", () => {
+  const dir = tempDir();
+  const svc = createService({ dir, onLost: () => {} });
+  const other = `${process.ppid} ${startTimeOf(process.ppid)}`;
+  fs.writeFileSync(path.join(dir, "airpocket.lock"), other);
+  svc.release();
+  assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), other);
+});
