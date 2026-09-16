@@ -35,6 +35,11 @@ const cfg = require("./agentconfig");
 const ts = require("./tailscale");
 const li = require("./loginitem");
 const { dataDirFor, portsFrom } = require("./ports");
+
+// Both DNS-page settings are tailnet-wide and admin-only, which is where people
+// on a company tailnet get stuck: Tailscale puts you in the tailnet of the email
+// domain you sign in with, and a member can't open the admin console at all.
+const TAILNET_ADMIN = "Both are tailnet-wide settings only an admin of that tailnet can change: signing in to Tailscale with a work address puts you in your company's tailnet, where someone else is the admin. A personal account (or a tailnet of your own) makes you the admin, and it is one switch.";
 const { processAlive, scanProcesses, unrecordedAgents, byAgent } = require("./proc");
 const { writeAtomic } = require("./service");
 const { createStore } = require("./store");
@@ -244,8 +249,8 @@ function planSetup(f, opts = {}) {
   if (!ctx.tailscaleBin) problems.push("Tailscale is not installed. Install it from https://tailscale.com/download/mac, sign in, then run setup again.");
   else if (!f.tailscale) problems.push("Tailscale is installed but didn't answer. Open the Tailscale app, then run setup again.");
   else if (!f.tailscale.running) problems.push(`Tailscale is not signed in (it says ${f.tailscale.state}). Open the Tailscale app and sign in, then run setup again.`);
-  else if (!f.tailscale.dns) problems.push("Tailscale didn't say this Mac's name in your tailnet. Turn on MagicDNS in the Tailscale admin console (DNS page), then run setup again.");
-  else if (!f.tailscale.https) problems.push("Your tailnet has no HTTPS certificates, which Airpocket's addresses need. Turn on HTTPS Certificates in the Tailscale admin console (DNS page), then run setup again.");
+  else if (!f.tailscale.dns) problems.push(`Tailscale didn't say this Mac's name in your tailnet. Turn on MagicDNS in the Tailscale admin console (DNS page), then run setup again. ${TAILNET_ADMIN}`);
+  else if (!f.tailscale.https) problems.push(`Your tailnet has no HTTPS certificates, which Airpocket's addresses need. Turn on HTTPS Certificates in the Tailscale admin console (DNS page), then run setup again. ${TAILNET_ADMIN}`);
   else if (!f.serve) problems.push("Couldn't read what Tailscale already publishes on this Mac. Nothing was changed.");
   else checks.push(`Tailscale ${f.tailscale.version}, this Mac is ${f.tailscale.dns}`);
   if (!f.tmux) checks.push(`tmux not found: airpocket run and sessions in tmux need it (${own.INSTALL_TMUX}); Superset works without`);

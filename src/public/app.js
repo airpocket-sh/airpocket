@@ -153,6 +153,18 @@
   }
   // "3m 12s" on a row reads "3m": the largest unit the Mac sent.
   const shortElapsed = (t) => String(t || "").split(" ")[0];
+  // ---- the working readout ---------------------------------------------------
+  // An agent's own spinner word is whimsy — Claude cycles "Dilly-dallying…",
+  // "Fermenting…" — and on a phone, a word that never changes reads as a stuck
+  // session. The readout says it in the app's own language instead, on a clock
+  // that ticks between polls and beside a hard annunciator blink, so a long step
+  // always looks alive. Codex names what it is really doing, and that is kept.
+  const HUD = ["TRACKING", "VECTORING", "THROTTLE UP", "BURNER LIT", "CLIMBING", "WINGS LEVEL", "SWEEPING", "PAINTING",
+               "INBOUND", "MIL POWER", "FEET WET", "ANGELS UP", "IN THE GROOVE", "RUNNING HOT", "TRIMMING", "SPOOLING UP"];
+  const hudWord = (at = Date.now()) => HUD[Math.floor(at / 3000) % HUD.length];
+  const secsOf = (t) => { let n = 0; for (const m of String(t || "").matchAll(/(\d+)\s*([hms])/g)) n += Number(m[1]) * (m[2] === "h" ? 3600 : m[2] === "m" ? 60 : 1); return n; };
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const clockOf = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${pad2(Math.floor(s / 60) % 60)}m` : s >= 60 ? `${Math.floor(s / 60)}m ${pad2(s % 60)}s` : `${s}s`);
   const fmtSize = (n) => (n < 1024 ? n + " B" : n < 1048576 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(1) + " MB");
   const shortModel = (m) => (m ? String(m).replace(/\s*\(1M context\)/i, " 1M") : "");
   const infoLine = (i) => (i ? [i.name || shortModel(i.model), i.effort, i.fast ? "fast" : ""].filter(Boolean).join(" · ") : "");
@@ -553,7 +565,7 @@
           redraw();
         }
         if (st.trouble) { st.trouble = false; ttyText.textContent = "TERMINAL · LIVE"; }
-        ui.setLive(d.live);
+        ui.setLive(d.live, d.agent);
         ui.setInfo(d.info, d.agent, d.efforts);
         if (d.can) ui.setCan(d.can);
         if (stick) toBottom(false);
@@ -982,6 +994,29 @@
     paintKeys();
     setDeck(statusEl, menuEl, cmEl, roEl, keysEl);
 
+    // The working readout keeps its own clock: the Mac is asked every 2.5s, but
+    // the seconds tick every second, and the word turns over every three, so a
+    // step that takes a minute never looks like a session that has died.
+    let work = null, workTimer = 0;
+    const paintWork = () => {
+      if (!work) return;
+      const secs = work.secs + Math.max(0, Math.round((Date.now() - work.at) / 1000));
+      fill(liveText, h("span", { class: "hud", text: work.said || hudWord() }), h("i", { class: "blip", "aria-hidden": "true" }),
+        h("span", { class: "clk", text: clockOf(secs) }));
+    };
+    const startWork = (elapsed, said) => {
+      const known = /\d/.test(String(elapsed || ""));
+      const mine = work ? work.secs + Math.round((Date.now() - work.at) / 1000) : -1;
+      // Follow the Mac's count whenever it disagrees with ours: a new turn resets it.
+      if (!work || work.said !== said || (known && Math.abs(mine - secsOf(elapsed)) > 1)) {
+        work = { secs: known ? secsOf(elapsed) : Math.max(0, mine), at: Date.now(), said: said || "" };
+      }
+      if (!workTimer) workTimer = setInterval(paintWork, 1000);
+      paintWork();
+    };
+    const stopWork = () => { work = null; if (workTimer) { clearInterval(workTimer); workTimer = 0; } };
+    leave.push(stopWork);
+
     // The status line shows whenever there is something to say: a read-only session
     // still has what it runs with and whether it is working, from its files and the hooks.
     let said = false;
@@ -1017,11 +1052,13 @@
       trouble(msg) {
         setInd(sweep("s16", "amber"));
         liveText.className = "lt trouble";
+        stopWork();
         liveText.textContent = "Retrying · " + msg;
       },
-      setLive(live) {
+      setLive(live, agent) {
         // No state at all: its agent has exited (a running one is always working or idle).
         if (!live) {
+          stopWork();
           setInd(can.send ? h("span", { class: "ring" }) : light("ended", "ENDED"));
           liveText.className = "lt";
           liveText.textContent = can.send ? "Ready" : "Not running";
@@ -1033,10 +1070,18 @@
         setInd(working ? sweep("s16") : live.menu ? h("span", { class: "caution" }, icon("caution", 16))
           : live.staged ? h("span", { class: "box" }, h("i")) : h("span", { class: "ring" }));
         liveText.className = "lt" + (working ? " working" : live.menu ? " ask" : live.staged ? " staged" : " wait");
-        liveText.textContent = working ? `${live.verb || "Working…"} ${live.elapsed || ""}`.trim()
-          : live.menu ? "Asking you to choose"
-          : live.staged ? "Typed, not sent: " + live.staged
-          : "Waiting for you";
+        if (working) {
+          // Codex names what it is really doing ("Reviewing files…"), so that is
+          // the callsign; Claude's word is whimsy from a list, so the app says it
+          // in its own language instead.
+          const own = agent === "codex" ? String(live.verb || "").replace(/…$/, "").trim() : "";
+          startWork(live.elapsed, own && own.toLowerCase() !== "working" ? own.toUpperCase() : "");
+        } else {
+          stopWork();
+          liveText.textContent = live.menu ? "Asking you to choose"
+            : live.staged ? "Typed, not sent: " + live.staged
+            : "Waiting for you";
+        }
         stopBtn.hidden = !working || !can.keys;
         box.placeholder = live.menu ? "Or type a reply" : "Message the agent";
         const sig = live.menu ? JSON.stringify([live.menu, can.keys]) : "";
