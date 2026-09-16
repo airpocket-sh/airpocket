@@ -1,0 +1,62 @@
+# Tests for every change: a syntax gate, the node:test suite (with a real tmux,
+# so the bridge tests run instead of skipping) and a smoke test of the real app
+# on loopback. No secrets, no dependencies to install, nothing cached. The only
+# network use beyond checkout is setting up Node and installing tmux.
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# One run per branch and event: a new push cancels the run it replaces.
+concurrency:
+  group: test-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: node ${{ matrix.node }}
+    runs-on: macos-15
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_ANALYTICS: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+      HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install tmux
+        run: |
+          brew install tmux
+          tmux -V
+          # The bridge tests skip themselves unless tmux is where the bridge looks for it.
+          node -e '
+            const fs = require("fs");
+            const { TMUX_BINS } = require("./src/bridges");
+            const hit = TMUX_BINS.find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return true; } catch { return false; } });
+            if (!hit) { console.error("tmux is not in any of " + TMUX_BINS.join(", ")); process.exit(1); }
+            console.log("bridge tests will use " + hit);
+          '
+
+      - name: Syntax check
+        run: find src test docs/reference .github -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: node --test
+        run: node --test
+
+      - name: Smoke test
+        run: node .github/smoke.js
