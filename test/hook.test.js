@@ -56,13 +56,22 @@ function fire(agent, input, env, { shell = false, keepOpen = false } = {}) {
     const t0 = Date.now();
     const cmd = shell ? ["/bin/sh", ["-c", `"${process.execPath}" "${HOOK}" ${agent}; exit 0`]] : [process.execPath, [HOOK, agent]];
     const child = spawn(cmd[0], cmd[1], { env: { PATH: "/usr/bin:/bin", ...env }, stdio: ["pipe", "pipe", "pipe"] });
+    const boot = nodeBoot();                                 // measured alongside, under the same load
     let out = "", err = "";
     child.stdout.on("data", (c) => (out += c));
     child.stderr.on("data", (c) => (err += c));
-    child.on("close", (code) => resolve({ code, out, err, ms: Date.now() - t0 }));
+    child.on("close", async (code) => resolve({ code, out, err, ms: Date.now() - t0, boot: await boot }));
     child.stdin.on("error", () => {});
     child.stdin.write(typeof input === "string" ? input : JSON.stringify(input));
     if (!keepOpen) child.stdin.end();
+  });
+}
+
+/** How long a bare Node takes to start and exit right now: a busy machine slows the hook's start the same way. */
+function nodeBoot() {
+  return new Promise((resolve) => {
+    const t0 = Date.now();
+    spawn(process.execPath, ["-e", ""], { stdio: "ignore" }).on("close", () => resolve(Date.now() - t0));
   });
 }
 
@@ -235,9 +244,11 @@ test("it never gets in the way: no service, a dead port, a hung service, a wrong
     cases.push(["a bad session id", await fire("claude", { ...ev, session_id: "../../x" }, { HOME: w.home, AIRPOCKET_DIR: s.dir })]);
     assert.deepEqual(s.svc.knownSessions(), []);
   } finally { await s.close(); }
+  // The hook gives up 1.7 s after it starts (its own timer). What it can't control is how
+  // long Node takes to start it, so each case is allowed that, as a bare Node took beside it.
   for (const [what, r] of cases) {
     quiet(r, what);
-    assert.ok(r.ms < 2500, `${what}: gave up in time (${r.ms} ms)`);
+    assert.ok(r.ms < 1700 + r.boot + 800, `${what}: gave up in time (${r.ms} ms, a bare Node took ${r.boot} ms)`);
   }
   assert.ok(slow.ms >= 1400, "the hung service was waited on only up to the limit");
 });

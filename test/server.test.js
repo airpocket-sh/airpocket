@@ -26,7 +26,7 @@ const logged = [], codes = [], tokens = [];
 const newCode = store.newCode;
 store.newCode = (...a) => { const r = newCode(...a); codes.push(r.code); return r; };
 const now = Math.floor(Date.now() / 1000);
-const CLAUDE = "cb2d94c7-3e54-464a-8086-79db7d007c02";
+const CLAUDE = "7c1e2d3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f";
 const CODEX = "0199bbbb-cccc-7ddd-8eee-ffffffffffff";
 const PLAIN = "aaaaaaaa-0000-0000-0000-000000000000";
 const SESS = [
@@ -901,7 +901,7 @@ test("nothing in the app points at the private tool it came from", () => {
   const walk = (d, files = []) => { for (const n of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, n.name); if (n.isDirectory()) walk(p, files); else if (!n.name.endsWith(".png")) files.push(p); } return files; };
   // Real session ids from the Mac this was built on; tests use invented ones. Joined
   // here, so this file doesn't hold the ids it looks for.
-  const realIds = [["01a09c74", "c19c-79d0-926f-81a420e20565"], ["01a0a069", "1fef-7a71-b5f1-1db10d06b25c"]].map((p) => new RegExp(p.join("-"), "i"));
+  const realIds = [["01a09c74", "c19c-79d0-926f-81a420e20565"], ["01a0a069", "1fef-7a71-b5f1-1db10d06b25c"], ["cb2d94c7", "3e54-464a-8086-79db7d007c02"]].map((p) => new RegExp(p.join("-"), "i"));
   for (const f of walk(src)) {
     const t = fs.readFileSync(f, "utf8");
     for (const bad of [/4782[012]\b/, /claude-overlay/i, /claude-accounts/i, /accounts\.json/, /\/api\/accounts/, /joinvoicedata/i, /[OÖ]ncel/, /mobile:[a-z]/, /\bpanel\b/i, ...realIds]) {
