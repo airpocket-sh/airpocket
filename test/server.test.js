@@ -857,6 +857,55 @@ test("files: a session's folder must be a real folder inside home, not home itse
   assert.equal(sessionRoot(path.join(HOME, ".superset/worktrees/p"), HOME), fs.realpathSync(path.join(HOME, ".superset/worktrees/p")), "Superset workspaces are fine");
 });
 
+test("the list and hello say the Mac runs an older copy than its source, only while it does, and never where either is", async () => {
+  const data = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-data-")));
+  const clone = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-clone-")));
+  fs.mkdirSync(path.join(clone, "src"));
+  fs.writeFileSync(path.join(clone, "src", "server.js"), "");
+  fs.writeFileSync(path.join(clone, "package.json"), JSON.stringify({ version: require("../package.json").version }));
+  const installedAt = Date.now() - 3600 * 1000;
+  const old = new Date(installedAt - 3600 * 1000);
+  fs.utimesSync(path.join(clone, "src", "server.js"), old, old);
+  fs.writeFileSync(path.join(data, "install.json"), JSON.stringify({ version: 1, installedAt: new Date(installedAt).toISOString(), app: path.join(data, "app"), source: clone }));
+  const own = createStore(data);
+  const start = () => createServer({ store: own, log: () => {}, knownSessions: () => [], getQueue: () => [], dequeue: () => 0, unseenAgents: () => ({}),
+    claudeProjects: path.join(data, "none"), codexHome: path.join(data, "codex"), hasSuperset: () => false });
+  let mac = start();
+  await new Promise((ok) => mac.server.listen(0, "127.0.0.1", ok));
+  let at = `http://127.0.0.1:${mac.server.address().port}`;
+  try {
+    const t = (await req("POST", "/api/pair", { at, body: { code: own.newCode().code } })).json.token;
+    const both = async () => Promise.all(["/api/sessions", "/api/hello"].map(async (p) => {
+      const r = await req("GET", p, { at, headers: auth(t) });
+      assert.equal(r.status, 200);
+      for (const leak of [clone, data, path.basename(clone), "install.json"]) assert.ok(!r.body.includes(leak), `${p} never names ${leak}`);
+      return r.json.copy;
+    }));
+    assert.deepEqual(await both(), [undefined, undefined], "up to date: no field");
+
+    // A pull. The answer is kept for a minute, so a new server asks again.
+    fs.utimesSync(path.join(clone, "src", "server.js"), new Date(), new Date());
+    assert.deepEqual(await both(), [undefined, undefined], "cached");
+    mac.server.close();
+    mac = start();
+    await new Promise((ok) => mac.server.listen(0, "127.0.0.1", ok));
+    at = `http://127.0.0.1:${mac.server.address().port}`;
+    assert.deepEqual(await both(), [{ behind: true }, { behind: true }], "the same version: only the flag");
+
+    fs.writeFileSync(path.join(clone, "package.json"), JSON.stringify({ version: "99.0.0" }));
+    mac.server.close();
+    mac = start();
+    await new Promise((ok) => mac.server.listen(0, "127.0.0.1", ok));
+    at = `http://127.0.0.1:${mac.server.address().port}`;
+    const running = require("../package.json").version;
+    assert.deepEqual(await both(), [{ behind: true, running, available: "99.0.0" }, { behind: true, running, available: "99.0.0" }]);
+  } finally {
+    mac.server.close();
+    fs.rmSync(data, { recursive: true, force: true });
+    fs.rmSync(clone, { recursive: true, force: true });
+  }
+});
+
 test("the list says why it may be short: agents that haven't checked in, and Codex hooks not trusted, only while true", async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-data-"));
   const codexHome = path.join(data, "codex");

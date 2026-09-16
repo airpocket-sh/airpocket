@@ -548,6 +548,7 @@ body.sheet-open #toast{top:calc(var(--top) + 4px)}          /* over the dimmed s
 .mac .m1{display:flex;align-items:center;gap:10px;color:var(--fg-2)}
 .mac .m1 b{flex:1;min-width:0;font-weight:400;font-size:17px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mac .m2{display:flex;flex-wrap:wrap;gap:var(--s-1) var(--s-4);padding-left:34px;font-family:var(--font-mono);font-size:12px;color:var(--fg-3);overflow-wrap:anywhere}
+.mac .m4{margin:0;padding-left:34px;font-family:var(--font-read);font-size:13px;line-height:1.45;color:var(--fg-3)}
 .mac .m3{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-2);padding-left:34px;margin-top:var(--s-1)}
 .mac .m3 .btn{height:44px;font-size:14px}
 .mac-note{padding:var(--s-4) 20px;font-family:var(--font-read);font-size:13px;line-height:1.45;color:var(--fg-3);margin:0}
