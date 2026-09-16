@@ -65,3 +65,22 @@ jobs:
 
       - name: Smoke test
         run: node .github/smoke.js
+
+      # What npm would publish: every file under src/ that git tracks (the app,
+      # its fonts and their licences), the top-level documents, and nothing else.
+      - name: Package contents
+        run: |
+          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          node -e '
+            const { execFileSync } = require("child_process");
+            const [pack] = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const packed = new Set(pack.files.map((f) => f.path));
+            const top = ["package.json", "README.md", "LICENSE", "SECURITY.md", "CHANGELOG.md"];
+            const want = [...top, ...execFileSync("git", ["ls-files", "src"], { encoding: "utf8" }).split("\n").filter(Boolean)];
+            const missing = want.filter((p) => !packed.has(p));
+            const extra = [...packed].filter((p) => !want.includes(p));
+            for (const p of missing) console.error("missing from the package: " + p);
+            for (const p of extra) console.error("not expected in the package: " + p);
+            console.log(`${packed.size} files, ${(pack.size / 1e6).toFixed(1)} MB packed, ${(pack.unpackedSize / 1e6).toFixed(1)} MB unpacked`);
+            if (missing.length || extra.length) process.exit(1);
+          ' "$RUNNER_TEMP/pack.json"

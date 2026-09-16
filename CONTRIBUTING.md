@@ -24,8 +24,8 @@ tmux bridge tests skip themselves when tmux isn't installed
 (`brew install tmux` to run them).
 
 CI runs on macOS for Node 20 and 22: a syntax check, `node --test` with a real
-tmux, and `.github/smoke.js`. A push doesn't always start a run. If a pull
-request shows no checks, start one:
+tmux, `.github/smoke.js`, and a check of what `npm pack` would ship. A push
+doesn't always start a run. If a pull request shows no checks, start one:
 
 ```sh
 gh workflow run test.yml --ref <branch>
@@ -57,6 +57,47 @@ gh workflow run test.yml --ref <branch>
 - **The security rules in AGENTS.md hold for every change**: loopback only,
   `tailscale serve` and never `funnel`, the phone names a session and an
   action and never sends a path or command text.
+
+## Cutting a release
+
+For maintainers. A release is a version number, a changelog entry and a tag,
+all on one commit on `main`. The steps, in order:
+
+1. **Changelog.** In [CHANGELOG.md](CHANGELOG.md), write the new version's
+   section at the top: what someone using Airpocket would notice, under
+   Added, Changed, Fixed or Removed. Say plainly when setup has to be run
+   again, or when pairing, the hooks or the data folder changed. Replace
+   "Unreleased" with today's date (`YYYY-MM-DD`).
+2. **Version.** Set `version` in `package.json` by hand to the same number.
+   Doctor compares this number between the command and the copy the service
+   runs, so every release that changes `src/` needs a new one.
+3. **Check the package.** Run `npm test`, `npm run smoke` and
+   `npm pack --dry-run`. The list should hold `src/` (the app in
+   `src/public`, its fonts and their OFL licences), `package.json`,
+   `README.md`, `LICENSE`, `SECURITY.md` and `CHANGELOG.md`, and nothing
+   else: no `test/`, `docs/`, `site/` or files that git doesn't track. CI's
+   "Package contents" step checks the same list.
+4. **Merge.** Put steps 1 and 2 in one pull request, and let someone else
+   review and merge it like any other change.
+5. **Tag.** On the merged commit on `main`, create an annotated tag and push
+   it:
+
+   ```sh
+   git switch main && git pull
+   git tag -a v0.1.0 -m "Airpocket 0.1.0"
+   git push origin v0.1.0
+   ```
+
+6. **GitHub release.** Create a release from the tag, titled with the
+   version, and paste that version's changelog section as its notes:
+
+   ```sh
+   gh release create v0.1.0 --title "Airpocket 0.1.0" --notes-file <notes.md>
+   ```
+
+While `package.json` says `"private": true`, npm refuses to publish, and a
+release lives only on GitHub. Taking that line out, and publishing, is a
+separate decision made once for the launch.
 
 ## Reporting a security problem
 
