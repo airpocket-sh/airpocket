@@ -103,6 +103,11 @@ async function main() {
     const out = flush();
     console.log("\n  --- airpocket setup (temp HOME) ---\n" + out.replace(/(Pairing code {3})\d{3} \d{3}/, "$1### ###") + "\n");
     check(code === 0, "setup finished");
+    const redact = (t) => t.split(tmp).join("<tmp>");
+    console.log("  --- what setup wrote: ~/.codex/hooks.json ---\n" + redact(fs.readFileSync(P.codex, "utf8")).replace(/^/gm, "    "));
+    console.log("  --- ~/Library/LaunchAgents/" + LABEL + ".plist ---\n" + redact(fs.readFileSync(P.plist, "utf8")).replace(/^/gm, "    "));
+    console.log("  --- install.json ---\n" + redact(fs.readFileSync(P.install, "utf8")).replace(/^/gm, "    "));
+    console.log("  --- the data folder ---\n" + redact(spawnSync("/bin/ls", ["-la", P.dataDir], { encoding: "utf8" }).stdout).replace(/^/gm, "    "));
     const claude = JSON.parse(fs.readFileSync(P.claude, "utf8"));
     check(claude.model === "sonnet" && claude.hooks.Stop[0].hooks[0].command.startsWith("afplay") && claude.hooks.PreToolUse[0].hooks[0].command === "rtk hook claude"
       && claude.hooks.Stop.length === 2 && /# airpocket-hook$/.test(claude.hooks.Stop[1].hooks[0].command), "Claude's other hooks kept in place, ours appended");

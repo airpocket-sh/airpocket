@@ -37,8 +37,11 @@ async function main([cmd, ...rest]) {
       const ports = currentPorts();
       const up = (await setup.probe(ports.app, "/manifest.webmanifest")) === 200;
       const { code, expiresAt } = createStore().newCode();
-      const st = ts.tailscaleStatus(ts.tailscaleBin());
-      const url = st && st.running ? ts.addressOf(st.dns, ports.publicApp) : "";
+      // The address only when Tailscale really publishes Airpocket there: a QR must never point at another program.
+      const bin = ts.tailscaleBin();
+      const st = ts.tailscaleStatus(bin);
+      const serve = st && st.running ? ts.serveStatus(bin) : null;
+      const url = serve && ts.oursOn(serve, ports.publicApp, `http://127.0.0.1:${ports.app}`) ? ts.addressOf(st.dns, ports.publicApp) : "";
       for (const line of setup.pairingLines({ code, expiresAt, url, color: !!process.stdout.isTTY })) console.log(line);
       if (!up) console.log(`  Airpocket is not answering on 127.0.0.1:${ports.app}. Check it with: airpocket doctor\n`);
       return 0;

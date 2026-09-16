@@ -443,7 +443,7 @@ function pairingLines({ code, expiresAt, url, color }) {
     lines.push("", "  In the Airpocket app: Scan the code on your Mac, or enter the six digits.");
   }
   lines.push(`  Good until ${new Date(expiresAt).toLocaleTimeString()}, five tries, one phone.`);
-  lines.push(url ? `  On the phone, with Tailscale on, open ${url} and enter it.` : "  Tailscale isn't set up here yet: run airpocket setup.");
+  lines.push(url ? `  On the phone, with Tailscale on, open ${url} and enter it.` : "  Airpocket isn't published in your tailnet yet: run airpocket setup.");
   lines.push("");
   return lines;
 }
