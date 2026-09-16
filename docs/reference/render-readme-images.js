@@ -1,7 +1,8 @@
 "use strict";
 // Renders the README's pictures from their committed sources in docs/images, with the launch
-// page's fonts, map and screenshots: banner.png (1280x360, from banner.html) and phones.png
-// (1600x1150, from phones.html). The banner is drawn at twice its size, 2560x720, so its type stays
+// page's fonts, map and screenshots: banner.png (1280x360, from banner.html), phones.png
+// (1600x1150, from phones.html) and social-preview.png (1280x640, from social.html, uploaded
+// by hand in the repository's settings). The banner is drawn at twice its size, 2560x720, so its type stays
 // sharp on a high-density screen; the phones picture is wide enough as it is.
 // A build step, run by hand when a source, the shots or the look change; the PNGs are committed.
 // Same approach as site/render-card.js.
@@ -20,6 +21,9 @@ const LIMIT = 400 * 1024;
 const PICTURES = [
   { source: "banner.html", out: "banner.png", width: 1280, height: 360, scale: 2 },
   { source: "phones.html", out: "phones.png", width: 1600, height: 1150, scale: 1 },
+  // GitHub's own size for the picture a shared repository link shows. Uploaded by hand in
+  // Settings, under Social preview: GitHub has no API for it.
+  { source: "social.html", out: "social-preview.png", width: 1280, height: 640, scale: 1 },
 ];
 
 (async () => {
