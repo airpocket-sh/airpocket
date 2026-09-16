@@ -74,8 +74,8 @@ airpocket setup
 ```
 
 `npm install -g .` links the command to your clone. Setup copies Airpocket
-into its data folder and runs that copy, so after a `git pull`, run
-`airpocket setup` again to move the service and the hooks onto the new code.
+into its data folder and runs that copy (see
+[Keeping it up to date](#keeping-it-up-to-date)).
 
 Setup checks first and stops with a plain explanation if something is
 missing. Then it:
@@ -86,9 +86,9 @@ missing. Then it:
   file first, and a file that isn't valid JSON is left alone. Running it again
   adds nothing twice.
 - adds a login item (`~/Library/LaunchAgents/sh.airpocket.service.plist`) that
-  starts Airpocket at login and brings it back after a crash. It runs a copy of
-  Airpocket kept in its data folder, so it works the same after `npx airpocket
-  setup`.
+  starts Airpocket at login and brings it back after a crash. It runs the copy
+  of Airpocket kept in its data folder, not your clone, so moving or deleting
+  the clone doesn't stop it.
 - publishes the app and its file-only origin inside your tailnet with
   `tailscale serve` (never `funnel`), on ports nothing else uses: 443 and
   8443 when they are free.
@@ -125,6 +125,24 @@ sessions, and Codex against recorded session files and a real Codex's hooks
 (installed, trusted, firing). Codex with real model replies driven from the
 phone has not been run end to end yet. `airpocket run` with a real Claude in a
 hidden terminal window (keys, paste, resize, scrollback, detach and attach).
+
+### Keeping it up to date
+
+```sh
+cd airpocket
+git pull
+airpocket setup
+```
+
+The `airpocket` command runs from your clone, but the service, the hooks and
+the login item run the copy setup made in the data folder. A `git pull` alone
+changes the command and nothing else; running setup again replaces the copy
+and restarts the service on it. Paired phones stay paired; the pairing code
+setup prints at the end can be ignored.
+
+`airpocket doctor` warns when the version the service runs differs from the
+command's. It compares the version numbers in `package.json`, so a pull that
+doesn't change the version passes unnoticed: run setup after every pull.
 
 ## Photos
 
