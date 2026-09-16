@@ -1,0 +1,28 @@
+name: An idea or a missing feature
+description: Something Airpocket doesn't do and you think it should.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you were trying to do
+      description: >-
+        The situation, and where Airpocket got in the way or stopped short.
+        This matters more than the fix you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: >-
+        How you picture it working. Keep in mind that the phone names a
+        session and an action and never sends a file path or command text,
+        and that nothing leaves your own tailnet.
+
+  - type: textarea
+    id: meanwhile
+    attributes:
+      label: What you do today instead
+      description: A workaround, another tool, or nothing.
