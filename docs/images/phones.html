@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="robots" content="noindex">
+<meta charset="utf-8">
+<title>Airpocket README phones</title>
+<!-- The source of phones.png, the picture under the README's opening paragraphs: three of the
+     launch page's screenshots of the real app (site/shots, rendered by docs/reference/shoot-app.js)
+     side by side on the dark ground, each with a one-line caption. When the app's look changes,
+     make the shots again and then this. Rendered by docs/reference/render-readme-images.js. -->
+<style>
+@font-face{font-family:'B612 Mono';font-weight:400;src:url("../../site/fonts/b612-mono-400.woff2") format("woff2")}
+html,body{margin:0;background:#0A0D08}
+#card{position:relative;width:1600px;height:1150px;overflow:hidden;background:#0A0D08;-webkit-font-smoothing:antialiased}
+#map{position:absolute;inset:0;background:url("../../site/map.svg") 50% 50%/1900px auto no-repeat;opacity:.55}
+#grid{position:absolute;inset:0;opacity:.6;background-image:linear-gradient(rgba(231,233,222,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(231,233,222,.035) 1px,transparent 1px);background-size:60px 60px;background-position:20px 25px}
+#row{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:72px}
+figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:30px}
+.phone{width:410px;height:887px;padding:12px;border:1px solid #2B3327;border-radius:52px;background:#11150F;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.phone img{display:block;width:410px;height:887px;border-radius:40px}
+figcaption{font-family:'B612 Mono',ui-monospace,monospace;font-size:19px;letter-spacing:.16em;color:#D7C49E;white-space:nowrap}
+figcaption b{font-weight:400;color:#929A83;margin-right:14px}
+</style>
+</head>
+<body>
+<div id="card">
+  <div id="map"></div>
+  <div id="grid"></div>
+  <div id="row">
+    <figure><div class="phone"><img src="../../site/shots/hero-sessions-list.png" alt=""></div><figcaption><b>01</b>WHO NEEDS YOU</figcaption></figure>
+    <figure><div class="phone"><img src="../../site/shots/mfd2-question-answered.png" alt=""></div><figcaption><b>02</b>ANSWER FROM ANYWHERE</figcaption></figure>
+    <figure><div class="phone"><img src="../../site/shots/mfd4-file-the-agent-made.png" alt=""></div><figcaption><b>03</b>OPEN WHAT IT MADE</figcaption></figure>
+  </div>
+</div>
+</body>
+</html>
