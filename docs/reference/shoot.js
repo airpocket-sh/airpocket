@@ -1,12 +1,13 @@
 // Reference harness from the private tool: phone-size screenshots over the Chrome DevTools
 // protocol. Adapt the paths and steps; it expects the ws package and Google Chrome.
-// Phone-size screenshots of file viewing. usage: node shoot4.js <base> <token> <outDir> <sessionId>
-const WebSocket = require(process.env.HOME + "/Developer/claude-overlay/overlay/node_modules/ws");
+// shoot-app.js and cdp.js replace it and need neither.
+// Phone-size screenshots of file viewing. usage: node shoot.js <base> <token> <outDir> <sessionId>
+const WebSocket = require("ws");
 const { spawn } = require("child_process");
 const fs = require("fs"), http = require("http");
 const [base, token, out, sid] = process.argv.slice(2);
 const PORT = 9349;
-const prof = fs.mkdtempSync("/tmp/panel-shoot4-");
+const prof = fs.mkdtempSync("/tmp/airpocket-shoot-");
 const chrome = spawn("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   ["--headless=new", "--disable-gpu", `--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`, "--window-size=390,844", "about:blank"], { stdio: "ignore" });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -25,7 +26,7 @@ async function done(code) { chrome.kill(); await sleep(800); try { fs.rmSync(pro
   await cmd("Page.enable"); await cmd("Runtime.enable");
   await cmd("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await cmd("Page.navigate", { url: base + "/" }); await sleep(1500);
-  await js(`localStorage.setItem("panel.hosts.v1", JSON.stringify([{id:"h1",name:"Studio",base:"",token:${JSON.stringify(token)},deviceId:"x"}]))`);
+  await js(`localStorage.setItem("airpocket.hosts.v1", JSON.stringify([{id:"h1",name:"Studio",base:"",token:${JSON.stringify(token)},deviceId:"x"}]))`);
   await cmd("Page.reload", { ignoreCache: true }); await sleep(2500);
   await js(`location.hash = ${JSON.stringify("#/s/h1/" + encodeURIComponent(sid))}`); await sleep(6000);
   await shot("1-chat-with-files");
