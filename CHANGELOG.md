@@ -4,7 +4,7 @@ Every change people using Airpocket would notice, newest first. The form is
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - Unreleased
+## 0.1.0 - Unreleased
 
 The first version. Airpocket runs on each Mac where you use Claude Code or
 Codex and makes those sessions reachable from a web app on your phone, over
