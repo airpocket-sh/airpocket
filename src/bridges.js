@@ -28,11 +28,20 @@
 // recorded (pid plus start time, read fresh at that moment). When the agent
 // exits, its terminal falls back to a shell, and nothing typed on the phone
 // may land there.
+//
+// The terminal on record comes from environment variables that every program
+// started in that terminal inherits, so it says where the agent was started
+// from, not where it runs. From the same ps call, the agent must be in a
+// terminal and hold its foreground (its process group is the terminal's), not
+// be stopped, in the background, or behind another program. A tmux pane also
+// proves the agent is in it: the agent's terminal must be the pane's
+// (#{pane_tty}). A Superset terminal id can't be matched to a terminal device,
+// so for Superset only the foreground is proved, not that it is that terminal.
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { execFile } = require("child_process");
-const { stillRunning, pidOf } = require("./proc");
+const { processInfo, pidOf } = require("./proc");
 
 const ESC = String.fromCharCode(27);
 const SUPERSET = path.join(os.homedir(), ".superset", "bin", "superset");
@@ -45,6 +54,13 @@ const TERMINAL_ID = /^[A-Za-z0-9_-]{1,100}$/;
 // tmux gets no environment of ours: no $TMUX to confuse it, and a UTF-8 locale
 // (with -u) so capture-pane doesn't turn ❯ and friends into underscores.
 const TMUX_ENV = Object.freeze({ PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8" });
+// Why typing is refused although the agent runs.
+const NOT_IN_PANE = Object.freeze({ error: "not_in_pane",
+  message: "Its agent isn't running in that tmux pane (it was only started from there), so Airpocket won't type into the pane." });
+const NOT_IN_TERMINAL = Object.freeze({ error: "not_in_terminal",
+  message: "Its agent isn't running in a terminal (it was only started from one), so Airpocket won't type into it." });
+const NOT_FOREGROUND = Object.freeze({ error: "not_foreground",
+  message: "Something else holds its terminal right now (the agent is stopped, in the background, or behind another program), so Airpocket won't type into it." });
 
 // The only keys the phone can press. Digits pick an option in a prompt without
 // pressing Enter; Enter submits whatever is typed; Esc interrupts a turn.
@@ -114,15 +130,16 @@ function tmuxPieces(text, max = TMUX_PIECE) {
 /**
  * The bridges, over their programs. The seams are for the tests: superset and
  * tmux run the program with an argument list; hasTmux says whether tmux is
- * installed; uid owns the sockets; alive(pid, started) is the fresh liveness
- * check; gap(text) is how long tmux waits between text and its Enter.
+ * installed; uid owns the sockets; inspect(pid) reads the agent's process
+ * fresh ({ started, tty, pgid, tpgid }, or null: processInfo); gap(text) is how
+ * long tmux waits between text and its Enter.
  */
 function createBridges(o = {}) {
   const superset = o.superset || runSuperset;
   const tmux = o.tmux || runTmux;
   const hasTmux = o.hasTmux || (() => !!findTmux());
   const uid = o.uid ?? process.getuid();
-  const alive = o.alive || stillRunning;
+  const inspect = o.inspect || processInfo;
   // A burst of text and an Enter right behind it reads as a paste with a line
   // break in it. Let the text land first (the agents need longer for more).
   const gap = o.gap || ((text) => Math.min(1000, 150 + text.length));
@@ -137,7 +154,8 @@ function createBridges(o = {}) {
       read: async () => String(JSON.parse(await superset(["terminals", "read", "--workspace", ws, "--terminal", term, "--json"])).text || ""),
       type: send,
       press: (k) => send(k.text, k.submit),
-      ready: async () => "",
+      // Which terminal the agent is in can't be told from a Superset terminal id: only that it holds one.
+      ready: async (agent) => (agent.tty ? foreground(agent, null) : NOT_IN_TERMINAL),
     };
   }
 
@@ -164,14 +182,19 @@ function createBridges(o = {}) {
         await t("send-keys", "-t", pane, "Enter");
       },
       press: (k) => (k.tmux ? t("send-keys", "-t", pane, k.tmux) : literal(k.text)),
-      // The same server, and not scrolled back in copy mode, where keys are copy-mode commands, not input for the agent.
-      async ready() {
-        const [pid, mode] = String(await t("display-message", "-p", "-t", pane, "#{pid} #{pane_in_mode}")).trim().split(" ");
+      // The same server; the agent in this pane, holding it; and not scrolled back in copy mode,
+      // where keys are copy-mode commands, not input for the agent.
+      async ready(agent) {
+        const [pid, mode, tty] = String(await t("display-message", "-p", "-t", pane, "#{pid} #{pane_in_mode} #{pane_tty}")).trim().split(" ");
         sameServer(pid);
-        return mode === "0" ? "" : "Its tmux pane is scrolled back in copy mode. Leave that on the Mac (q) first.";
+        if (!agent.tty || `/dev/${agent.tty}` !== tty) return NOT_IN_PANE;
+        return foreground(agent, mode === "0" ? null : { error: "not_ready", message: "Its tmux pane is scrolled back in copy mode. Leave that on the Mac (q) first." });
       },
     };
   }
+
+  /** Refused unless the agent's process group holds its terminal; else `then`. */
+  const foreground = (agent, then) => (agent.pgid > 0 && agent.pgid === agent.tpgid ? then : NOT_FOREGROUND);
 
   /** The bridge to a session's terminal, from its record; null when it has none (read-only). */
   function of(e) {
@@ -198,14 +221,20 @@ function createBridges(o = {}) {
     return { bridge: b ? b.name : null, read: !!b, send: can, keys: can, controls: can, why };
   }
 
-  /** The bridge to type into, or { error, message } when typing into it isn't safe. Checked at the moment of use. */
+  /**
+   * The bridge to type into, or { error, message } when typing into it isn't safe.
+   * Checked at the moment of use: the agent is read fresh (no pid, no recorded
+   * start time, or no answer from ps is a no), then the bridge checks its terminal.
+   */
   async function writable(e) {
     const b = of(e);
     if (!b) return { error: "no_route", message: "This session isn't in a terminal Airpocket can type into, so it's read-only here." };
-    if (!alive(e.pid, e.started)) return { error: "ended", message: "Its agent has exited, so Airpocket won't type into that terminal." };
-    let why;
-    try { why = await b.ready(); } catch { return { error: "unreachable", message: "Couldn't reach its terminal. It may have been closed." }; }
-    return why ? { error: "not_ready", message: why } : { bridge: b };
+    const started = e && Number.isSafeInteger(e.started) && e.started > 0 ? e.started : 0;
+    const agent = pidOf(e.pid) && started ? inspect(e.pid) : null;
+    if (!agent || agent.started !== started) return { error: "ended", message: "Its agent has exited, so Airpocket won't type into that terminal." };
+    let refused;
+    try { refused = await b.ready(agent); } catch { return { error: "unreachable", message: "Couldn't reach its terminal. It may have been closed." }; }
+    return refused || { bridge: b };
   }
 
   return { of, caps, writable };

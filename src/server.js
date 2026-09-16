@@ -856,7 +856,7 @@ function createServer(opts = {}) {
     tmux: opts.tmux || runTmux,
     hasTmux: opts.hasTmux || (opts.tmux ? () => true : () => !!findTmux()),
     uid: opts.uid,
-    alive: opts.agentAlive,
+    inspect: opts.inspectAgent,
     gap: opts.typeGap,
   });
 

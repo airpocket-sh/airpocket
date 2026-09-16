@@ -14,7 +14,7 @@ const { createStore } = require("../src/store");
 const { createService } = require("../src/service");
 const { portsFrom } = require("../src/ports");
 const { othersOn, serveLines } = require("../src/cli");
-const { startTimeOf } = require("../src/proc");
+const { startTimeOf, processInfo } = require("../src/proc");
 const ME = startTimeOf(process.pid);          // the stand-in sessions' agent is this test process
 
 const ESC = String.fromCharCode(27);
@@ -156,10 +156,12 @@ const app = createServer({
   tmux: async (args) => {
     calls.tmux.push(args);
     if (args.includes("capture-pane")) return `${TMUX_SERVER}\n${TMUX_SCREEN}`;
-    if (args[3] === "display-message") return `${TMUX_SERVER} 0\n`;
+    if (args[3] === "display-message") return `${TMUX_SERVER} 0 /dev/ttys998\n`;
     return "";
   },
   typeGap: () => 0,
+  // This test process stands in for every agent: its real start time, in the foreground of the stand-in terminal.
+  inspectAgent: (pid) => { const i = processInfo(pid); return i && { ...i, tty: "ttys998", pgid: 9, tpgid: 9 }; },
 });
 test.after(() => sockServer.close());
 
@@ -307,7 +309,7 @@ test("a tmux session: read with capture-pane, typed with send-keys, keys by tmux
   assert.deepEqual(calls.tmux.at(-1), ["-u", "-S", TMUX_SOCK, "display-message", "-p", "-t", "%7", "#{pid}", ";", "capture-pane", "-p", "-t", "%7"]);
   calls.tmux.length = 0;
   assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: TMUXS, text: "a\nb;" } })).status, 200);
-  assert.deepEqual(calls.tmux.map((a) => a.slice(3)), [["display-message", "-p", "-t", "%7", "#{pid} #{pane_in_mode}"],
+  assert.deepEqual(calls.tmux.map((a) => a.slice(3)), [["display-message", "-p", "-t", "%7", "#{pid} #{pane_in_mode} #{pane_tty}"],
     ["send-keys", "-t", "%7", "-l", "--", "a b\\;"], ["send-keys", "-t", "%7", "Enter"]]);
   await req("POST", "/api/key", { headers: auth(), body: { id: TMUXS, key: "esc" } });
   assert.deepEqual(calls.tmux.at(-1).slice(3), ["send-keys", "-t", "%7", "Escape"]);

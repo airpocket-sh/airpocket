@@ -419,9 +419,11 @@ async function resumeRig() {
   const sockServer = net.createServer();
   await new Promise((ok) => sockServer.listen(sock, ok));
   const typed = { tmux: [], superset: [] };
-  // The fresh liveness check stands in for ps here: the pids are made up.
-  const bridges = createBridges({ tmux: async (a) => { typed.tmux.push(a); return a.includes("capture-pane") ? "7921\n$ " : "7921 0\n"; },
-    superset: async (a) => { typed.superset.push(a); return "{}"; }, hasTmux: () => true, alive: (pid) => !t.dead.has(pid), gap: () => 0 });
+  // The fresh process check stands in for ps here: the pids are made up, each in the foreground of the pane's terminal.
+  const starts = { 8008: 1000, 7909: 2000 };
+  const inspect = (pid) => (t.dead.has(pid) || !starts[pid] ? null : { started: starts[pid], tty: "ttys004", pgid: pid, tpgid: pid });
+  const bridges = createBridges({ tmux: async (a) => { typed.tmux.push(a); return a.includes("capture-pane") ? "7921\n$ " : "7921 0 /dev/ttys004\n"; },
+    superset: async (a) => { typed.superset.push(a); return "{}"; }, hasTmux: () => true, inspect, gap: () => 0 });
   const rec = () => t.svc.knownSessions().find((r) => r.session_id === ID);
   const inTmux = { session_id: ID, agent: "claude", cwd: "/Users/x/proj", pid: 8008, started: 1000, pane: "%0", tmux: sock, tmux_pid: 7921 };
   return { t, sock, typed, bridges, rec, inTmux, close: async () => { sockServer.close(); await t.close(); } };

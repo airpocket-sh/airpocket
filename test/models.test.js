@@ -12,7 +12,7 @@ const path = require("path");
 const { createModels, claudeName, CAP, CLAUDE_ALIASES, CODEX_MODELS } = require("../src/models");
 const { createServer, claudeItems, mergeInfo, claudeMode, codexContext } = require("../src/server");
 const { createStore } = require("../src/store");
-const { startTimeOf } = require("../src/proc");
+const { startTimeOf, processInfo } = require("../src/proc");
 
 const ME = startTimeOf(process.pid);
 const FIX = path.join(__dirname, "fixtures");
@@ -161,6 +161,8 @@ async function serve(sessions, h, screen) {
   const calls = [];
   const app = createServer({ store, log: () => {}, homeDir: h.d, claudeDir: h.claudeDir, codexHome: h.codexHome, claudeProjects: path.join(h.claudeDir, "projects"),
     knownSessions: () => sessions, getQueue: () => [], dequeue: () => 0, hasSuperset: () => true, typeGap: () => 0,
+    // This test process stands in for the agents: its real start time, in the foreground of a stand-in terminal.
+    inspectAgent: (pid) => { const i = processInfo(pid); return i && { ...i, tty: "ttys997", pgid: 9, tpgid: 9 }; },
     superset: async (args) => {
       calls.push(args);
       if (args[0] === "projects") return J([{ id: PROJ, name: "Shop" }]);

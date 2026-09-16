@@ -13,13 +13,17 @@ const path = require("path");
 const net = require("net");
 const { execFileSync, spawn } = require("child_process");
 const { createBridges, KEYS, tmuxSocket, tmuxLiteral, tmuxPieces, TMUX_BINS } = require("../src/bridges");
-const { startTimeOf, stillRunning } = require("../src/proc");
+const { startTimeOf, stillRunning, processInfo } = require("../src/proc");
 
 const ESC = String.fromCharCode(27);
 const CR = String.fromCharCode(13);
 const TAB = String.fromCharCode(9);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-bridges-"));
 const ME = { pid: process.pid, started: startTimeOf(process.pid) };
+// The stand-in terminals' device. This test process stands in for an agent there,
+// holding its foreground: its real start time, a made-up terminal and process group.
+const STAND_IN_TTY = "ttys999";
+const IN_TERM = (pid) => { const i = processInfo(pid); return i && { ...i, tty: STAND_IN_TTY, pgid: 7, tpgid: 7 }; };
 
 // What each key must reach the program as, whichever bridge carries it.
 const KEY_BYTES = { up: ESC + "[A", down: ESC + "[B", right: ESC + "[C", left: ESC + "[D", tab: TAB, stab: ESC + "[Z",
@@ -74,7 +78,7 @@ function fakeTmux(term, sock = SOCK, pane = "%3", server = SERVER) {
       if (cmd === "capture-pane") { assert.deepEqual(rest, ["-p", "-t", pane]); out += term.screen + "\n"; continue; }
       if (cmd === "display-message") {
         assert.deepEqual(rest.slice(0, 3), ["-p", "-t", pane]);
-        out += rest[3].replace("#{pid}", String(server)).replace("#{pane_in_mode}", term.inMode ? "1" : "0") + "\n";
+        out += rest[3].replace("#{pid}", String(server)).replace("#{pane_in_mode}", term.inMode ? "1" : "0").replace("#{pane_tty}", "/dev/" + STAND_IN_TTY) + "\n";
         continue;
       }
       if (cmd !== "send-keys") throw new Error("unexpected tmux call " + cmd);
@@ -141,7 +145,7 @@ function contract(label, setup, opts = {}) {
 contract("superset (stand-in)", async () => {
   const term = { got: "", screen: "hello from superset ❯" };
   const fake = fakeSuperset(term);
-  const bridges = createBridges({ superset: fake.run, hasTmux: () => false });
+  const bridges = createBridges({ superset: fake.run, hasTmux: () => false, inspect: IN_TERM });
   const record = { workspace: "ws-1", terminal: "term-1", ...ME };
   return { bridges, record, bridge: bridges.of(record), screen: /hello from superset ❯/,
            received: async () => term.got, reset: () => { term.got = ""; } };
@@ -151,7 +155,7 @@ contract("tmux (stand-in)", async () => {
   await sockReady;
   const term = { got: "", screen: "hello from tmux ❯" };
   const fake = fakeTmux(term);
-  const bridges = createBridges({ tmux: fake.run, hasTmux: () => true, gap: () => 0 });
+  const bridges = createBridges({ tmux: fake.run, hasTmux: () => true, gap: () => 0, inspect: IN_TERM });
   const record = { pane: "%3", tmux: SOCK, tmux_pid: SERVER, ...ME };
   return { bridges, record, bridge: bridges.of(record), screen: /hello from tmux ❯/,
            received: async () => term.got, reset: () => { term.got = ""; } };
@@ -216,6 +220,74 @@ test("tmux (real): a pane in copy mode is left alone", real, async () => {
   assert.match(w.message, /copy mode/);
   tmuxHere("send-keys", "-t", realRecord.pane, "-X", "cancel");
   assert.ok((await bridges.writable(realRecord)).bridge, "usable again once copy mode is over");
+});
+
+// A stand-in agent that only waits: it writes its pid, reads nothing, types nothing.
+const HOLDER = path.join(dir, "holder.js");
+fs.writeFileSync(HOLDER, "require('fs').writeFileSync(process.argv[2], String(process.pid)); setInterval(() => {}, 1000);");
+const pidIn = (file) => until(() => { try { return Number(fs.readFileSync(file, "utf8")) || 0; } catch { return 0; } });
+async function eventually(fn, ms = 4000) {
+  const end = Date.now() + ms;
+  for (;;) { const v = await fn(); if (v || Date.now() > end) return v; await sleep(50); }
+}
+const errorOf = async (bridges, record) => { const w = await bridges.writable(record); return w.bridge ? "ok" : w.error; };
+
+test("tmux (real): an agent that was only started from the pane is not in it, and isn't typed into there", real, async () => {
+  assert.ok(realRecord, "the real tmux contract ran first");
+  const bridges = createBridges({});
+  fs.writeFileSync(LOG, "");
+  // Started with the pane's variables in its environment, but outside any terminal
+  // (like an agent in an editor that was launched from the pane).
+  const server = realRecord.tmux_pid;
+  const outside = spawn(process.execPath, [HOLDER, path.join(dir, "outside.pid")],
+    { env: { PATH: "/usr/bin:/bin", TMUX: `${RSOCK},${server},0`, TMUX_PANE: realRecord.pane }, stdio: "ignore" });
+  try {
+    await pidIn(path.join(dir, "outside.pid"));
+    const record = { ...realRecord, pid: outside.pid, started: startTimeOf(outside.pid) };
+    const w = await bridges.writable(record);
+    assert.equal(w.error, "not_in_pane", JSON.stringify(w));
+    assert.match(w.message, /isn't running in that tmux pane/);
+    assert.equal(processInfo(outside.pid).tty, "", "ps shows it has no terminal");
+  } finally { outside.kill(); }
+
+  // In a terminal and holding it, but another pane's: still not this pane.
+  const other = tmuxHere("new-window", "-d", "-P", "-F", "#{pane_id}", `${q(process.execPath)} ${q(HOLDER)} ${q(path.join(dir, "other.pid"))}`).trim();
+  try {
+    const pid = await pidIn(path.join(dir, "other.pid"));
+    const record = { ...realRecord, pid, started: startTimeOf(pid) };
+    assert.equal(await errorOf(bridges, record), "not_in_pane");
+    assert.equal(await errorOf(bridges, { ...record, pane: other }), "ok", "the same process, recorded with its own pane, may be typed into");
+  } finally { tmuxHere("kill-pane", "-t", other); }
+  await sleep(100);
+  assert.equal(fs.readFileSync(LOG, "utf8"), "", "nothing reached the agent's pane");
+  assert.equal(await errorOf(bridges, realRecord), "ok", "the agent that is in the pane still is");
+});
+
+test("tmux (real): an agent that doesn't hold its pane (in the background, or stopped) isn't typed into", real, async () => {
+  assert.ok(realRecord, "the real tmux contract ran first");
+  const bridges = createBridges({});
+  // An interactive shell with job control, the way people run agents.
+  const pane = tmuxHere("new-window", "-d", "-P", "-F", "#{pane_id}", "/bin/zsh -f -i").trim();
+  const record = { pane, tmux: RSOCK, tmux_pid: realRecord.tmux_pid };
+  const typeLine = (line) => { tmuxHere("send-keys", "-t", pane, "-l", "--", line); tmuxHere("send-keys", "-t", pane, "Enter"); };
+  try {
+    typeLine(`${q(process.execPath)} ${q(HOLDER)} ${q(path.join(dir, "job.pid"))} &`);
+    const pid = await pidIn(path.join(dir, "job.pid"));
+    Object.assign(record, { pid, started: startTimeOf(pid) });
+    const bg = await bridges.writable(record);
+    assert.equal(bg.error, "not_foreground", "in the background: the shell holds the pane " + JSON.stringify(bg));
+    assert.match(bg.message, /Something else holds its terminal/);
+
+    typeLine("fg");
+    assert.equal(await eventually(async () => (await errorOf(bridges, record)) === "ok"), true, "brought to the foreground, it may be typed into");
+
+    tmuxHere("send-keys", "-t", pane, "C-z");           // stopped: the shell takes the pane back
+    assert.equal(await eventually(async () => (await errorOf(bridges, record)) === "not_foreground"), true, "stopped with Ctrl+Z");
+    const info = processInfo(pid);
+    assert.equal("/dev/" + info.tty, tmuxHere("display-message", "-p", "-t", pane, "#{pane_tty}").trim(), "still in that pane");
+    assert.notEqual(info.pgid, info.tpgid);
+    process.kill(pid, "SIGKILL");
+  } finally { tmuxHere("kill-pane", "-t", pane); }
 });
 
 test("tmux (real): once the agent exits, nothing is typed into what's left", real, async () => {
@@ -352,7 +424,7 @@ test("what a session allows: which bridge, and no typing without a known, runnin
 test("writable: refused without a bridge, for a gone or reused pid, or when ps can't tell", async () => {
   const term = { got: "", screen: "" };
   const fake = fakeSuperset(term);
-  const b = createBridges({ superset: fake.run, hasTmux: () => false });
+  const b = createBridges({ superset: fake.run, hasTmux: () => false, inspect: IN_TERM });
   const at = (x) => ({ workspace: "ws-1", terminal: "term-1", ...x });
   assert.equal((await b.writable({ ...ME })).error, "no_route");
   assert.ok((await b.writable(at(ME))).bridge);
@@ -376,9 +448,40 @@ test("writable: refused without a bridge, for a gone or reused pid, or when ps c
 
 test("writable: a terminal that can't be reached is said so, and not typed into", async () => {
   await sockReady;
-  const b = createBridges({ tmux: async () => { throw new Error("no server running"); }, hasTmux: () => true });
+  const b = createBridges({ tmux: async () => { throw new Error("no server running"); }, hasTmux: () => true, inspect: IN_TERM });
   const w = await b.writable({ pane: "%3", tmux: SOCK, tmux_pid: SERVER, ...ME });
   assert.equal(w.error, "unreachable");
-  const inMode = createBridges({ tmux: fakeTmux({ got: "", screen: "", inMode: true }).run, hasTmux: () => true });
+  const inMode = createBridges({ tmux: fakeTmux({ got: "", screen: "", inMode: true }).run, hasTmux: () => true, inspect: IN_TERM });
   assert.equal((await inMode.writable({ pane: "%3", tmux: SOCK, tmux_pid: SERVER, ...ME })).error, "not_ready");
+});
+
+test("writable: the agent must hold a terminal; for Superset that is all that can be proved", async () => {
+  await sockReady;
+  const term = { got: "", screen: "" };
+  const fake = fakeSuperset(term);
+  const as = (x) => (pid) => { const i = processInfo(pid); return i && { ...i, ...x }; };
+  const sup = { workspace: "ws-1", terminal: "term-1", ...ME };
+  const superset = (x) => createBridges({ superset: fake.run, hasTmux: () => false, inspect: as(x) });
+  assert.ok((await superset({ tty: "ttys001", pgid: 5, tpgid: 5 }).writable(sup)).bridge, "in a terminal, in its foreground");
+  const none = await superset({ tty: "", pgid: 5, tpgid: 0 }).writable(sup);
+  assert.equal(none.error, "not_in_terminal", "in no terminal at all: it isn't in that Superset terminal either");
+  assert.match(none.message, /isn't running in a terminal/);
+  assert.equal((await superset({ tty: "ttys001", pgid: 5, tpgid: 6 }).writable(sup)).error, "not_foreground", "another group holds its terminal");
+  // Any terminal of its own passes: a Superset terminal id can't be matched to a device.
+  assert.ok((await superset({ tty: "ttys777", pgid: 5, tpgid: 5 }).writable(sup)).bridge);
+  assert.equal(fake.calls.length, 0, "no check typed anything");
+
+  // tmux compares the agent's terminal with the pane's.
+  const tm = (x) => createBridges({ tmux: fakeTmux({ got: "", screen: "" }).run, hasTmux: () => true, inspect: as(x) });
+  const rec = { pane: "%3", tmux: SOCK, tmux_pid: SERVER, ...ME };
+  assert.ok((await tm({ tty: STAND_IN_TTY, pgid: 5, tpgid: 5 }).writable(rec)).bridge);
+  for (const tty of ["", "ttys998", "ttys9990"]) assert.equal((await tm({ tty, pgid: 5, tpgid: 5 }).writable(rec)).error, "not_in_pane", tty);
+  assert.equal((await tm({ tty: STAND_IN_TTY, pgid: 5, tpgid: 6 }).writable(rec)).error, "not_foreground");
+  assert.equal((await tm({ tty: STAND_IN_TTY, pgid: 0, tpgid: 0 }).writable(rec)).error, "not_foreground", "no process group is no proof");
+
+  // processInfo, from ps: this test process has no terminal; a gone pid is null.
+  const me = processInfo(process.pid);
+  assert.equal(me.started, ME.started);
+  assert.ok(me.pgid > 1 && Number.isInteger(me.tpgid));
+  for (const v of [0, 1, -5, "12", null, 2 ** 40]) assert.equal(processInfo(v), null, String(v));
 });
