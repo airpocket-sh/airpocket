@@ -360,6 +360,18 @@ status line.
 - `/api/sessions` rows carry `status: { state, elapsed }` and `info` (model,
   effort, fast, mode) for running sessions, from the same readers as the
   session view; still one `ps` call per refresh.
+- That call is `ps -A -o pid=,ppid=,uid=,tdev=,lstart=,comm=`
+  (`proc.scanProcesses`, about 40 ms for 750 processes; `tty=` costs a lookup
+  per process and took 150 ms). It gives every start time and the agents: this
+  user's `…/claude`, `…/codex` or `…/claude/versions/<v>` with a terminal, not
+  started under another agent (never the arguments; Claude through npm is
+  `node` and isn't counted). `/api/sessions` adds `unseen: { agents, codex }`
+  when agents run that no record names (`service.unseenAgents`) or Codex
+  hasn't trusted our hooks (`agentconfig.codexTrust`, doctor's check, re-read
+  when `hooks.json` or `config.toml` changes); absent otherwise. The phone
+  shows it under Open, setup prints it at the end. Claude Code re-reads its
+  settings while it runs, so a session from before setup appears at its next
+  prompt; Codex needs a restart.
 - The app's CSP has `font-src 'self'`; the app sends
   `Permissions-Policy: camera=(self)`, the file-only origin `camera=()`.
 - Screenshots: `docs/reference/shoot-app.js` (27 screens at 390x844, 375x667

@@ -67,7 +67,7 @@ handler runs):
 | Route | Takes | Confirm |
 | --- | --- | --- |
 | `GET /api/hello` | nothing | Host label, device name, `can.start`. |
-| `GET /api/sessions` | nothing | Fields per session. No paths, no full email, snippets clipped. |
+| `GET /api/sessions` | nothing | Fields per session. No paths, no full email, snippets clipped. `unseen` is a count and a word, nothing about the processes. |
 | `GET /api/screen` | `id`, `view`, `sig` | `id` must match `SESSION_ID`. What `items`, `text` and `info` carry. Terminal text is sent as is (residual 7). |
 | `POST /api/send` | `id`, `text`, `submit` | `cleanText` (line breaks to spaces, codes 0-31 and 127 dropped), 8,000 characters at most, `bridges.writable` before typing. C1 controls (residual 16). |
 | `POST /api/key` | `id`, `key` | Key from `KEYS` only, `writable` first. |
