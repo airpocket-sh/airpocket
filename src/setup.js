@@ -17,7 +17,9 @@
 //      (merged, backed up first; see agentconfig.js)
 //   4. the login item, loaded and checked (see loginitem.js)
 //   5. two `tailscale serve` addresses on ports nothing else uses
-//   6. a pairing code, printed with its QR
+//   6. if you say so (asked, or --alias / --no-alias): aliases in your shell
+//      profile so `claude` and `codex` start with `airpocket run` (see shellalias.js)
+//   7. a pairing code, printed with its QR
 //
 // Everything outside is reached through `ctx` (home, env, run, probe, ...), so
 // the tests run all of it against a temporary HOME with stand-in launchctl and
@@ -37,6 +39,8 @@ const { processAlive } = require("./proc");
 const { writeAtomic } = require("./service");
 const { createStore } = require("./store");
 const { TMUX_BINS } = require("./bridges");
+const sa = require("./shellalias");
+const own = require("./ownterm");
 const QR = require("./public/qr");
 
 const ROOT = path.join(__dirname, "..");
@@ -100,6 +104,7 @@ function context(opts = {}) {
     lock: path.join(dataDir, "airpocket.lock"),
     hookFile: path.join(dataDir, "hook.json"),
     socket: path.join(dataDir, "tmux", "sock"),
+    profile: sa.profileFor(env, home),
     plist: path.join(home, "Library", "LaunchAgents", ctx.label + ".plist"),
     ...cfg.configPaths(env, home),
   };
@@ -196,6 +201,13 @@ async function survey(ctx) {
   f.tailscale = ctx.tailscaleBin ? ts.tailscaleStatus(ctx.tailscaleBin, ctx.run) : null;
   f.serve = ctx.tailscaleBin && f.tailscale && f.tailscale.running ? ts.serveStatus(ctx.tailscaleBin, ctx.run) : null;
   f.tmux = ctx.tmuxBins.find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return true; } catch { return false; } }) || "";
+  if (f.tmux) {
+    const v = ctx.run(f.tmux, ["-V"], { timeout: 5000 });
+    f.tmuxVersion = (/tmux\s+(\S+)/.exec(v.stdout || "") || [])[1] || "";
+    f.tmuxOk = own.versionAtLeast(f.tmuxVersion, own.MIN_TMUX);
+  }
+  f.profile = { ...ctx.paths.profile, read: ctx.paths.profile.file ? sa.readProfile(ctx.paths.profile.file) : null };
+  f.onPath = airpocketOnPath(ctx);
   f.install = readInstall(ctx);
   f.lock = readLock(ctx);
   f.job = li.jobStatus(ctx.run, ctx.uid, ctx.label);
@@ -218,7 +230,7 @@ async function survey(ctx) {
 // ---------------------------------------------------------------- setup
 
 /** The plan: { problems, notes, steps }. Each step has a title, lines saying what it changes, and apply(). */
-function planSetup(f) {
+function planSetup(f, opts = {}) {
   const { ctx } = f;
   const problems = [], notes = [], checks = [], steps = [];
   const t = ctx.t;
@@ -235,7 +247,9 @@ function planSetup(f) {
   else if (!f.tailscale.https) problems.push("Your tailnet has no HTTPS certificates, which Airpocket's addresses need. Turn on HTTPS Certificates in the Tailscale admin console (DNS page), then run setup again.");
   else if (!f.serve) problems.push("Couldn't read what Tailscale already publishes on this Mac. Nothing was changed.");
   else checks.push(`Tailscale ${f.tailscale.version}, this Mac is ${f.tailscale.dns}`);
-  checks.push(f.tmux ? `tmux ${f.tmux}` : "tmux not found (optional: only sessions in tmux need it; Superset works without)");
+  if (!f.tmux) checks.push(`tmux not found: airpocket run and sessions in tmux need it (${own.INSTALL_TMUX}); Superset works without`);
+  else if (!f.tmuxOk) checks.push(`tmux ${f.tmuxVersion} at ${f.tmux} is older than ${own.MIN_TMUX.join(".")}, which airpocket run needs (brew upgrade tmux)`);
+  else checks.push(`tmux ${f.tmuxVersion ? f.tmuxVersion + " " : ""}${f.tmux}`);
 
   const agents = ["claude", "codex"].filter((a) => f.agents[a].present);
   for (const a of ["claude", "codex"]) {
@@ -278,6 +292,7 @@ function planSetup(f) {
     app: ctx.paths.appDir, plist: ctx.paths.plist,
     ports: { app: ctx.ports.app, file: ctx.ports.file, hook: ctx.ports.hook, publicApp: chosen.app, publicFile: chosen.file },
     serve: install.serve || [], hooks: install.hooks || {}, dataDirCreated: install.dataDirCreated ?? !f.dataDirExists,
+    ...(install.aliases ? { aliases: install.aliases } : {}),
   });
   const state = record();
   const save = () => saveInstall(ctx, state);
@@ -395,6 +410,10 @@ function planSetup(f) {
     },
   });
 
+  const aliases = planAliases(f, opts.alias ?? null, state, save);
+  notes.push(...aliases.notes);
+  if (aliases.step) steps.push(aliases.step);
+
   steps.push({
     title: "Pairing",
     lines: ["a six-digit code and its QR, for ten minutes and five tries"],
@@ -404,6 +423,71 @@ function planSetup(f) {
     },
   });
   return { problems, notes, checks, steps, address, chosen };
+}
+
+/**
+ * The shell aliases step, or none: { step, notes }. `decision` is true (--alias),
+ * false (--no-alias) or null (ask on a terminal, skip without one).
+ */
+function planAliases(f, decision, state, save) {
+  const { ctx } = f;
+  const t = ctx.t, notes = [];
+  const agents = ["claude", "codex"].filter((a) => f.agents[a].present);
+  const { shell, file, read } = f.profile;
+  if (decision === false || !agents.length) return { notes };
+  if (!file) {
+    if (decision === null && !ctx.tty) return { notes };
+    notes.push(`Your shell is ${shell}, so setup adds no aliases. To have the phone answer, start agents with: airpocket run claude (or codex)`);
+    return { notes };
+  }
+  if (read.problem) { notes.push(`${t(file)} ${read.problem}, so setup adds no aliases to it.`); return { notes }; }
+  if (decision === null && !ctx.tty) {
+    notes.push("To start claude and codex where the phone can answer, add shell aliases: airpocket setup --alias");
+    return { notes };
+  }
+  // Double quotes read better inside the alias's single quotes, where nothing in the path needs escaping.
+  const quote = (p) => (/^[^"$`\\!']+$/.test(p) ? `"${p}"` : cfg.shellQuote(p));
+  const runner = f.onPath ? "airpocket" : `${quote(ctx.node)} ${quote(path.join(ctx.paths.appDir, "src", "cli.js"))}`;
+  const want = agents.map((agent) => ({ agent, line: sa.aliasLine(agent, runner) }));
+  const merged = sa.addAliases(read.text, want);
+  for (const s of merged.skipped) notes.push(`${t(file)} already defines ${s.agent} (${s.line}), so setup leaves it. Start it with airpocket run ${s.agent} to have the phone answer.`);
+  const change = [...merged.added, ...merged.updated];
+  if (!change.length) {
+    return { notes, step: merged.same.length ? { title: "Shell aliases", lines: [`${t(file)}: has them already (${merged.same.join(", ")})`], apply() {} } : null };
+  }
+  const ask = decision === null;
+  const lines = [
+    `${t(file)}${read.exists ? "" : " (new)"}: ${ask ? "asks first, then " : ""}${merged.added.length ? "adds at the end" : "updates Airpocket's own lines"}:`,
+    ...want.filter((w) => change.includes(w.agent)).map((w) => "  " + w.line),
+    ...(read.exists && read.text ? [`backup first: ${t(file)}.airpocket-backup-<time>`] : []),
+    ...(f.tmux && f.tmuxOk ? [] : [`they need tmux: ${own.INSTALL_TMUX}`]),
+  ];
+  const step = {
+    title: "Shell aliases", lines,
+    async apply(done) {
+      if (ask) {
+        const yes = await ctx.ask(`\nAdd these to ${t(file)}, so typing ${change.join(" or ")} starts it where your phone can answer?\n${want.filter((w) => change.includes(w.agent)).map((w) => "  " + w.line).join("\n")}\n`);
+        if (!yes) { done.push("not added; airpocket setup --alias adds them later"); return; }
+      }
+      const prev = state.aliases || {};
+      state.aliases = { file, createdFile: prev.file === file ? !!prev.createdFile : !read.exists,
+        newlineAdded: (prev.file === file && !!prev.newlineAdded) || merged.newlineAdded };
+      save();                                                // recorded before the file changes, so uninstall knows
+      if (read.exists && read.text) done.push(`backup ${t(cfg.backup(file, read.text, ctx.now()))}`);
+      cfg.writeConfig(file, merged.text, { expect: read.text, mode: read.mode });
+      done.push(`${change.join(" and ")} in ${t(file)}; open a new terminal window to use ${change.length > 1 ? "them" : "it"}`);
+    },
+  };
+  return { notes, step };
+}
+
+/** Is `airpocket` itself on this PATH (and not in npx's temporary cache)? */
+function airpocketOnPath(ctx) {
+  for (const dir of String(ctx.env.PATH || "").split(":")) {
+    if (!path.isAbsolute(dir) || dir.includes("/_npx/")) continue;
+    try { fs.accessSync(path.join(dir, "airpocket"), fs.constants.X_OK); return true; } catch {}
+  }
+  return false;
 }
 
 const realpathOr = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
@@ -494,10 +578,11 @@ function printPlan(ctx, plan, dryRun) {
   });
 }
 
-/** airpocket setup [--dry-run]. Resolves to an exit code. */
+/** airpocket setup [--dry-run] [--alias | --no-alias]. Resolves to an exit code. */
 async function runSetup(ctx, argv = []) {
   const dryRun = flag(argv, "dry-run");
-  const plan = planSetup(await survey(ctx));
+  if (flag(argv, "alias") && flag(argv, "no-alias")) { ctx.out("Choose one: --alias or --no-alias."); return 2; }
+  const plan = planSetup(await survey(ctx), { alias: flag(argv, "alias") ? true : flag(argv, "no-alias") ? false : null });
   printPlan(ctx, plan, dryRun);
   if (plan.problems.length) {
     ctx.out("");
@@ -597,6 +682,26 @@ function planUninstall(f) {
     });
   }
 
+  const profiles = [...new Set([install.aliases && install.aliases.file, ctx.paths.profile.file].filter(Boolean))];
+  for (const file of profiles) {
+    const read = sa.readProfile(file);
+    if (read.problem || !sa.hasOurs(read.text)) continue;
+    const rec = install.aliases && install.aliases.file === file ? install.aliases : {};
+    const { text, removed } = sa.removeAliases(read.text, { newlineAdded: !!rec.newlineAdded });
+    const drop = !text && !!rec.createdFile;
+    steps.push({
+      title: "Shell aliases",
+      kind: "config",
+      lines: [`${t(file)}: remove Airpocket's ${removed.join(" and ")} alias${removed.length > 1 ? "es" : ""}${drop ? "; the file only held those, so it goes (setup created it)" : ", nothing else"}`,
+        `backup first: ${t(file)}.airpocket-backup-<time>`],
+      apply(done) {
+        done.push(`backup ${t(cfg.backup(file, read.text, ctx.now()))}`);
+        if (drop) cfg.removeConfig(file, read.text);
+        else cfg.writeConfig(file, text, { expect: read.text, mode: read.mode });
+      },
+    });
+  }
+
   if (versionOf(ctx.paths.appDir)) {
     steps.push({ title: "Airpocket itself", last: true, lines: [`remove the copy in ${t(ctx.paths.appDir)}`], apply() { fs.rmSync(ctx.paths.appDir, { recursive: true, force: true }); } });
   }
@@ -645,9 +750,13 @@ async function runUninstall(ctx, argv = []) {
       if (!ctx.tty) out(`\n  Kept the data folder ${t(ctx.paths.dataDir)}. To remove it too: airpocket uninstall --remove-data`);
     }
     const unsafe = unsafeDataDir(ctx.paths.dataDir, ctx.home);
+    let running = [];
     const strangers = (() => { try { return fs.readdirSync(ctx.paths.dataDir).filter((n) => !OWN_ENTRY.test(n)); } catch { return []; } })();
     if (remove && (unsafe || strangers.length)) {
       out(`  Kept the data folder ${t(ctx.paths.dataDir)}: it ${unsafe || `holds things that aren't Airpocket's (${strangers.slice(0, 3).join(", ")})`}. Remove what you want yourself.`);
+      failed = true;
+    } else if (remove && (running = ownSessions(ctx)).length) {
+      out(`  Kept the data folder: ${running.length} agent${running.length === 1 ? "" : "s"} started with airpocket run still run${running.length === 1 ? "s" : ""} there (${running.join(", ")}). End ${running.length === 1 ? "it" : "them"}, then run airpocket uninstall --remove-data.`);
       failed = true;
     } else if (remove && lock && lock.alive) {
       out(`  Kept the data folder: Airpocket is still running there as process ${lock.pid}. Stop it, then run airpocket uninstall --remove-data.`);
@@ -665,13 +774,21 @@ async function runUninstall(ctx, argv = []) {
   return failed ? 1 : 0;
 }
 
+/** The agents running on Airpocket's own tmux socket, by name. */
+function ownSessions(ctx) {
+  const tmux = ctx.tmuxBins.find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return true; } catch { return false; } });
+  if (!tmux) return [];
+  const o = own.context({ env: ctx.env, home: ctx.home, uid: ctx.uid, run: ctx.run, tmuxBins: ctx.tmuxBins });
+  return own.listSessions(o, tmux).filter((s) => !s.ended).map((s) => s.name);
+}
+
 function listBackups(ctx) {
   const out = [];
-  for (const file of [ctx.paths.claude, ctx.paths.codex]) {
+  for (const file of [ctx.paths.claude, ctx.paths.codex, ctx.paths.profile.file].filter(Boolean)) {
     try { for (const n of fs.readdirSync(path.dirname(file))) if (n.startsWith(path.basename(file) + ".airpocket-backup-")) out.push(path.join(path.dirname(file), n)); } catch {}
   }
   return out.sort();
 }
 
 module.exports = { context, stableNode, survey, planSetup, runSetup, planUninstall, runUninstall, pairingLines, readLock, readInstall,
-  probe, listening, versionOf, majorOf, SOCKET_MAX, copyApp, tail, unsafeDataDir };
+  probe, listening, versionOf, majorOf, SOCKET_MAX, copyApp, tail, unsafeDataDir, ownSessions };

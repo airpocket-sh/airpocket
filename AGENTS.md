@@ -143,6 +143,22 @@ status line.
   returns no DNSName: take the tailnet host from the request's Host header
   (tailscale serve forwards it). The first HTTPS request after enabling serve
   can take over 15 s while the certificate is issued.
+- **tmux as an invisible terminal** (3.6a, step 10b): `escape-time 0` is not
+  enough. tmux holds Esc for at least 500 ms while the outer terminal hasn't
+  answered its queries (DA1, DA2, XTVERSION) or a colour query (OSC 10/11) is
+  pending: up to 5 s after a client attaches, and again after a resize (at most
+  every 30 s) or a theme change (`tty-keys.c`, `TTY_QUERY_TIMEOUT`). No option
+  changes it; a terminal that answers everything has no delay. Claude asks for
+  modifyOtherKeys 2 (`ESC[>4;2m`) and kitty (`ESC[>5u`); Codex asks for kitty
+  only (`ESC[>7u`, `ESC[>4;0m`), which tmux ignores, so with `extended-keys on`
+  Codex would get Shift+Enter as a plain Enter: Airpocket uses `always` with
+  `extended-keys-format csi-u`. Claude reads Ctrl keys in extended form (Ctrl+V
+  still pastes an image). In copy mode, `bind -T copy-mode Any if-shell -F 1
+  "send-keys -X cancel ; send-keys"` leaves scrollback and delivers the key
+  (without `if-shell` the key is lost). `-f` replaces `~/.tmux.conf`. Server
+  options apply to the server that is running: check them with `show-options`
+  on the socket, not in the file. A pane target by session name needs
+  `=name:`. A socket path must fit in 104 bytes, so tests put theirs under /tmp.
 - **macOS paths**: `/var` is `/private/var`. Compare real paths; resolve a
   session's relative paths from the folder it recorded.
 - **iOS**: a home-screen web app has storage separate from Safari (pair inside
@@ -205,10 +221,10 @@ status line.
 
 ## Where the code stands
 
-- Steps 4 to 9, 11 (first half) and 12 are merged (PR #1 to #7, #9), and
-  the lock-race fix (#8). `npm start` runs one process: the service with its
-  hook endpoint, the phone server and the file-only server, all on
-  127.0.0.1. 123 tests before #8.
+- Steps 4 to 12 are merged (PR #1 to #7, #9 to #11), and the lock-race fix
+  (#8). `npm start` runs one process: the service with its hook endpoint, the
+  phone server and the file-only server, all on 127.0.0.1. 178 tests with
+  step 10b.
 - CI (`.github/workflows/test.yml`, step 12): macOS, Node 20 and 22, a syntax
   check, `node --test` with a real tmux, and `.github/smoke.js` (the real app
   on loopback with a temporary data folder and HOME).
@@ -260,7 +276,7 @@ status line.
   time, the branch read from `.git`, the Claude account email from
   `$CLAUDE_CONFIG_DIR`, else the transcript's config folder, else
   `~/.claude.json` (only `.claude.json`, only `oauthAccount.emailAddress`).
-  Not installed anywhere yet: that is step 10.
+  Installed by `airpocket setup` (step 10).
 - `src/proc.js`: a process is its pid plus its start time (`ps -o lstart`,
   batched). A pid that exists is that process unless a start time was read
   and differs; one that can't be read proves nothing, so the session stays.
@@ -350,10 +366,109 @@ status line.
   and 430x932, with automatic checks: no side scroll, 44px targets, safe
   areas, glass edges). Contrast: `docs/reference/contrast.js`. Scan trial in
   Chrome with a fake camera: `docs/reference/try-scan.js`, 10/10 at step 9.
-- `docs/OWN-TERMINAL.md`: options for sessions outside Superset and tmux;
-  recommends a private tmux session. Planned as step 10b, not built.
-- Open: Codex has not been tried end to end with a real session, in Superset
-  or tmux (do it at step 10, when hooks are installed). Denying a Claude
+- Step 10, `airpocket setup | doctor | uninstall` (`src/cli.js`,
+  `src/setup.js`, `src/doctor.js`). Setup looks first (macOS, Node 20+,
+  Tailscale signed in with MagicDNS and HTTPS certificates, which agents are
+  set up, configs readable as JSON, another Airpocket running, loopback ports
+  taken, a data folder that is or holds HOME) and stops before changing
+  anything; `--dry-run` prints the plan. Then, each step recorded in
+  `install.json` as it goes: the data folder (0700); a copy of Airpocket in
+  `<data>/app`, which the hooks and login item run; the hooks; the login item;
+  `tailscale serve`; a pairing code and QR. Everything outside goes through
+  `ctx` (`setup.context()`), which the tests replace.
+- `src/agentconfig.js`: hook entries in `~/.claude/settings.json` (or
+  `$CLAUDE_CONFIG_DIR`) and `$CODEX_HOME/hooks.json`, for agents whose folder
+  exists. Merged, never rewritten; a timestamped backup
+  (`<file>.airpocket-backup-<time>`) first; ours found by a trailing
+  `# airpocket-hook` comment; groups appended (Codex trusts by position);
+  invalid JSON or unknown shapes refused; indent, mode and a symlink kept;
+  nothing written if the file changed meanwhile. Uninstall removes ours and
+  the containers setup created, giving back the file byte for byte.
+- `src/loginitem.js`: `~/Library/LaunchAgents/sh.airpocket.service.plist`,
+  `RunAtLoad`, `KeepAlive {SuccessfulExit: false}`, `ThrottleInterval` 30,
+  `Umask` 077, logs in `<data>/logs/service.log`. A service started by hand
+  that finds the folder held exits 3 (`EXIT_LOCKED`); with `--login-item` it
+  waits and retries instead, so launchd never loops. Setup reports success
+  only when launchd shows a pid that holds the lock and the app answers.
+- `src/tailscale.js`: `serve --bg` only, never funnel (the tests fail on it);
+  never takes a port with someone else's handler: 443/8443 when free, else
+  4443, 5443 and so on. The choice is kept in `install.json` and read by
+  the service and CLI (`src/ports.js`, `currentPorts()`). `serve status` may
+  print `null`.
+- `airpocket doctor`: PASS/FAIL/WARN/INFO lines with a fix each, exit 1 on a
+  FAIL: macOS, both Nodes, data folder modes, the tmux socket path against
+  104 bytes, the lock, the login item, each port answering like Airpocket and
+  held by the lock's pid (`lsof`), hooks present once and runnable, Codex's
+  trust entries in `config.toml` (INFO, since its hash can't be recomputed),
+  the addresses, tmux, the copy's version.
+- `airpocket uninstall [--dry-run] [--keep-data|--remove-data]`: unloads the
+  login item, turns off every tailnet port that serves only Airpocket's
+  targets, removes our hooks after a backup, then the copy and
+  `install.json`; after any failure those two stay. Warns when the user's own
+  Codex hooks come after ours. The data folder is asked about (kept without a
+  terminal), never removed if it is or holds HOME or holds anything not
+  Airpocket's. `serve` and `unserve` are gone from the CLI.
+- npm package: `files` = `src/`, SECURITY.md (+ README, LICENSE), `os:
+  darwin`, `bin: airpocket`, no dependencies, `private: true` until launch.
+- Trials: `docs/reference/try-setup.js` (the packed tarball, the real launchd
+  under `sh.airpocket.trial`, a stand-in Tailscale; passed at step 10) and
+  `docs/reference/try-codex.js` (a real Codex 0.154 with a throwaway
+  `CODEX_HOME` and a private tmux socket; `--no-model` passed 9/9, the run
+  with real replies waits for a fresh Codex login, see PLAN step 13).
+- Step 10b, own-terminal mode (`src/ownterm.js`, `src/tmux.conf`):
+  `airpocket run claude|codex [args]` starts the agent in a tmux session on
+  `<data>/tmux/sock` with the shipped conf (`-S` and `-f` always; never the
+  user's server or `~/.tmux.conf`) and attaches this terminal; session names
+  `<agent>-<folder>`, numbered when taken. The agent gets this shell's
+  environment, not the server's: a start script (`tmux/start-<hex>.sh`, 0600,
+  deletes itself first) runs `exec /usr/bin/env -i` with the shell's variables
+  plus tmux's TMUX, TMUX_PANE, TERM, TERM_PROGRAM(_VERSION), then execs the
+  agent, so the pane's pid is the agent. Starts the agent directly instead
+  inside tmux or Superset (one line on stderr), off a terminal, or for
+  one-shot commands (`claude -p`, `codex exec`, `mcp`, `--version`…, table
+  `ONE_SHOT`). No tmux or tmux < 3.2: says so with `brew install tmux` and
+  exits 1. The node process stays as the parent while attached, ignoring
+  SIGINT/SIGQUIT/SIGTSTP. `airpocket attach [name]`: the one live session, else
+  the one detached, else a numbered list (off a terminal, the list and exit 2);
+  a session whose pane pid is dead is not offered and "has ended"; refused
+  inside tmux.
+- The conf: no status, no prefix (Ctrl+B stays Claude's), escape-time 0,
+  extended keys always/csi-u, RGB, mouse on, history 50000, copy to pbcopy and
+  OSC 52; in copy mode typing leaves it and reaches the agent, Esc and Ctrl+C
+  only leave it.
+- `src/shellalias.js` and setup step 7 "Shell aliases" (before Pairing): asked
+  on a terminal, `--alias`/`--no-alias`, a note without a terminal. zsh
+  `$ZDOTDIR/.zshrc` or `~/.zshrc`, bash `~/.bash_profile`, other shells a note.
+  Lines end in `# airpocket-alias`; appended, backed up first, skipped with a
+  note where the user defines that alias or function; `airpocket` when on
+  PATH, else the copy's node and cli.js in double quotes. `install.json`
+  `aliases: { file, createdFile, newlineAdded }`; uninstall removes our lines
+  and the newline setup added, byte for byte, or the file it created.
+  Uninstall `--remove-data` keeps the data folder while run's agents live.
+- Doctor: tmux PASS with version (and how many run agents); missing or older
+  than 3.2 is WARN, FAIL when setup's aliases are installed. "Shell aliases"
+  PASS / WARN (gone) / INFO (not added).
+- The phone: a session with no bridge says "Read-only here. Start it with
+  airpocket run and the phone can answer." (`bridges.caps().why`; app.js
+  unchanged).
+- `docs/reference/try-own-terminal.js` (+ `pty-term.py`, a pty with pyte that
+  plays the terminal window and answers tmux's queries like iTerm2 or like a
+  terminal without XTVERSION): bytes through tmux with a stand-in agent, a
+  real Claude directly, and a real Claude through `run` with the phone.
+  Result at step 10b in the PR. Needs pyte (`PYTHON=`). Uses the real
+  clipboard and puts its text back.
+- `docs/OWN-TERMINAL.md`: the options compared before the build (A chosen),
+  and what the trial found.
+- Open: Codex with real model replies driven from the phone (step 13, after
+  Öncel uses Codex once so its login is fresh), and Codex's prompt box through
+  `airpocket run` (Shift+Enter as CSI u is checked only at byte level). Own
+  terminal in a real Terminal.app, iTerm2 or Ghostty window (the trial plays
+  the terminal; whether Terminal.app answers XTVERSION decides the Esc delay
+  after attaching). Setup has not run on Öncel's
+  Mac or against the real Tailscale (his to run; 443 and 8443 are the private
+  tool's, so it will pick 4443 and 5443). Superset's `codex` wrapper may point
+  `CODEX_HOME` elsewhere, where hooks in `~/.codex` don't fire; setup doesn't
+  detect it. `logs/service.log` has no rotation. Denying a Claude
   permission with Esc leaves "needs permission" until the next prompt (no
   hook fires). `/effort` through Controls: in step 8's trial its first Enter
   didn't take; not verified (step 13, once, on purpose). On a real iPhone
@@ -362,9 +477,9 @@ status line.
 
 ## Decisions waiting for Öncel (proposed defaults)
 
-1. Runtime: Node 20+ during the build; packaging (Homebrew with Node, or one
-   self-contained program) decided at step 10.
+1. Runtime: Node 20+, shipped as an npm package since step 10; a Homebrew
+   formula or one self-contained program is still open.
 2. v1 bridges: Superset and tmux; the own-terminal mode right after; drop the
    Codex desktop-daemon link.
-3. Ports: 47871 (app) and 47872 (files) on loopback; public HTTPS ports
-   decided at step 13.
+3. Ports: 47871 (app), 47872 (files), 47873 (hooks) on loopback; public
+   HTTPS ports chosen by setup (443 and 8443 when free).

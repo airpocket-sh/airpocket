@@ -429,7 +429,7 @@ test("what a session allows: which bridge, and no typing without a known, runnin
   assert.equal(b.caps({ workspace: "ws-1", terminal: "term-1", pid: ME.pid }, true).send, false);
   const none = b.caps({ ...ME }, true);
   assert.deepEqual([none.bridge, none.read, none.send], [null, false, false]);
-  assert.match(none.why, /Superset or tmux/);
+  assert.match(none.why, /Start it with airpocket run and the phone can answer/);
 });
 
 test("writable: refused without a bridge, for a gone or reused pid, or when ps can't tell", async () => {

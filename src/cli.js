@@ -10,6 +10,8 @@
 //   airpocket devices                  the phones paired with this Mac
 //   airpocket revoke <id>              cut a phone off; its token stops working at once
 //   airpocket status                   is it running, is it published, at which address
+//   airpocket run claude|codex [args]  start the agent where the phone can reach it (a private tmux session)
+//   airpocket attach [name]            bring back an agent started with run
 //
 // From the repo: `node src/cli.js <command>`.
 const { createStore } = require("./store");
@@ -26,13 +28,16 @@ function serveLines(status, ports = currentPorts()) {
   });
 }
 
-const USAGE = "Usage: airpocket setup [--dry-run] | doctor | uninstall [--dry-run] [--keep-data|--remove-data] | pair | devices | revoke <id> | status";
+const USAGE = "Usage: airpocket setup [--dry-run] [--alias|--no-alias] | doctor | uninstall [--dry-run] [--keep-data|--remove-data] | pair | devices | revoke <id> | status\n" +
+  "       airpocket run claude|codex [arguments] | attach [name]";
 
 async function main([cmd, ...rest]) {
   switch (cmd) {
     case "setup": return setup.runSetup(setup.context(), rest);
     case "uninstall": return setup.runUninstall(setup.context(), rest);
     case "doctor": return require("./doctor").runDoctor(setup.context());
+    case "run": { const own = require("./ownterm"); return own.runAgent(own.context(), rest); }
+    case "attach": { const own = require("./ownterm"); return own.attach(own.context(), rest); }
     case "pair": {
       const ports = currentPorts();
       const up = (await setup.probe(ports.app, "/manifest.webmanifest")) === 200;

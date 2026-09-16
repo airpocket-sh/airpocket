@@ -199,7 +199,7 @@ function createBridges(o = {}) {
         const [pid, mode, tty] = String(await t("display-message", "-p", "-t", pane, "#{pid} #{pane_in_mode} #{pane_tty}")).trim().split(" ");
         sameServer(pid);
         if (!agent.tty || `/dev/${agent.tty}` !== tty) return NOT_IN_PANE;
-        return foreground(agent, mode === "0" ? null : { error: "not_ready", message: "Its tmux pane is scrolled back in copy mode. Leave that on the Mac (q) first." });
+        return foreground(agent, mode === "0" ? null : { error: "not_ready", message: "Its tmux pane is scrolled back in copy mode. Leave that on the Mac (Esc or q) first." });
       },
     };
   }
@@ -227,7 +227,7 @@ function createBridges(o = {}) {
     const b = of(e);
     const known = !!(e && e.pid && e.started);
     const can = !!b && known && !!live;
-    const why = !b ? "It isn't in a Superset or tmux terminal." : !known ? "Airpocket doesn't know which process runs it."
+    const why = !b ? "Start it with airpocket run and the phone can answer." : !known ? "Airpocket doesn't know which process runs it."
       : !live ? "Its agent has exited." : "";
     return { bridge: b ? b.name : null, read: !!b, send: can, keys: can, controls: can, why };
   }
@@ -239,7 +239,7 @@ function createBridges(o = {}) {
    */
   async function writable(e) {
     const b = of(e);
-    if (!b) return { error: "no_route", message: "This session isn't in a terminal Airpocket can type into, so it's read-only here." };
+    if (!b) return { error: "no_route", message: "This session isn't in a terminal Airpocket can type into, so it's read-only here. Start it with airpocket run and the phone can answer." };
     const started = e && Number.isSafeInteger(e.started) && e.started > 0 ? e.started : 0;
     const agent = pidOf(e.pid) && started ? inspect(e.pid) : null;
     if (!agent || agent.started !== started) return { error: "ended", message: "Its agent has exited, so Airpocket won't type into that terminal." };
