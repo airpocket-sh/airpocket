@@ -1,0 +1,102 @@
+name: Something doesn't work
+description: Airpocket did something wrong, or didn't do what the README says it does.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. A report with doctor's output in it can
+        usually be answered in one reply; one without it usually starts with
+        a question back.
+
+        **A security problem goes to [SECURITY.md](https://github.com/oncelozguleso/airpocket/blob/main/SECURITY.md),
+        not here.** Issues are public. Report it privately from this
+        repository's Security tab.
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of airpocket doctor
+      description: |
+        Run `airpocket doctor` on the Mac with the problem and paste all of
+        it, fix lines included. It answers most of what would otherwise be
+        asked: the macOS and Node versions, the data folder, the lock, the
+        login item, the ports, the hooks, Tailscale, tmux. If doctor itself
+        won't run, paste what it printed instead.
+
+        It prints this Mac's tailnet DNS name (`<name>.<tailnet>.ts.net`) and
+        file paths under your home folder. Replace any of those you'd rather
+        not publish with placeholders. Never paste a device token, a pairing
+        code or the contents of `hook.json`; doctor doesn't print them and
+        nobody here needs them.
+      render: text
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Before filing
+      description: The first two looked like bugs more than once and weren't. Only the last must be ticked.
+      options:
+        - label: >-
+            I ran `airpocket setup` again after my last update (a `git pull`
+            or a new install). The service runs its own copy of Airpocket and
+            keeps running the old one until setup replaces it; doctor shows it
+            as a Version warning.
+        - label: >-
+            If doctor says my tailnet has no HTTPS certificates, I've read
+            "Which tailnet you land in" in the README. On a company tailnet
+            (a work email address puts you in one), MagicDNS and HTTPS
+            certificates are the tailnet admin's switch, and setup can't
+            turn them on.
+        - label: >-
+            There is no device token, pairing code or `hook.json` content
+            anywhere in this report.
+          required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: |
+        The steps that led to it, what you saw (on the phone, in the
+        terminal, in doctor), and what you expected instead. Error text
+        pasted is better than retyped. A screenshot of the phone helps; crop
+        out conversations and file names you don't want public.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      options:
+        - Claude Code
+        - Codex
+        - Both
+        - Neither (setup, pairing, the phone app itself)
+
+  - type: dropdown
+    id: reached
+    attributes:
+      label: How the session is reached
+      description: >-
+        Where the agent runs decides what the phone can do with it: a
+        Superset terminal or a tmux pane can be answered, anything else is
+        read-only unless it was started with `airpocket run`.
+      options:
+        - airpocket run (or the claude and codex aliases from setup)
+        - tmux, started by me
+        - Superset
+        - None of these (read-only on the phone)
+        - Not about a session
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal
+      description: >-
+        The app the agent runs in, with its version if you have it. Leave it
+        empty if the problem isn't about a session.
+      placeholder: Terminal.app, iTerm2 3.5, Ghostty 1.1, Warp, the VS Code terminal
