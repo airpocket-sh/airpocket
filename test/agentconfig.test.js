@@ -50,7 +50,7 @@ test("add: every other key and hook stays, ours go at the end of each event", ()
   assert.deepEqual(config.statusLine, before.statusLine);
   assert.deepEqual(config.hooks.PreToolUse, before.hooks.PreToolUse);
   assert.deepEqual(config.hooks.Stop[0], before.hooks.Stop[0], "the user's Stop hook keeps position 0 (Codex trusts hooks by position)");
-  assert.deepEqual(config.hooks.Stop[1], { hooks: [{ type: "command", command: CMD, timeout: 5 }] });
+  assert.deepEqual(config.hooks.Stop[1], { hooks: [{ type: "command", command: CMD, timeout: 3 }] });
   assert.deepEqual(Object.keys(config), Object.keys(before), "key order kept");
 });
 
@@ -69,7 +69,7 @@ test("add twice: one entry per event; a moved Airpocket is updated in place; dup
 
   // Two copies (someone ran an older setup by hand): one stays, and a group left empty goes.
   const doubled = JSON.parse(JSON.stringify(once));
-  doubled.hooks.Stop.push({ hooks: [{ type: "command", command: CMD, timeout: 5 }] });
+  doubled.hooks.Stop.push({ hooks: [{ type: "command", command: CMD, timeout: 3 }] });
   doubled.hooks.Notification[0].hooks.push({ type: "command", command: CMD });
   const fixed = cfg.addHooks(doubled, "claude", CMD);
   assert.equal(fixed.config.hooks.Stop.length, 2);

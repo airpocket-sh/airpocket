@@ -28,7 +28,8 @@ const EVENTS = Object.freeze({
   claude: Object.freeze(["SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd"]),
   codex: Object.freeze(["SessionStart", "UserPromptSubmit", "Stop", "PermissionRequest", "Interrupt", "SessionEnd"]),
 });
-const TIMEOUT_S = 5;                   // the hook gives up after 1.5 s on its own
+// The hook gives up after 1.5 s on its own. Codex caps some events at 3 s and warns on every start about a longer one.
+const TIMEOUT_S = 3;
 const MAX_FILE = 16 * 1024 * 1024;
 
 const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);

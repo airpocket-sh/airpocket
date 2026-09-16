@@ -90,7 +90,14 @@ status line.
   PreCompact, PostCompact, SessionStart, SessionEnd, UserPromptSubmit,
   SubagentStart, SubagentStop, Stop, Interrupt; handlers take `timeout`.
   Superset's `codex` wrapper may set `CODEX_HOME` to its own account folder
-  inside a Superset terminal. Superset puts
+  inside a Superset terminal. Codex clamps Interrupt and SessionEnd hook
+  timeouts to 3 s and warns on every start about a longer one (Airpocket
+  uses 3). Codex starts its thread, and runs SessionStart, only with the
+  first prompt: a new Codex session is invisible until something is typed.
+  Its hook input: `session_id`, `transcript_path` (the rollout file), `cwd`,
+  `hook_event_name`, `model`, `permission_mode`, `turn_id`, `prompt`,
+  `source` (SessionStart), `reason` (SessionEnd). A failed turn (401) runs
+  no Stop. Superset puts
   `SUPERSET_TERMINAL_ID` and `SUPERSET_WORKSPACE_ID` in the agent's
   environment; tmux puts `TMUX_PANE`. Claude's hook input carries
   `transcript_path`, which also covers `CLAUDE_CONFIG_DIR` setups.
