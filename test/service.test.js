@@ -553,10 +553,20 @@ test("eight services over a stale lock, twenty times: one holds it each time, an
       sleepUntil(at + r * ${GAP});
       const me = process.pid + " " + (r + 1);
       const alive = (pid, started) => { const until = Date.now() + 1; while (Date.now() < until) {} return started === r + 1; };
-      let got;
-      try { takeLock(file, me, { alive }); got = "ok"; } catch (e) { got = e.code || e.message; }
-      if (got === "ok") { sleepUntil(at + r * ${GAP} + ${GAP * 0.7}); got = fs.readFileSync(file, "utf8") === me ? "held" : "lost"; }
-      process.stdout.write(r + " " + got + "\\n");
+      // Times in ms from the round's start: began, took (or was refused), checked.
+      const since = () => Date.now() - (at + r * ${GAP});
+      const times = [since()];
+      let got, found = "";
+      try { takeLock(file, me, { alive }); got = "ok"; } catch (e) { got = (e.code || e.message).replace(/\\s+/g, "_"); }
+      times.push(since());
+      if (got === "ok") {
+        sleepUntil(at + r * ${GAP} + ${GAP * 0.7});
+        try { found = fs.readFileSync(file, "utf8"); } catch (e) { found = e.code; }
+        times.push(since());
+        got = found === me ? "held" : "lost";
+      }
+      // "pid round outcome at=began,took,checked [what a lost holder found]"
+      process.stdout.write(process.pid + " " + r + " " + got + " at=" + times.join(",") + (got === "lost" ? " found=" + JSON.stringify(found) : "") + "\\n");
     }`;
   const outs = await Promise.all(Array.from({ length: KIDS }, () => new Promise((ok) => {
     const c = spawn(process.execPath, ["-e", code, file, String(at)]);
@@ -566,8 +576,17 @@ test("eight services over a stale lock, twenty times: one holds it each time, an
     c.on("close", () => ok(out));
   })));
   const rounds = Array.from({ length: ROUNDS }, () => []);
-  for (const line of outs.join("").trim().split("\n")) { const [r, got] = line.split(" "); rounds[Number(r)].push(got); }
-  rounds.forEach((got, r) => assert.deepEqual(got.sort(), ["ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "held"], `round ${r}`));
+  const stray = [];
+  for (const line of outs.join("").trim().split("\n")) {
+    const [, r, got] = line.split(" ");
+    if (rounds[Number(r)]) rounds[Number(r)].push({ got, line }); else stray.push(line);
+  }
+  // On a failure, every child's line for that round and the ones either side, so the log explains itself.
+  const want = ["ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "held"].join(" ");
+  const bad = rounds.map((x, r) => (x.map((c) => c.got).sort().join(" ") === want ? -1 : r)).filter((r) => r >= 0);
+  const show = [...new Set(bad.flatMap((r) => [r - 1, r, r + 1]))].filter((r) => rounds[r])
+    .map((r) => `round ${r}${bad.includes(r) ? " (failed)" : ""}:\n  ` + rounds[r].map((c) => c.line).join("\n  "));
+  assert.deepEqual([bad, stray], [[], []], `failed rounds ${bad.join(", ")}; lines as "pid round outcome at=began,took,checked":\n${show.join("\n")}`);
   assert.deepEqual(fs.readdirSync(dir), ["airpocket.lock"], "no marker, no lock copies left behind");
 });
 
