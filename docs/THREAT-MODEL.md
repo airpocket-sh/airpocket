@@ -2,10 +2,12 @@
 
 What Airpocket exposes, who it defends against and how, what it does not try
 to defend against, and the risks that remain. Written from the code on `main`
-after step 8 (commit `e444886`). Steps 9 and 10 add the public phone app, QR
-pairing, setup and uninstall; the review pass (the second half of step 11)
-checks this document against the code as it stands then, using
-[SECURITY-REVIEW-CHECKLIST.md](SECURITY-REVIEW-CHECKLIST.md).
+after step 8 (commit `e444886`), and updated by the review pass (the second
+half of step 11) for the fixes it made: the agent proved to be in its tmux
+pane, `hook.json` removed on stop, a Host check on the app and file servers,
+a confirmation before a `!` message, and a plain warning before pairing. Step
+10 (setup and uninstall) lands separately; its lines in
+[SECURITY-REVIEW-CHECKLIST.md](SECURITY-REVIEW-CHECKLIST.md) are still open.
 
 Names in `code` are functions and constants in `src/`. Line numbers are left
 out on purpose: other steps are changing those files.
@@ -28,8 +30,8 @@ One process (`start()` in `server.js`) runs three HTTP servers. All three bind
 
 | Server | Port (default) | Reached from | Answers without a token |
 | --- | --- | --- | --- |
-| App and API | 47871 | The tailnet, over HTTPS, through `tailscale serve` (tailnet port 443 for now). Also any process or account on this Mac, over loopback. | The static app (a fixed list of files in `STATIC`), CORS preflights, and `POST /api/pair`. Every other `/api/` route returns 401. |
-| File-only origin | 47872 | The tailnet, through `tailscale serve` (tailnet port 8443 for now). Also loopback. | `GET` and `HEAD /f/<ticket>/<name>`, where the ticket is the credential. Anything else returns 404 or 405. |
+| App and API | 47871 | The tailnet, over HTTPS, through `tailscale serve` (tailnet port 443 for now). Also any process or account on this Mac, over loopback. | The static app (a fixed list of files in `STATIC`), CORS preflights, and `POST /api/pair`. Every other `/api/` route returns 401. A Host that isn't a `*.ts.net` name or loopback gets 403 before anything else. |
+| File-only origin | 47872 | The tailnet, through `tailscale serve` (tailnet port 8443 for now). Also loopback. | `GET` and `HEAD /f/<ticket>/<name>`, where the ticket is the credential. Anything else returns 404 or 405. The same Host check first. |
 | Hook endpoint | 47873 | This Mac only. Never published. | Nothing. Unknown paths 404, other methods 405, a request with an Origin header or a non-loopback Host 403, no secret 401. |
 
 Tailscale ends TLS; the hop from `tailscaled` to Airpocket is plain HTTP on
@@ -78,7 +80,7 @@ On the Mac, in `~/Library/Application Support/Airpocket` (or
 | --- | --- | --- |
 | `devices.json` | Per phone: id, name, SHA-256 of its token, created, last seen | `store.js` (server and CLI) |
 | `pairing.json` | The pending code's SHA-256, expiry, tries | `store.js` |
-| `hook.json` | Hook port and hook secret, in plain text | `service.js` |
+| `hook.json` | Hook port and hook secret, in plain text. Only while the service runs: removed when it stops, and one left by a crash is removed when the next service starts | `service.js` |
 | `sessions/<id>.json` | Folder, transcript path, title, branch, snippet, account email, pid and start time, terminal ids | `service.js` |
 | `queue.json` | The waiting list, with reply snippets | `service.js` |
 | `airpocket.lock` | The running service's pid and start time | `service.js` |
@@ -133,6 +135,13 @@ user's to set; Airpocket assumes they may allow everyone on the tailnet.
   scripts and styles from the app itself, no framing, no forms, no base URL),
   `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`,
   `Cache-Control: no-store`, `Cross-Origin-Opener-Policy: same-origin`.
+- **Host check** (`HOST_OK`, `hostOk`). The app and file servers answer only
+  to a Host that is a `*.ts.net` name (what `tailscale serve` passes on) or
+  `127.0.0.1` / `localhost`, with any port; anything else gets 403 before
+  routing, so a refused request uses no pairing try and no file-link use. Only
+  Host counts: `X-Forwarded-Host` is a header a page can set itself. A web page
+  that rebinds its own name to 127.0.0.1 still sends its own name, so DNS
+  rebinding reaches nothing, not even the static app.
 - **Limits.** JSON bodies up to 32 KB; request timeout 30 s, header timeout
   15 s.
 - **Tailnet only.** `tailscale serve`, never `funnel`, and `airpocket serve`
@@ -151,6 +160,9 @@ also has network reach to the Mac.
 - Using a token needs tailnet reach as well.
 - **Revoke works at once.** `airpocket revoke <id>` rewrites `devices.json`,
   and `store.deviceFor` reads that file on every request.
+- **Said before pairing.** The pairing screens (code and scan) and the README
+  say that a paired phone can type anything into the agents, shell commands
+  included, until it is revoked on the Mac.
 - `airpocket devices` shows each phone's last use (updated at most every five
   minutes).
 
@@ -251,6 +263,13 @@ or another folder.
   `hook.json` (0600, in the 0700 data folder). The file is written whole
   (private temp file, fsync, rename) and only once the endpoint is listening.
   The secret is compared as a SHA-256 digest with `timingSafeEqual`.
+- **`hook.json` only while the service runs** (`dropHookFile`, `release`).
+  It is removed when the service stops (`close`, and `release` from the
+  process's exit handler, which SIGINT and SIGTERM reach), and when a service
+  stops because it lost the data folder, in each case only if it still holds
+  this service's secret. A service that starts removes any `hook.json` a crash
+  left, right after taking the lock and before it listens. A hook that finds no
+  `hook.json` sends nothing.
 - **No browsers.** A request with any Origin header is refused, since browsers
   send one with cross-site requests and with POSTs. The Host must be
   `127.0.0.1` or `localhost`, which stops DNS rebinding.
@@ -281,10 +300,27 @@ phone must not land there.
 
 - **The phone names a session, never a terminal.** The terminal comes from the
   session's record (`bridges.of`).
-- **The agent must still be that process** (`proc.stillRunning`, called by
+- **The agent must still be that process** (`proc.processInfo`, called by
   `bridges.writable` before every send, key and Controls command). Its pid and
   start time are read fresh from `/bin/ps`. No pid, no recorded start time, or
   no answer from `ps` means refused.
+- **The agent must hold its terminal.** The same `ps` call reads the agent's
+  terminal, its process group and the terminal's foreground process group
+  (`ps -o pid=,tty=,pgid=,tpgid=,lstart=`). No terminal at all is refused
+  (`not_in_terminal`); a process group that isn't the terminal's foreground
+  (the agent in the background, stopped with job control, or behind another
+  program) is refused (`not_foreground`).
+- **tmux: the agent must be in that pane.** The agent's terminal must be the
+  pane's (`#{pane_tty}`, read in the same tmux call as the server pid and copy
+  mode). An agent that was only started from the pane, and so inherited
+  `TMUX_PANE`, runs on another terminal or none, and is refused
+  (`not_in_pane`). Checked against a real tmux server: a process outside the
+  pane, one in another pane, and a job sent to the background, brought back
+  with `fg` and stopped with Ctrl+Z.
+- **Superset: the terminal can't be proved.** A Superset terminal id can't be
+  mapped to a terminal device from outside Superset, so for Superset only the
+  checks above hold: the agent is alive and in the foreground of *some*
+  terminal, not that the terminal is the recorded one (residual risk 2).
 - **tmux** (`tmuxBridge`, `tmuxSocket`). tmux runs by absolute path with
   argument lists, `-u` and a clean environment. The socket must be an absolute
   path to a real socket (checked with `lstat`, so no links) owned by this user.
@@ -297,7 +333,10 @@ phone must not land there.
   terminal ids must match `[A-Za-z0-9_-]{1,100}`.
 - **Text** (`cleanText`). Line breaks become spaces (a newline would press
   Enter), control characters 0 to 31 and 127 are dropped, 8,000 characters at
-  most. **Keys** come from the fixed table `KEYS` (arrows, Tab, Shift+Tab, 1
+  most. The phone asks once before sending text that starts with `!` (after
+  spaces or control characters), which Claude Code and Codex run as a shell
+  command: a hazard dialog says it will run as a command, and Keep sends
+  nothing. This is in the app only; the API takes such text as it is. **Keys** come from the fixed table `KEYS` (arrows, Tab, Shift+Tab, 1
   to 9, Enter, Esc).
 - **Controls** (`command`). The command text comes from a fixed table per
   agent (`COMMANDS`). A model or effort argument must be on the agent's own list
@@ -336,37 +375,54 @@ weight: **H** worth deciding before launch, **M** worth a fix or a clear note,
 
 1. **H: A token is all-powerful and permanent.** Tokens don't expire. They
    aren't bound to a phone or a tailnet device, and aren't limited to some
-   sessions. Free text reaches the agent as typed, so a Claude Code message
-   that starts with `!` runs in a shell. The Controls table limits what
+   sessions. Free text reaches the agent as typed, so a Claude Code or Codex
+   message that starts with `!` runs in a shell. The Controls table limits what
    *Controls* types, not the message box. A leaked token plus tailnet reach
    gives full use of the agents until revoked on each Mac.
+   *Step 11: still true, by design.* What changed is that people are told: the
+   pairing screens and the README say so before a phone is paired, and the app
+   asks once before sending a `!` message. The dialog guards against a slip on
+   the phone, not against a leaked token, which calls the API directly.
 
-2. **H: A recorded terminal proves where the agent started, not where it runs
-   now.** The terminal fields come from environment variables (`TMUX`,
-   `TMUX_PANE`, `SUPERSET_TERMINAL_ID`, `SUPERSET_WORKSPACE_ID`) that every
-   program started inside that terminal inherits. The checks prove the agent
-   process is alive and the tmux server is the same. They don't prove the agent
-   is in that pane or Superset terminal, or that it holds the terminal's
-   foreground. Cases where text from the phone, with Enter, would reach
-   something else:
-   - an agent started in an editor or terminal app that was itself launched
-     from a tmux pane or a Superset terminal;
-   - an agent stopped with job control, where the shell has the foreground and
-     the pid still lives;
-   - another program in the foreground of the agent's terminal.
+2. **H for Superset, closed for tmux: a recorded terminal proves where the
+   agent started, not where it runs now.** The terminal fields come from
+   environment variables (`TMUX`, `TMUX_PANE`, `SUPERSET_TERMINAL_ID`,
+   `SUPERSET_WORKSPACE_ID`) that every program started inside that terminal
+   inherits.
+   *Step 11:* every bridge now refuses an agent that holds no terminal, or
+   whose process group isn't its terminal's foreground: stopped with job
+   control, in the background, or behind another program. The tmux bridge also
+   proves the agent is in the recorded pane (its terminal is the pane's
+   `#{pane_tty}`). What remains:
+   - **Superset can't be proved.** A Superset terminal id can't be matched to a
+     terminal device, so an agent started from a Superset terminal that now
+     runs, in the foreground, in *another* terminal (an editor's terminal that
+     was launched from the Superset one, for example) passes the checks, and
+     text from the phone goes to the Superset terminal, where the shell or
+     whatever runs there now receives it.
+   - **Checked, then typed.** The checks run just before typing; a long message
+     goes to tmux in several calls after them, and Superset's CLI takes about
+     0.6 s. A process that takes the terminal's foreground in that window
+     receives the text.
 
 3. **M: Loopback ports aren't private to one account.** On a Mac with several
    accounts, another account can take 47871, 47872 or 47873 while Airpocket
    isn't running. Airpocket then logs "port taken" and runs without that
    server. `tailscale serve` would forward phone requests, bearer tokens
-   included, to whatever holds the app port. `hook.json` stays on disk after
-   the service stops, and is rewritten only once the endpoint listens, so hooks
-   keep sending session details and snippets to whatever holds the hook port.
+   included, to whatever holds the app port.
+   *Step 11: the hook half is closed.* `hook.json` is removed when the service
+   stops and, after a crash, when the next service starts, so a hook fired
+   while Airpocket is down finds no file and sends nothing. What remains for
+   hooks: after a crash that skips the exit handler (SIGKILL, a power cut),
+   the old `hook.json` stays until Airpocket starts again, and hooks keep
+   sending to its port until then. The app-port half is unchanged.
 
-4. **M: The app and file servers don't check the Host header.** The hook
-   endpoint does. A web page opened on the Mac that rebinds its own name to
-   127.0.0.1 can reach what needs no token: the static app, `/api/pair` (the
-   pending code's five tries) and ticket URLs (unguessable).
+4. **Closed at step 11: the app and file servers didn't check the Host
+   header.** A web page opened on the Mac that rebinds its own name to
+   127.0.0.1 could reach what needs no token: the static app, `/api/pair` (the
+   pending code's five tries) and ticket URLs. Both servers now refuse any Host
+   but a `*.ts.net` name or loopback (`HOST_OK`); tested with rebound names,
+   look-alikes (`ts.net.attacker.example`) and `X-Forwarded-Host`.
 
 5. **M: Key patterns are a short list, and cover only files and snippets.** A
    credential of another shape passes: a password in a config file, a database
@@ -426,10 +482,13 @@ weight: **H** worth deciding before launch, **M** worth a fix or a clear note,
 
 16. **L: Typed text not fully characterised.** C1 control characters (U+0080
     to U+009F) and invisible formatting characters are not removed; how each
-    agent's input reader treats them hasn't been verified. Text starting with
-    `-` reaches Superset as the value of `--text`. Its CLI's parsing of that
-    hasn't been verified (the `--prompt` path pads a leading dash; `--text`
-    doesn't).
+    agent's input reader treats them hasn't been verified.
+    *Step 11: the leading dash is settled.* The installed Superset CLI's parser
+    refuses an option value that starts with `-`, so such text was never read
+    as an option, but the message failed. Text starting with `-` now goes as
+    `--text=<value>`, which that parser takes whole, and terminal and workspace
+    ids can't start with `-`. This rests on the Superset build on this Mac; a
+    later CLI could parse differently.
 
 17. **L: Tokens at rest on the phone** are in plain text in the web app's
     storage. With several Macs, all their tokens sit in the storage of the
@@ -439,7 +498,14 @@ weight: **H** worth deciding before launch, **M** worth a fix or a clear note,
 18. **L: Error text crosses boundaries.** When a new session fails, up to 160
     characters of Superset's error output go to the phone. Up to 300 characters
     of Superset's or tmux's error output can reach the service log inside an
-    error stack. Neither has been checked to exclude typed text or paths.
+    error stack.
+    *Step 11: partly fixed.* A failed program used to carry Node's own message,
+    `Command failed: <program> <every argument>`, whenever it wrote nothing to
+    stderr (a timeout, for one), so typed text and new-session prompts reached
+    the log and the phone. `runFile` now reports only the program's stderr or
+    how it ended (`superset timed out`). What the programs themselves write to
+    stderr is still passed on and hasn't been checked to exclude typed text or
+    paths.
 
 19. **L: A process is named to the second.** `ps -o lstart` has one-second
     resolution; a pid reused within the same second would pass. macOS hands out
