@@ -5,3 +5,5 @@ node_modules/
 data/
 sessions/
 queue.json
+# the launch page's Vercel link, local only
+.vercel/
