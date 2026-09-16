@@ -130,3 +130,11 @@ Prove it, then launch
     private vulnerability reporting (SECURITY.md and the code of conduct both
     send people to it, and GitHub only offers it once the repository is public),
     and give the repository its topics.
+
+    npm last, after the repository is public and not before: publishing puts the
+    source on npm, so doing it earlier would open the code while the repository
+    is still shut. The name `airpocket` was free on 2026-09-17 and is being left
+    unclaimed until then, which is a small risk taken knowingly. Publishing means
+    an npm account with 2FA, `npm login` on the Mac, taking `private: true` out
+    of package.json, and `npm publish`; CONTRIBUTING.md has the release steps.
+    Only then does `npm install -g airpocket` in the README become true.
