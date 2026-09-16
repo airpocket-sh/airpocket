@@ -41,9 +41,9 @@ Both PNGs are committed and rendered by hand when their sources change:
 
 It uses headless Chrome through `docs/reference/cdp.js`, like the app's
 screenshots and icons, and exits with an error if a source logs anything to the
-console or the card comes out over 300 KB, the point past which some chat apps stop fetching the image. After a
-change to the card, platforms may show the old one for days, since they cache
-it by URL.
+console or the card comes out over 300 KB, the point past which some chat apps
+stop fetching the image. After a change to the card, platforms may show the old
+one for days, since they cache it by URL.
 
 `og.html` and `render-card.js` are deployed with the rest of the folder. Nothing
 links to them, `og.html` carries its own `noindex`, and neither reaches the
