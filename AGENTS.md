@@ -181,9 +181,9 @@ status line.
 
 ## Where the code stands
 
-- Steps 4 to 7 are merged (PR #1 to #4). `npm start` runs one process: the
+- Steps 4 to 8 are merged (PR #1 to #5). `npm start` runs one process: the
   service with its hook endpoint, the phone server and the file-only server,
-  all on 127.0.0.1. 99 tests.
+  all on 127.0.0.1. 112 tests.
 - `src/service.js`: session records (`sessions/<id>.json`) and the waiting list
   (`queue.json`) in the data folder (`~/Library/Application Support/Airpocket`
   or `$AIRPOCKET_DIR`); folders 0700, files 0600, every write whole
@@ -203,7 +203,7 @@ status line.
   workspace, pane, tmux, tmux_pid`), and empty stays empty, so nothing is
   kept from a terminal that may now hold only a shell. `enqueue` needs
   `reason`: finished | waiting for you | needs permission | needs input |
-  needs a response. `dequeue` needs `why`: prompt | end. Refused: Origin
+  needs a response. `dequeue` needs `why`: prompt | interrupt | end. Refused: Origin
   header, non-loopback Host, wrong secret, non-JSON, bodies over 16 KB.
   `transcript` is kept only if absolute and named after that session
   (`<id>.jsonl` for Claude, `rollout-…-<id>.jsonl` for Codex); `pane` must be
@@ -218,7 +218,7 @@ status line.
   notifications touch), SessionEnd → dequeue end; subagent events (with
   `agent_id`) ignored. Codex: the same plus PermissionRequest → needs
   permission ("Wants to use <tool>", never the input) and Interrupt →
-  dequeue prompt. Sends the agent's pid (first non-shell parent) and start
+  dequeue interrupt. Sends the agent's pid (first non-shell parent) and start
   time, the branch read from `.git`, the Claude account email from
   `$CLAUDE_CONFIG_DIR`, else the transcript's config folder, else
   `~/.claude.json` (only `.claude.json`, only `oauthAccount.emailAddress`).
@@ -228,6 +228,10 @@ status line.
   and differs; one that can't be read proves nothing, so the session stays.
   The service caches one `ps` call per second; the phone's list asks it
   through `service.isLive(record)`.
+- A record keeps `working_since` (ms, or 0): a prompt starts a turn; Stop,
+  the idle prompt after it, a Codex interrupt and a new process end it.
+  Esc in Claude fires no hook, so an interruption in the transcript ends it
+  too.
 - Waiting-list rules: finished = done, 20 minutes; the rest = input, 60
   minutes; one entry per session; a gone process leaves the list and the
   records; records not heard from in a day are forgotten.
@@ -257,6 +261,22 @@ status line.
   session in `/api/sessions` and `/api/screen`, and `can.start` for the Mac
   (new sessions are Superset-only; 409 `no_superset` without it). The app
   hides what can't work and says why in one line.
+- `src/models.js`: each agent's model list from its own file, read fresh with
+  a size cap: Codex `$CODEX_HOME/models_cache.json` (`visibility: "list"`,
+  by `priority`, with its reasoning levels), Claude
+  `~/.claude/cache/model-catalog/<id>-cc.json` (only that folder, by real
+  path). Missing, malformed or too big: built-in lists stand in (Claude's
+  aliases). Names by rule (`claude-fable-5-1` → "Fable 5.1"). `GET
+  /api/models` serves both; Controls and New accept only names on the list
+  and only that model's effort levels.
+- Model, effort and mode for every session, read-only ones too: Claude from
+  the transcript (`message.model`, `effort`, `permissionMode`, what `/model`
+  and `/effort` printed), Codex from `turn_context` then
+  `thread_settings_applied`. File first, screen second, except where the file
+  is late: Claude's mode after Shift+Tab, and Codex's model, effort and fast
+  mode between turns. Without a screen, `statusOf` gives working or idle
+  from Codex's file or `working_since`. The custom status line is no longer
+  read.
 - `docs/reference/try-hook.py` (+ `try-hook-driver.js`): the end-to-end trial
   with a real, throwaway Claude session against a throwaway Airpocket. Needs
   `pyte`. Passed 9/9 at step 6.
@@ -264,12 +284,18 @@ status line.
   trial's hook) in a tmux server on a private socket in a temp folder,
   driven only through the phone API. Passed 8/8 at step 7. The user's own
   tmux server is never touched.
+- `docs/reference/try-info.js`: the same setup plus a second phone server
+  that sees the session without its pane: model and effort from the
+  transcript, Shift+Tab, working and idle read-only, and a check that
+  `~/.claude/settings.json` is untouched. Never runs `/effort` or `/model`.
+  Passed 8/8 at step 8.
 - `docs/OWN-TERMINAL.md`: options for sessions outside Superset and tmux;
   recommends a private tmux session. Not built.
 - Open: Codex has not been tried end to end with a real session, in Superset
   or tmux (do it at step 10, when hooks are installed). Denying a Claude
   permission with Esc leaves "needs permission" until the next prompt (no
-  hook fires).
+  hook fires). `/effort` through Controls: in step 8's trial its first Enter
+  didn't take; not verified (step 13, once, on purpose).
 
 ## Decisions waiting for Öncel (proposed defaults)
 
