@@ -174,16 +174,23 @@ status line.
   changed, how you tested it (with output), what is left. The supervisor
   reviews; Öncel merges.
 - Plain Node (CommonJS), no frameworks, DOM-only UI (no innerHTML, no HTML
-  strings), as few dependencies as possible (`ws` today).
-- The UI design is Öncel's (a fighter-jet, flight-screen theme). Until his
-  designs arrive, keep the current look as a placeholder; do not restyle.
+  strings), as few dependencies as possible (none today).
+- The UI design is Öncel's (a fighter-jet, flight-screen theme). His design
+  pack is in `docs/design` and the app follows it since step 9; change the
+  look only from that pack or with his OK.
 - Write to Öncel plainly and briefly; he reads on his phone.
 
 ## Where the code stands
 
-- Steps 4 to 8 are merged (PR #1 to #5). `npm start` runs one process: the
-  service with its hook endpoint, the phone server and the file-only server,
-  all on 127.0.0.1. 112 tests.
+- Steps 4 to 9, 11 (first half) and 12 are merged (PR #1 to #7, #9).
+  `npm start` runs one process: the service with its hook endpoint, the phone
+  server and the file-only server, all on 127.0.0.1. 123 tests. PR #8 (a
+  lock race in `takeLock`) is open, not merged.
+- CI (`.github/workflows/test.yml`, step 12): macOS, Node 20 and 22, a syntax
+  check, `node --test` with a real tmux, and `.github/smoke.js` (the real app
+  on loopback with a temporary data folder and HOME).
+- Security docs (step 11, first half): `docs/THREAT-MODEL.md`, `SECURITY.md`,
+  `docs/SECURITY-REVIEW-CHECKLIST.md`.
 - `src/service.js`: session records (`sessions/<id>.json`) and the waiting list
   (`queue.json`) in the data folder (`~/Library/Application Support/Airpocket`
   or `$AIRPOCKET_DIR`); folders 0700, files 0600, every write whole
@@ -289,13 +296,38 @@ status line.
   transcript, Shift+Tab, working and idle read-only, and a check that
   `~/.claude/settings.json` is untouched. Never runs `/effort` or `/model`.
   Passed 8/8 at step 8.
+- The phone app (step 9) follows `docs/design`: tokens copied from the pack,
+  self-hosted B612, B612 Mono and IBM Plex Sans (`src/public/fonts`, OFL), the
+  map (`map.svg`) behind glass panes, Reduce Transparency and Reduce Motion
+  honoured. Icons, manifest and twelve iOS launch images rendered by
+  `docs/reference/render-icons.js`. Agents are marked CL and CX.
+- First run: `src/public/where.js` tells a Safari tab from a Home Screen app;
+  in a tab the app shows the add-to-Home-Screen steps wherever it would pair.
+- QR pairing: `src/public/qr.js` encodes and scans QR codes with no library.
+  `airpocket pair` prints the six digits and a QR of
+  `AIRPOCKET:PAIR:<code>:<ADDRESS>`; the phone accepts only an
+  `https://…ts.net` or loopback address, and a scan posts to the same
+  `/api/pair` (same code, tries and expiry). The camera scan is the second
+  option (`SCAN_FIRST = false` in `app.js`) until it is tried on a real
+  iPhone (step 13).
+- `/api/sessions` rows carry `status: { state, elapsed }` and `info` (model,
+  effort, fast, mode) for running sessions, from the same readers as the
+  session view; still one `ps` call per refresh.
+- The app's CSP has `font-src 'self'`; the app sends
+  `Permissions-Policy: camera=(self)`, the file-only origin `camera=()`.
+- Screenshots: `docs/reference/shoot-app.js` (27 screens at 390x844, 375x667
+  and 430x932, with automatic checks: no side scroll, 44px targets, safe
+  areas, glass edges). Contrast: `docs/reference/contrast.js`. Scan trial in
+  Chrome with a fake camera: `docs/reference/try-scan.js`, 10/10 at step 9.
 - `docs/OWN-TERMINAL.md`: options for sessions outside Superset and tmux;
-  recommends a private tmux session. Not built.
+  recommends a private tmux session. Planned as step 10b, not built.
 - Open: Codex has not been tried end to end with a real session, in Superset
   or tmux (do it at step 10, when hooks are installed). Denying a Claude
   permission with Esc leaves "needs permission" until the next prompt (no
   hook fires). `/effort` through Controls: in step 8's trial its first Enter
-  didn't take; not verified (step 13, once, on purpose).
+  didn't take; not verified (step 13, once, on purpose). On a real iPhone
+  (step 13): the camera in a Home Screen app, `prefers-reduced-transparency`,
+  the launch images. A desktop browser tab can't pair (first-run rule).
 
 ## Decisions waiting for Öncel (proposed defaults)
 
