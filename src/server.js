@@ -86,23 +86,30 @@ const COMMANDS = Object.freeze({
 const cleanPrompt = (t) => (typeof t !== "string" ? "" : Array.from(t.replace(/\r\n?/g, "\n"))
   .filter((ch) => { const c = ch.charCodeAt(0); return c === 10 || (c > 31 && c !== 127); }).join("").trim());
 
+// The app's own files, by name: nothing else under public/ is served.
+const LAUNCH_SIZES = ["375x667@2", "414x736@3", "375x812@3", "414x896@2", "414x896@3", "390x844@3", "428x926@3", "393x852@3", "430x932@3", "402x874@3", "440x956@3", "420x912@3"];
+const FONTS = ["b612-400", "b612-700", "b612-mono-400", "b612-mono-700", "plex-400", "plex-500", "plex-600"];
 const STATIC = Object.freeze({
   "/": ["index.html", "text/html; charset=utf-8"],
   "/index.html": ["index.html", "text/html; charset=utf-8"],
   "/app.js": ["app.js", "text/javascript; charset=utf-8"],
   "/md.js": ["md.js", "text/javascript; charset=utf-8"],
+  "/qr.js": ["qr.js", "text/javascript; charset=utf-8"],
+  "/where.js": ["where.js", "text/javascript; charset=utf-8"],
   "/app.css": ["app.css", "text/css; charset=utf-8"],
   "/sw.js": ["sw.js", "text/javascript; charset=utf-8"],
   "/manifest.webmanifest": ["manifest.webmanifest", "application/manifest+json; charset=utf-8"],
+  "/map.svg": ["map.svg", "image/svg+xml"],
   "/icon-180.png": ["icon-180.png", "image/png"],
   "/icon-512.png": ["icon-512.png", "image/png"],
+  "/icon-maskable-512.png": ["icon-maskable-512.png", "image/png"],
   "/apple-touch-icon.png": ["icon-180.png", "image/png"],
-  "/agent-claude.png": ["agent-claude.png", "image/png"],
-  "/agent-codex.png": ["agent-codex.png", "image/png"],
+  ...Object.fromEntries(FONTS.map((f) => [`/fonts/${f}.woff2`, [`fonts/${f}.woff2`, "font/woff2"]])),
+  ...Object.fromEntries(LAUNCH_SIZES.map((l) => [`/launch/${l}.jpg`, [`launch/${l}.jpg`, "image/jpeg"]])),
 });
 
 const CSP = [
-  "default-src 'none'", "script-src 'self'", "style-src 'self'", "img-src 'self' data: blob:",
+  "default-src 'none'", "script-src 'self'", "style-src 'self'", "img-src 'self' data: blob:", "font-src 'self'",
   "connect-src 'self' https://*.ts.net http://127.0.0.1:* http://localhost:*",
   "manifest-src 'self'", "worker-src 'self'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
 ].join("; ");
@@ -113,7 +120,8 @@ const BASE_HEADERS = Object.freeze({
   "Cache-Control": "no-store",
   "X-Frame-Options": "DENY",
   "Cross-Origin-Opener-Policy": "same-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  // The camera for this origin only, to read the pairing QR code; nothing else.
+  "Permissions-Policy": "camera=(self), microphone=(), geolocation=()",
 });
 
 // ---------------------------------------------------------------- helpers ---
