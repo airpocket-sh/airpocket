@@ -1,0 +1,76 @@
+/* The site's one design: the fonts, the tokens, the base elements and the parts every page shares
+   (the HUD frame, the status strip, section heads, the footer), then the guide pages' own parts.
+   Copied from the launch page as it was; anything only one page uses stays in that page. */
+
+@font-face{font-family:'B612';font-weight:400;font-display:swap;src:url("fonts/b612-400.woff2") format("woff2")}
+@font-face{font-family:'B612';font-weight:700;font-display:swap;src:url("fonts/b612-700.woff2") format("woff2")}
+@font-face{font-family:'B612 Mono';font-weight:400;font-display:swap;src:url("fonts/b612-mono-400.woff2") format("woff2")}
+@font-face{font-family:'B612 Mono';font-weight:700;font-display:swap;src:url("fonts/b612-mono-700.woff2") format("woff2")}
+@font-face{font-family:'IBM Plex Sans';font-weight:400;font-display:swap;src:url("fonts/plex-400.woff2") format("woff2")}
+@font-face{font-family:'IBM Plex Sans';font-weight:500;font-display:swap;src:url("fonts/plex-500.woff2") format("woff2")}
+@font-face{font-family:'IBM Plex Sans';font-weight:600;font-display:swap;src:url("fonts/plex-600.woff2") format("woff2")}
+:root{--ground:#0A0D08;--bezel:#0D110C;--glass:rgba(14,18,12,.55);--glass-2:rgba(20,26,17,.74);--glass-line:rgba(231,233,222,.07);--stroke:#2B3327;--stroke-2:#626E57;--fg:#E7E9DE;--fg-2:#AEB5A1;--fg-3:#929A83;--green:#8FD14F;--amber:#E9A227;--red:#E4614D;--red-solid:#C8382A;--sand:#D7C49E;--on-sand:#14180F;--green-dim:rgba(143,209,79,.14);--amber-dim:rgba(233,162,39,.14);--red-dim:rgba(228,97,77,.14);--sand-dim:rgba(215,196,158,.14);--map-0:#0B0E09;--map-1:#0D110B;--map-2:#0F140C;--map-3:#11170E;--map-4:#131A10;--map-5:#151D11;--map-6:#172013;--map-7:#192316;--map-ink:var(--map-3);--map-line:rgba(143,209,79,.055);--map-index:rgba(143,209,79,.08);--map-grid:rgba(231,233,222,.03);--glow-green:0 0 4px rgba(143,209,79,.35);--glow-amber:0 0 4px rgba(233,162,39,.35);--glow-red:0 0 4px rgba(228,97,77,.35);--glow-sand:0 0 4px rgba(215,196,158,.3);--hazard:repeating-linear-gradient(135deg,#E9A227 0 10px,#0B0B0B 10px 20px);--blur:blur(18px) saturate(.85);--display:var(--glass-2);--pane:rgba(231,233,222,.04);--pane-2:rgba(231,233,222,.09);--font-ui:'B612',system-ui,sans-serif;--font-mono:'B612 Mono',ui-monospace,monospace;--font-read:'IBM Plex Sans',system-ui,sans-serif;--r-1:2px;--r-2:4px;--map:url("map.svg");--ticks:repeating-linear-gradient(180deg,var(--stroke-2) 0 1px,transparent 1px 12px);--ticks-major:repeating-linear-gradient(180deg,var(--fg-3) 0 1px,transparent 1px 60px)}
+body{margin:0;background:linear-gradient(rgba(10,13,8,.55),rgba(10,13,8,.55)) fixed,var(--ground) var(--map) 50% 100%/max(100vw,780px) auto no-repeat fixed;color:var(--fg);font-family:var(--font-ui);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:var(--sand);text-decoration:none}a:hover{color:#EAD9B8}
+p{text-wrap:pretty}
+.g2{grid-template-columns:1fr}
+@media (min-width:760px){.g2{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+h1,h2{text-wrap:balance}
+@keyframes sweep{to{transform:rotate(360deg)}}
+@keyframes scan{0%{left:0}100%{left:calc(100% - 8px)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+/* HUD frame: viewport corner brackets and edge scales */
+.hud{position:fixed;inset:14px clamp(6px,1vw,14px);pointer-events:none;z-index:20}
+.hud>div{position:absolute}
+.hud .tl,.hud .tr,.hud .bl,.hud .br{width:22px;height:22px}
+.hud .tl{left:0;top:0;border-left:1px solid var(--sand);border-top:1px solid var(--sand)}
+.hud .tr{right:0;top:0;border-right:1px solid var(--sand);border-top:1px solid var(--sand)}
+.hud .bl{left:0;bottom:0;border-left:1px solid var(--sand);border-bottom:1px solid var(--sand)}
+.hud .br{right:0;bottom:0;border-right:1px solid var(--sand);border-bottom:1px solid var(--sand)}
+.hud .sl,.hud .sr{top:38%;bottom:38%;width:5px;background:var(--ticks)}
+.hud .ml,.hud .mr{top:38%;bottom:38%;width:9px;background:var(--ticks-major)}
+.hud .sl,.hud .ml{left:0}.hud .sr,.hud .mr{right:0}
+
+/* status strip */
+.strip{position:sticky;top:0;z-index:10;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--glass-line);box-shadow:inset 0 1px 0 rgba(231,233,222,.08)}
+.hdr-row{max-width:1200px;margin:0 auto;padding:0 clamp(16px,3.5vw,40px);min-height:56px;display:flex;align-items:center;gap:6px 24px;flex-wrap:wrap;padding-top:max(14px,env(safe-area-inset-top));padding-bottom:12px;box-sizing:border-box}
+.brand{display:flex;align-items:flex-start;gap:12px;height:36px;margin-right:auto;order:1;flex:0 0 auto;color:var(--fg)}
+a.brand:hover{color:var(--fg)}
+.brand svg{flex:none;margin-top:-5px}
+.brand span{font-size:15px;line-height:1;letter-spacing:.14em;white-space:nowrap}
+.hdr-gh{height:36px;padding:0 14px;order:1;margin-left:clamp(12px,3vw,40px);background:var(--sand);color:var(--on-sand);display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:clamp(9px,2.6vw,11px);font-weight:700;letter-spacing:clamp(.02em,.4vw,.12em);white-space:nowrap;flex:none}
+.hdr-gh:hover{color:var(--on-sand)}
+.hdr-gh svg{flex:none}
+.hdr-nav{display:flex;gap:0;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;flex:0 1 auto;min-width:0;order:2;justify-content:flex-end;align-items:center}
+.hdr-nav a{height:44px;padding:0 clamp(5px,1.2vw,14px);flex:0 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;font-size:clamp(9px,2.6vw,11px);letter-spacing:clamp(.02em,.4vw,.12em)}
+.hdr-nav a+a{box-shadow:-1px 0 0 var(--stroke)}
+.hdr-nav a>span{width:14px;height:2px;background:currentColor}
+.hdr-nav a[aria-current]{color:var(--fg)}
+.hdr-nav a[aria-current]>span{background:var(--green);box-shadow:var(--glow-green)}
+.scanline{position:relative;height:2px;background:var(--stroke)}
+.scanline>div{position:absolute;top:0;width:8px;height:2px;background:var(--green);box-shadow:var(--glow-green);animation:scan 6s linear infinite alternate}
+@media (max-width:760px){.hdr-row{padding-top:max(24px,calc(env(safe-area-inset-top) + 10px))!important;padding-bottom:16px!important}}
+
+/* section heads: number, eyebrow, title, page count */
+.sec{display:flex;flex-direction:column;gap:32px;scroll-margin-top:90px}
+.sec-head{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;border-bottom:1px solid var(--stroke);padding-bottom:16px}
+.sec-num{font-family:var(--font-mono);font-size:clamp(28px,4vw,44px);color:var(--sand);line-height:1}
+.sec-title{display:flex;flex-direction:column;gap:6px;flex:1 1 240px;min-width:0}
+.sec-title h2{margin:0;font-size:clamp(24px,3vw,36px);font-weight:400;line-height:1.1}
+.eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;color:var(--fg-3)}
+.sec-page{font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);text-align:right;margin-left:auto;white-space:nowrap;align-self:flex-start;padding-top:4px}
+
+/* footer */
+.foot{margin-top:80px;border-top:1px solid var(--stroke)}
+.foot-ruler{height:10px;background:repeating-linear-gradient(90deg,var(--stroke-2) 0 1px,transparent 1px 12px)}
+.foot-row{max-width:1200px;margin:0 auto;padding:20px clamp(16px,3.5vw,40px) 48px;display:flex;gap:20px;flex-wrap:wrap;align-items:center;box-sizing:border-box}
+.foot-brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.foot-brand span{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;color:var(--fg-2)}
+.foot-nav{display:flex;gap:20px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;flex-wrap:wrap}
+.foot-note{font:13px var(--font-read);color:var(--fg-3)}
+
+/* glass: anything with a blur behind it; Reduce Transparency makes it solid */
+.glass{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(231,233,222,.08)}
+@media (prefers-reduced-transparency:reduce){[style*="backdrop-filter"],.strip,.glass{background:var(--ground)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:inset 0 0 0 1px var(--stroke)!important}}
