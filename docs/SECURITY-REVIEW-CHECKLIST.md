@@ -22,8 +22,10 @@ How to work through it:
 
 - [ ] Each server binds `127.0.0.1` only (`start()`, `service.listen`). No
       `0.0.0.0`, `::` or tailnet address anywhere, tests included.
-- [ ] Only `airpocket serve` publishes, only with `tailscale serve`, only the
-      app and file ports. Search the repo (docs too) for `funnel`: it may appear
+- [ ] Only `airpocket setup` publishes, only with `tailscale serve`, only the
+      app and file ports, never on a tailnet port another program uses;
+      `airpocket uninstall` turns off only ports that publish nothing but
+      Airpocket's own targets. Search the repo (docs too) for `funnel`: it may appear
       only as "never".
 - [ ] Every table lookup keyed by request input uses `Object.hasOwn` (`STATIC`,
       `KEYS`, `COMMANDS`, `FILE_KINDS`, model lists), so `__proto__` or
