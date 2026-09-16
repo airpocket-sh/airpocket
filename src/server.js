@@ -1565,12 +1565,27 @@ module.exports = { start, createServer, tidyScreen, cleanText, KEYS, liveState, 
   mergeInfo, claudeMode, codexContext, effortsFor, sessionRoot, fileMeta, mentions };
 
 if (require.main === module) {
-  let app;
-  try { app = start(); } catch (err) {
-    console.error(err.code === "ELOCKED" ? err.message : err.stack || err);
-    process.exit(1);
-  }
+  // Another Airpocket holding the data folder: started by hand, exit with its own
+  // code. Started as the login item, wait and try again instead, because launchd
+  // would restart an exit forever (see loginitem.js).
+  const { EXIT_LOCKED } = require("./loginitem");
+  const asLoginItem = process.argv.includes("--login-item");
+  const stamp = (...a) => console.log(new Date().toISOString(), ...a);
+  let app = null, pause = Number(process.env.AIRPOCKET_LOCK_RETRY_MS) || 30000, waited = false;
+  const attempt = () => {
+    try { app = start(); } catch (err) {
+      if (err.code !== "ELOCKED") { console.error(err.stack || err); process.exit(1); }
+      if (!asLoginItem) { console.error(err.message); process.exit(EXIT_LOCKED); }
+      if (!waited) stamp(`${err.message} Waiting for it to stop; trying again every ${Math.round(pause / 1000)} s or more.`);
+      waited = true;
+      setTimeout(attempt, pause);
+      pause = Math.min(pause * 2, 5 * 60000);
+      return;
+    }
+    if (waited) stamp("the data folder is free again: this service took it over");
+  };
   // Leave the lock behind only after a crash; a stale lock is taken over anyway.
-  process.on("exit", () => app.service.release());
+  process.on("exit", () => { if (app) app.service.release(); });
   for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(0));
+  attempt();
 }
