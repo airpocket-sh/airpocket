@@ -21,6 +21,10 @@ const ESC = String.fromCharCode(27);
 const BELL = String.fromCharCode(7);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-test-"));
 const store = createStore(dir);
+// Everything the server logs, and every code and token it handed out, for the log check at the end.
+const logged = [], codes = [], tokens = [];
+const newCode = store.newCode;
+store.newCode = (...a) => { const r = newCode(...a); codes.push(r.code); return r; };
 const now = Math.floor(Date.now() / 1000);
 const CLAUDE = "cb2d94c7-3e54-464a-8086-79db7d007c02";
 const CODEX = "01a09c74-c19c-79d0-926f-81a420e20565";
@@ -138,7 +142,7 @@ const calls = { superset: [], dequeue: [], tmux: [] };
 let removes = 1;                                  // what the stand-in dequeue reports it took off
 
 const app = createServer({
-  store, log: () => {}, hostLabel: "Test-Mac", claudeProjects: path.join(dir, "projects"), codexHome: path.join(dir, "codex"),
+  store, log: (...a) => logged.push(a.map(String).join(" ")), hostLabel: "Test-Mac", claudeProjects: path.join(dir, "projects"), codexHome: path.join(dir, "codex"),
   homeDir: HOME, fileBase: async () => fileBase, ticketMs: 1500,
   knownSessions: () => SESS,
   getQueue: () => QUEUE,
@@ -178,7 +182,7 @@ function req(method, p, { body, headers = {}, raw, at = base } = {}) {
     const r = http.request(at + p, { method, headers: { ...(data ? { "Content-Type": "application/json", "Content-Length": data.length } : {}), ...headers } }, (res) => {
       let b = "";
       res.on("data", (c) => (b += c));
-      res.on("end", () => { let json = null; try { json = JSON.parse(b); } catch {} resolve({ status: res.statusCode, headers: res.headers, body: b, json }); });
+      res.on("end", () => { let json = null; try { json = JSON.parse(b); } catch {} if (json && json.token) tokens.push(json.token); resolve({ status: res.statusCode, headers: res.headers, body: b, json }); });
     });
     r.on("error", reject);
     if (data) r.write(data);
@@ -731,12 +735,22 @@ test("files: PDFs and pages open from the file-only origin, through a short link
   for (const p of ["/", "/api/sessions", "/app.js", "/f/", "/f/x/y"]) assert.equal((await get(fileBase + p)).status, 404, "the file origin serves nothing else: " + p);
 
   const viaTailnet = await req("POST", "/api/file/open", { headers: { ...auth(), Host: "mac-b.tail1234.ts.net" }, body: { id: FILES, ref: refOf(files, "report.pdf") } });
+  const forwarded = await req("POST", "/api/file/open", { headers: { ...auth(), "X-Forwarded-Host": "evil.tail9999.ts.net" }, body: { id: FILES, ref: refOf(files, "report.pdf") } });
+  assert.ok(forwarded.json.url.startsWith(fileBase + "/f/"), "the link's origin comes from Host only, never X-Forwarded-Host");
   assert.match(viaTailnet.json.url, /^https:\/\/mac-b\.tail1234\.ts\.net:8443\/f\/[A-Za-z0-9_-]{43}\/report\.pdf$/, "the link uses the Mac's tailnet name on the file port");
   const page = await req("POST", "/api/file/open", { headers: auth(), body: { id: FILES, ref: refOf(files, "page.html") } });
   const pg = await get(page.json.url);
   assert.equal(pg.status, 200);
   assert.match(pg.headers["content-security-policy"], /sandbox/);
   assert.match(pg.headers["content-security-policy"], /script-src 'none'/);
+  // An empty page is served empty, at once (a byte range of nothing used to hang the response).
+  const pageText = fs.readFileSync(path.join(ROOT, "page.html"));
+  put("page.html", "");
+  try {
+    const empty = await req("POST", "/api/file/open", { headers: auth(), body: { id: FILES, ref: refOf(files, "page.html") } });
+    const e = await Promise.race([get(empty.json.url), new Promise((r) => setTimeout(() => r({ status: "hung" }), 3000))]);
+    assert.deepEqual([e.status, e.body && e.body.length], [200, 0]);
+  } finally { put("page.html", pageText); }
   assert.equal((await req("POST", "/api/file/open", { headers: auth(), body: { id: FILES, ref: refOf(files, "notes.md") } })).status, 400, "text is drawn by the app, not linked");
 
   await new Promise((r) => setTimeout(r, 1600));
@@ -893,4 +907,16 @@ test("nothing in the app points at the private tool it came from", () => {
       assert.ok(!bad.test(t), `${path.relative(src, f)} matches ${bad}`);
     }
   }
+});
+
+test("the log holds no pairing code, token, ticket, query string or typed text", () => {
+  assert.ok(logged.length > 10, "the server logged this run: " + logged.length);
+  assert.ok(codes.length > 3 && tokens.length > 1, "codes and tokens were handed out");
+  const all = logged.join("\n");
+  for (const c of codes) assert.ok(!all.includes(c), "a pairing code in the log");
+  for (const t of tokens) assert.ok(!all.includes(t), "a token in the log");
+  assert.ok(!/[A-Za-z0-9_-]{43}/.test(all), "nothing shaped like a token or a file ticket");
+  assert.ok(!all.includes("?"), "no query string");
+  for (const typed of ["rm -rf", "whoami", "staged", "iPhone " + BELL]) assert.ok(!all.includes(typed), "typed text in the log: " + typed);
+  assert.ok(!all.includes(HOME), "no file path");
 });

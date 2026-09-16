@@ -1262,13 +1262,12 @@
       say();
       fill(view, h("div", { class: "page" },
         h("p", { class: "lede" }, "On your Mac, in Terminal, run ", h("code", { class: "k", text: "airpocket pair" }), ", then enter the six digits it shows."),
-        pairWarning(),
         canScan() ? h("button", { class: "btn outline wide", onclick: () => { st.err = ""; st.mode = "scan"; draw(); } }, icon("scan", 20), "Scan the code on your Mac") : null,
         addr ? h("div", { class: "field" }, h("div", { class: "label", text: "Mac address" }), h("div", { class: "fw" }, addr), addrErr) : null,
         h("div", { class: "field" }, h("div", { class: "label", text: "Code" }), digits, msg),
         h("div", { class: "field" }, h("div", { class: "label", text: "Name for this phone" }), h("div", { class: "fw" }, name),
           h("p", { class: "hint", text: "Shown on the Mac so you know which phone is connected." })),
-        h("div", { class: "pushdown" }, pad, btn)));
+        h("div", { class: "pushdown" }, pad, btn, pairWarning())));
       paint();
     }
 

@@ -50,7 +50,8 @@ const TMUX_BINS = Object.freeze(["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux"
 // tmux takes one command of 16 KB at most (MAX_IMSGSIZE), so text goes in pieces well under that.
 const TMUX_PIECE = 4096;
 const TMUX_PANE = /^%\d{1,9}$/;
-const TERMINAL_ID = /^[A-Za-z0-9_-]{1,100}$/;
+// Never a leading dash, which Superset's CLI would take for an option.
+const TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
 // tmux gets no environment of ours: no $TMUX to confuse it, and a UTF-8 locale
 // (with -u) so capture-pane doesn't turn ❯ and friends into underscores.
 const TMUX_ENV = Object.freeze({ PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8" });
@@ -75,10 +76,18 @@ const KEYS = Object.freeze({
   esc: { text: ESC, submit: false, tmux: "Escape" },
 });
 
+/**
+ * Run a program with an argument list. A failure carries what the program wrote
+ * to stderr, or only how it ended: never Node's own message, which repeats every
+ * argument (typed text, a prompt) and would reach the log and the phone.
+ */
 function runFile(file, args, timeout = 15000, env) {
   return new Promise((resolve, reject) => {
-    execFile(file, args, { timeout, maxBuffer: 4 * 1024 * 1024, ...(env ? { env } : {}) }, (err, out, errOut) =>
-      err ? reject(new Error(String(errOut || err.message).trim().slice(0, 300))) : resolve(out));
+    execFile(file, args, { timeout, maxBuffer: 4 * 1024 * 1024, ...(env ? { env } : {}) }, (err, out, errOut) => {
+      if (!err) return resolve(out);
+      const how = err.killed ? "timed out" : err.code != null ? `exited with ${err.code}` : "couldn't run";
+      reject(new Error(String(errOut || "").trim().slice(0, 300) || `${path.basename(file)} ${how}`));
+    });
   });
 }
 function runSuperset(args, o = {}) { return runFile(SUPERSET, args, o.timeout || 15000); }
@@ -146,8 +155,10 @@ function createBridges(o = {}) {
   const wait = (ms) => (ms > 0 ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve());
 
   function supersetBridge(ws, term) {
-    const send = (text, submit) => superset(["terminals", "send", "--workspace", ws, "--terminal", term, "--text", text,
-      ...(submit ? [] : ["--no-submit"])]);
+    // Superset's CLI refuses an option value that starts with "-" ("- fix this"); in
+    // --text=<value> the value is everything after the first "=", taken as it is.
+    const send = (text, submit) => superset(["terminals", "send", "--workspace", ws, "--terminal", term,
+      ...(text.startsWith("-") ? ["--text=" + text] : ["--text", text]), ...(submit ? [] : ["--no-submit"])]);
     return {
       name: "superset",
       key: `superset:${ws}/${term}`,

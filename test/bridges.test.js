@@ -12,7 +12,7 @@ const os = require("os");
 const path = require("path");
 const net = require("net");
 const { execFileSync, spawn } = require("child_process");
-const { createBridges, KEYS, tmuxSocket, tmuxLiteral, tmuxPieces, TMUX_BINS } = require("../src/bridges");
+const { createBridges, KEYS, tmuxSocket, tmuxLiteral, tmuxPieces, runFile, TMUX_BINS } = require("../src/bridges");
 const { startTimeOf, stillRunning, processInfo } = require("../src/proc");
 
 const ESC = String.fromCharCode(27);
@@ -30,6 +30,8 @@ const KEY_BYTES = { up: ESC + "[A", down: ESC + "[B", right: ESC + "[C", left: E
                     esc: ESC, enter: CR, 3: "3" };
 // Text that trips the careless: tmux ends a command at a trailing ";", a shell would expand the rest.
 const TRICKY = "a;b $(id) `id` #{pane_id} ~ -l -- \\; end;";
+// Text that reads as an option to a careless command line.
+const DASHED = ["- fix this", "--no-submit", "-", "--text=x=y", "-l -- ;"];
 
 // A real socket, as tmux would leave one, for the stand-in tmux.
 const SOCK = path.join(dir, "fake.sock");
@@ -39,13 +41,18 @@ const sockReady = new Promise((r) => sockServer.listen(SOCK, r));
 // ---- stand-ins -------------------------------------------------------------------
 
 // Superset: `terminals send --text T [--no-submit]` types T, then Enter unless --no-submit.
+// Its CLI refuses an option value that starts with "-", and takes --text=T whole
+// (everything after the first "="), as the installed CLI's parser does.
 function fakeSuperset(term) {
   const calls = [];
   const run = async (args) => {
     calls.push(args);
     if (args[0] === "terminals" && args[1] === "read") return JSON.stringify({ terminalId: "t", text: term.screen });
     if (args[0] === "terminals" && args[1] === "send") {
-      term.got += args[args.indexOf("--text") + 1] + (args.includes("--no-submit") ? "" : CR);
+      const i = args.indexOf("--text");
+      const eq = args.find((a) => a.startsWith("--text="));
+      if (i >= 0 && (args[i + 1] === undefined || args[i + 1].startsWith("-"))) throw new Error("Option --text requires a value");
+      term.got += (i >= 0 ? args[i + 1] : eq.slice("--text=".length)) + (args.includes("--no-submit") ? "" : CR);
       return "{}";
     }
     throw new Error("unexpected superset call");
@@ -117,6 +124,10 @@ function contract(label, setup, opts = {}) {
     await expect("hi there", "no Enter without submit");
     await t.bridge.type(TRICKY, false);
     await expect(TRICKY, "no shell, no tmux command parsing, no key names");
+    for (const d of DASHED) {
+      await t.bridge.type(d, false);
+      await expect(d, "a leading dash is text, not an option: " + d);
+    }
     await t.bridge.type("go", true);
     await expect("go" + CR, "text, then Enter");
     await t.bridge.type("", true);
@@ -484,4 +495,24 @@ test("writable: the agent must hold a terminal; for Superset that is all that ca
   assert.equal(me.started, ME.started);
   assert.ok(me.pgid > 1 && Number.isInteger(me.tpgid));
   for (const v of [0, 1, -5, "12", null, 2 ** 40]) assert.equal(processInfo(v), null, String(v));
+});
+
+test("a program that fails says how, never with its arguments (typed text stays out of logs)", async () => {
+  const secret = "MY TYPED SECRET";
+  const errOf = (p) => p.then(() => "resolved", (e) => e.message);
+  const killed = await errOf(runFile("/bin/sh", ["-c", "sleep 5", "x", "--text", secret], 200));
+  assert.equal(killed, "sh timed out");
+  const exited = await errOf(runFile("/bin/sh", ["-c", "exit 3", "x", "--text", secret]));
+  assert.equal(exited, "sh exited with 3");
+  const said = await errOf(runFile("/bin/sh", ["-c", "echo nope >&2; exit 1", "x", secret]));
+  assert.equal(said, "nope", "what the program itself wrote to stderr");
+  const missing = await errOf(runFile(path.join(dir, "no-such-program"), [secret]));
+  assert.ok(!missing.includes(secret), missing);
+  // Superset: a leading dash goes as --text=<value>; ids can't start with one.
+  const calls = [];
+  const b = createBridges({ superset: async (a) => { calls.push(a); return "{}"; }, hasTmux: () => false });
+  await b.of({ workspace: "ws-1", terminal: "term-1" }).type("-rf now", true);
+  assert.deepEqual(calls[0], ["terminals", "send", "--workspace", "ws-1", "--terminal", "term-1", "--text=-rf now"]);
+  assert.equal(b.of({ workspace: "-ws", terminal: "term-1" }), null);
+  assert.equal(b.of({ workspace: "ws-1", terminal: "--help" }), null);
 });

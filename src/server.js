@@ -1284,13 +1284,10 @@ function createServer(opts = {}) {
   // Two-minute links to one file on the file-only origin. Held in memory only.
   const tickets = new Map();
   // The file origin is this Mac's tailnet name on its own port: taken from the address
-  // the phone used to get here, else looked up, else loopback.
+  // the phone used to get here (Host, which tailscale serve passes on), else looked up, else loopback.
   const tailnetHost = (req) => {
-    for (const v of [req && req.headers["x-forwarded-host"], req && req.headers.host]) {
-      const host = String(v || "").split(",")[0].trim().replace(/:\d+$/, "").toLowerCase();
-      if (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net$/.test(host)) return host;
-    }
-    return "";
+    const host = String((req && req.headers.host) || "").replace(/:\d+$/, "").toLowerCase();
+    return /^[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net$/.test(host) ? host : "";
   };
   async function openFile(res, body, cors, req) {
     const e = find(body.id);
@@ -1336,7 +1333,8 @@ function createServer(opts = {}) {
     }
     headers["Content-Length"] = end - start + 1;
     res.writeHead(status, headers);
-    if (req.method === "HEAD") { res.end(); return status; }
+    // An empty file has no byte range to stream (end would be -1).
+    if (req.method === "HEAD" || f.size === 0) { res.end(); return status; }
     fs.createReadStream(f.abs, { start, end }).on("error", () => res.destroy()).pipe(res);
     return status;
   }
