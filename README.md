@@ -1,4 +1,21 @@
-# Airpocket
+<h1 align="center"><img src="docs/images/banner.png" width="100%" alt="Airpocket: the dart and the wordmark on a dark chart, over the line &quot;Your agents fly the missions. This is the cockpit.&quot;"></h1>
+
+<p align="center">
+  <a href="#install-macos">Install</a> ·
+  <a href="https://airpocket.sh/#how">How it works</a> ·
+  <a href="#security-in-one-paragraph">Security</a> ·
+  <a href="https://airpocket.sh/#faq">FAQ</a> ·
+  <a href="https://airpocket.sh">airpocket.sh</a> ·
+  <a href="https://github.com/oncelozguleso/airpocket/releases">Releases</a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-D7C49E?style=flat-square&labelColor=1B2118" alt="License: MIT"></a>
+  <a href="https://github.com/oncelozguleso/airpocket/actions/workflows/test.yml"><img src="https://github.com/oncelozguleso/airpocket/actions/workflows/test.yml/badge.svg?branch=main" alt="Tests on main"></a>
+  <img src="https://img.shields.io/badge/platform-macOS-D7C49E?style=flat-square&labelColor=1B2118" alt="Platform: macOS">
+  <img src="https://img.shields.io/badge/node-20%2B-D7C49E?style=flat-square&labelColor=1B2118" alt="Node 20 or newer">
+  <img src="https://img.shields.io/badge/dependencies-none-8FD14F?style=flat-square&labelColor=1B2118" alt="Dependencies: none">
+</p>
 
 Your coding agents, on your phone. Every Claude Code and Codex session on every
 one of your Macs, in one list, with the ones waiting on you first. Read the
@@ -7,7 +24,10 @@ open the files they made, from anywhere.
 
 Nothing sits in between: your phone talks to your Macs over your own
 [Tailscale](https://tailscale.com) network. There is no Airpocket server, no
-account and no relay.
+account and no relay. What it needs: a Mac with Node 20 or newer and Claude
+Code or Codex, and Tailscale on the Mac and on the phone.
+
+<p align="center"><img src="docs/images/phones.png" width="100%" alt="Three phones running Airpocket. First, the session list: three sessions need you (one asking permission to use Bash, one asking which Stripe API version to target, one finished) above two open ones. Second, a session asking &quot;Do you want to proceed?&quot; with three numbered answers and a reply box. Third, a TypeScript file the agent wrote, open with line numbers."></p>
 
 > **Status: private, work in progress.** Not on npm yet: to try it, install
 > from a clone (below). See [docs/PLAN.md](docs/PLAN.md), and
@@ -27,6 +47,12 @@ account and no relay.
 - **Send a photo**: a screenshot, a whiteboard, the thing on your desk, from
   the phone's camera or its library, with or without a message.
 - **A web app**, added to your home screen. No App Store.
+
+<p align="center">
+  <img src="site/shots/mfd1-sessions-one-waiting.png" width="280" alt="The session list for one Mac: under Needs you, a Claude Code session needing permission to use Bash and a Codex session asking which Stripe API version to target; under Open, a Claude Code session working, on Opus 5 with high effort.">
+  &nbsp;
+  <img src="site/shots/mfd3-controls-model-effort.png" width="280" alt="The Controls sheet for a Claude Code session: Opus 5 active and Sonnet 5 picked to apply next, effort set to high, permission mode buttons, and session commands including Compact, Resume and Clear.">
+</p>
 
 ## Install (macOS)
 
@@ -166,6 +192,10 @@ one folder in `~/.claude/settings.json`:
 ```
 
 ## Any terminal
+
+<p align="center">
+  <img src="site/shots/mfd2-question-answered.png" width="280" alt="A Claude Code session on the phone, asking before it runs a shell command: &quot;Do you want to proceed?&quot; with the numbered answers Yes; Yes, and don't ask again for npm test commands; and No, and tell Claude what to do differently. A reply box sits underneath.">
+</p>
 
 The phone can always *watch* a session, whatever terminal it runs in. To
 *answer* it, Airpocket needs to reach the terminal: a Superset terminal or a
