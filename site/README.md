@@ -1,29 +1,101 @@
-# The launch page
+# The site
 
-`airpocket.sh`. One static page: `index.html`, the chart behind it (`map.svg`),
-five screenshots of the real app (`shots/`), and the three fonts (`fonts/`,
-copied from `src/public/fonts`, both licences beside them).
+`airpocket.sh`. A small static site: the launch page (`index.html`), four guides
+that each answer one question people search for, the chart behind every page
+(`map.svg`), five screenshots of the real app (`shots/`), and the three fonts
+(`fonts/`, copied from `src/public/fonts`, both licences beside them).
 
 Nothing here reaches the network: no fonts from a CDN, no analytics, no
-third-party script. Keep it that way; the page argues that nothing of yours
-leaves your machines, and it should be true of the page itself.
+third-party script, no tag manager. Keep it that way, however much a habit from
+other sites suggests one; the launch page argues that nothing of yours leaves
+your machines, and it should be true of the site itself.
 
 The screenshots come from the real app, rendered by
 `node docs/reference/shoot-app.js <dir>` against invented Macs and sessions.
 Regenerate them when the app's look changes rather than editing them.
 
-`<meta name="robots" content="noindex">` is in `index.html` on purpose: the page
-links to a repository that is still private, so those links would 404 for a
-visitor. Remove that line at step 16, when the repo goes public. The share card
-below does not depend on it: chat apps and social sites read the tags of a page
-whether or not search engines may index it.
+## The pages
+
+| Address | File | Answers |
+| --- | --- | --- |
+| `/` | `index.html` | What Airpocket is, how it works, how to install it. |
+| `/install-tailscale` | `install-tailscale.html` | MagicDNS and HTTPS certificates, and why a work email puts you in a tailnet where you can't turn them on. |
+| `/claude-code-on-iphone` | `claude-code-on-iphone.html` | Claude Code from the phone: the hooks, why a session appears at its next prompt, what the phone can and can't do. |
+| `/codex-on-iphone` | `codex-on-iphone.html` | The same for Codex: hooks read at launch, and hooks to trust. |
+| `/any-terminal` | `any-terminal.html` | Which terminals the phone can answer, and what `airpocket run` and `airpocket attach` do. |
+
+The guides say only what is already true in the repository's README,
+`docs/THREAT-MODEL.md` or the launch page, and state their limits plainly. When
+the product changes, change the guide that describes it.
+
+`vercel.json` turns on `cleanUrls`, so Vercel serves each page without `.html`
+and redirects the `.html` address to it (`/index.html` goes to `/`), and
+`trailingSlash: false`, so `/any-terminal/` redirects to `/any-terminal`. The
+launch page's own links are all `#` anchors or GitHub addresses, so this doesn't
+touch them; the guides link to each other and home by their clean addresses
+(`/`, `/#faq`, `/any-terminal`). Their stylesheet, icons and fonts stay
+relative, which works because every page sits at the top of the site.
+
+### One stylesheet
+
+`style.css` holds the design every page shares: the fonts, the tokens, the base
+elements, the HUD frame, the status strip, the section heads, the footer, and
+the parts of a guide (the prose column, command blocks, notes, the contents
+list, the related guides). Anything only one page uses stays in that page: the
+launch page keeps its opening sequence and its inline layout.
+
+When the stylesheet moved out of `index.html`, the page was rendered before and
+after, at 390 and 1280 wide, scrolled from top to bottom, with Reduce
+Transparency, and through the opening sequence, and the still frames were
+compared pixel by pixel. They were identical. Do the same after any change to
+`style.css` that isn't meant to move the launch page.
+
+### Adding a page
+
+Copy a guide, then give it its own `<title>`, description, canonical link,
+`og:url`, Open Graph and Twitter titles and descriptions, and one `<h1>`. Add it
+to `sitemap.xml`, to the header and footer lists of every page (`aria-current`
+on its own), to the related guides of the others, and to the table above. It
+carries the noindex line until launch like the rest.
+
+## Launch day: letting search engines in
+
+Until the repository is public, search engines are kept out twice over, because
+every page links to a repository that would 404. When it goes public (step 16),
+in one commit and one deploy:
+
+1. `robots.txt`: change `Disallow: /` to `Allow: /`.
+2. Delete the `<meta name="robots" content="noindex">` line (the first line of
+   the `<head>`) from each of these five pages:
+   - `index.html`
+   - `install-tailscale.html`
+   - `claude-code-on-iphone.html`
+   - `codex-on-iphone.html`
+   - `any-terminal.html`
+
+   `og.html` keeps its own noindex: it is the source of the share card, not a
+   page. `grep -l 'content="noindex"' site/*.html` should then list only it.
+
+Do both together. With the noindex lines gone but `robots.txt` still closed, a
+crawler can't read the pages; with `robots.txt` open but the lines still there,
+it reads them and drops them. `sitemap.xml` and the canonical links need no
+change: they already name the final addresses.
+
+The share cards don't depend on any of this: chat apps and social sites read a
+page's tags whether or not search engines may index it.
+
+The launch page also carries one `application/ld+json` block describing the
+software (name, one-line description, macOS, the licence, the repository). It
+states nothing that isn't true today: no ratings, no price, no author. The
+guides have none.
 
 ## The share card and the icon
 
 A link to `airpocket.sh` pasted into X, Slack or WhatsApp shows a card, because
 the `<head>` of `index.html` carries Open Graph and Twitter tags. Their title
 and description are the page's own `<title>` and the first and last sentences
-of its opening paragraph; if those change, change the tags with them.
+of its opening paragraph; if those change, change the tags with them. Each guide
+carries the same tags with its own `<h1>` and description, and the same image.
 
 - `og.png`: the card, 1200x630. Its source is `og.html`, the opening
   sequence's settled frame held still (the map, the dart on station beside the

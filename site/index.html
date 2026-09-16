@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta name="robots" content="noindex">   <!-- remove at step 16, when the repo is public and the links resolve -->
 <meta charset="utf-8">
@@ -7,10 +7,12 @@
 
 <title>Airpocket — your coding agents, on your phone</title>
 <meta name="description" content="Airpocket puts the Claude Code and Codex sessions running in terminals on your Macs onto your iPhone. Over your own Tailscale network. No accounts, no cloud.">
+<link rel="canonical" href="https://airpocket.sh/">
 <meta name="theme-color" content="#0A0D08">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="icon" href="icon-180.png" type="image/png" sizes="180x180">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
 
 <!-- the card a link shows in chat apps and social sites; og.png is rendered from og.html, see README.md -->
 <meta property="og:type" content="website">
@@ -27,35 +29,30 @@
 <meta name="twitter:description" content="Airpocket puts the Claude Code and Codex sessions running in terminals on your Macs onto your iPhone. Over your own Tailscale network. No accounts, no cloud.">
 <meta name="twitter:image" content="https://airpocket.sh/og.png">
 <meta name="twitter:image:alt" content="AIRPOCKET, with the dart beside it, over a dark map: Your agents fly the missions. This is the cockpit.">
+
+<!-- what search engines read about the software itself; only what is true today, nothing about ratings or prices -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": ["SoftwareApplication", "SoftwareSourceCode"],
+  "name": "Airpocket",
+  "description": "Your Claude Code and Codex sessions, from every Mac, on your phone.",
+  "url": "https://airpocket.sh/",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS",
+  "license": "https://github.com/oncelozguleso/airpocket/blob/main/LICENSE",
+  "codeRepository": "https://github.com/oncelozguleso/airpocket"
+}
+</script>
 </head>
 <body>
 
 
 
 <style>
-@font-face{font-family:'B612';font-weight:400;font-display:swap;src:url("fonts/b612-400.woff2") format("woff2")}
-@font-face{font-family:'B612';font-weight:700;font-display:swap;src:url("fonts/b612-700.woff2") format("woff2")}
-@font-face{font-family:'B612 Mono';font-weight:400;font-display:swap;src:url("fonts/b612-mono-400.woff2") format("woff2")}
-@font-face{font-family:'B612 Mono';font-weight:700;font-display:swap;src:url("fonts/b612-mono-700.woff2") format("woff2")}
-@font-face{font-family:'IBM Plex Sans';font-weight:400;font-display:swap;src:url("fonts/plex-400.woff2") format("woff2")}
-@font-face{font-family:'IBM Plex Sans';font-weight:500;font-display:swap;src:url("fonts/plex-500.woff2") format("woff2")}
-@font-face{font-family:'IBM Plex Sans';font-weight:600;font-display:swap;src:url("fonts/plex-600.woff2") format("woff2")}
-:root{--ground:#0A0D08;--bezel:#0D110C;--glass:rgba(14,18,12,.55);--glass-2:rgba(20,26,17,.74);--glass-line:rgba(231,233,222,.07);--stroke:#2B3327;--stroke-2:#626E57;--fg:#E7E9DE;--fg-2:#AEB5A1;--fg-3:#929A83;--green:#8FD14F;--amber:#E9A227;--red:#E4614D;--red-solid:#C8382A;--sand:#D7C49E;--on-sand:#14180F;--green-dim:rgba(143,209,79,.14);--amber-dim:rgba(233,162,39,.14);--red-dim:rgba(228,97,77,.14);--sand-dim:rgba(215,196,158,.14);--map-0:#0B0E09;--map-1:#0D110B;--map-2:#0F140C;--map-3:#11170E;--map-4:#131A10;--map-5:#151D11;--map-6:#172013;--map-7:#192316;--map-ink:var(--map-3);--map-line:rgba(143,209,79,.055);--map-index:rgba(143,209,79,.08);--map-grid:rgba(231,233,222,.03);--glow-green:0 0 4px rgba(143,209,79,.35);--glow-amber:0 0 4px rgba(233,162,39,.35);--glow-red:0 0 4px rgba(228,97,77,.35);--glow-sand:0 0 4px rgba(215,196,158,.3);--hazard:repeating-linear-gradient(135deg,#E9A227 0 10px,#0B0B0B 10px 20px);--blur:blur(18px) saturate(.85);--display:var(--glass-2);--pane:rgba(231,233,222,.04);--pane-2:rgba(231,233,222,.09);--font-ui:'B612',system-ui,sans-serif;--font-mono:'B612 Mono',ui-monospace,monospace;--font-read:'IBM Plex Sans',system-ui,sans-serif;--r-1:2px;--r-2:4px;--map:url("map.svg");--ticks:repeating-linear-gradient(180deg,var(--stroke-2) 0 1px,transparent 1px 12px);--ticks-major:repeating-linear-gradient(180deg,var(--fg-3) 0 1px,transparent 1px 60px)}
-body{margin:0;background:linear-gradient(rgba(10,13,8,.55),rgba(10,13,8,.55)) fixed,var(--ground) var(--map) 50% 100%/max(100vw,780px) auto no-repeat fixed;color:var(--fg);font-family:var(--font-ui);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-a{color:var(--sand);text-decoration:none}a:hover{color:#EAD9B8}
-p{text-wrap:pretty}
-.g2{grid-template-columns:1fr}
-@media (min-width:760px){.g2{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .g2-faq{grid-template-columns:1fr}
 @media (min-width:700px){.g2-faq{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .shot{display:block;width:100%;max-width:390px;margin:0 auto}
-
-h1,h2{text-wrap:balance}
-@keyframes sweep{to{transform:rotate(360deg)}}
-@keyframes scan{0%{left:0}100%{left:calc(100% - 8px)}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}}
-@media (prefers-reduced-transparency:reduce){[style*="backdrop-filter"]{background:var(--ground)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:inset 0 0 0 1px var(--stroke)!important}}
-@media (max-width:760px){.hdr-row{padding-top:max(24px,calc(env(safe-area-inset-top) + 10px))!important;padding-bottom:16px!important}}
 </style>
 
 <!-- OPENING SEQUENCE — ported from the Airpocket Intro composition. No dependencies; the page
@@ -319,33 +316,27 @@ html.ap-in .ap-hud{opacity:1;transition:opacity .45s cubic-bezier(.22,.61,.36,1)
 
 
 <!-- HUD frame: viewport corner brackets and edge scales -->
-<div class="ap-hud" style="position:fixed;inset:14px clamp(6px,1vw,14px);pointer-events:none;z-index:20">
-  <div style="position:absolute;left:0;top:0;width:22px;height:22px;border-left:1px solid var(--sand);border-top:1px solid var(--sand)"></div>
-  <div style="position:absolute;right:0;top:0;width:22px;height:22px;border-right:1px solid var(--sand);border-top:1px solid var(--sand)"></div>
-  <div style="position:absolute;left:0;bottom:0;width:22px;height:22px;border-left:1px solid var(--sand);border-bottom:1px solid var(--sand)"></div>
-  <div style="position:absolute;right:0;bottom:0;width:22px;height:22px;border-right:1px solid var(--sand);border-bottom:1px solid var(--sand)"></div>
-  <div style="position:absolute;left:0;top:38%;bottom:38%;width:5px;background:var(--ticks)"></div>
-  <div style="position:absolute;left:0;top:38%;bottom:38%;width:9px;background:var(--ticks-major)"></div>
-  <div style="position:absolute;right:0;top:38%;bottom:38%;width:5px;background:var(--ticks)"></div>
-  <div style="position:absolute;right:0;top:38%;bottom:38%;width:9px;background:var(--ticks-major)"></div>
+<div class="ap-hud hud">
+  <div class="tl"></div><div class="tr"></div><div class="bl"></div><div class="br"></div>
+  <div class="sl"></div><div class="ml"></div><div class="sr"></div><div class="mr"></div>
 </div>
 
 <div class="ap-page" style="display:flex;flex-direction:column">
 
 <!-- STATUS STRIP -->
-<header style="position:sticky;top:0;z-index:10;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--glass-line);box-shadow:inset 0 1px 0 rgba(231,233,222,.08)">
-  <div class="hdr-row" style="max-width:1200px;margin:0 auto;padding:0 clamp(16px,3.5vw,40px);min-height:56px;display:flex;align-items:center;gap:6px 24px;flex-wrap:wrap;padding-top:max(14px,env(safe-area-inset-top));padding-bottom:12px;box-sizing:border-box">
-    <div style="display:flex;align-items:flex-start;gap:12px;height:36px;margin-right:auto;order:1;flex:0 0 auto"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.4" stroke-linejoin="round" style="flex:none;margin-top:-5px"><path d="M5.5 18.5l13-6.5-13-6.5v4.2l7 2.3-7 2.3z"/></svg><span style="font-size:15px;line-height:1;letter-spacing:.14em;white-space:nowrap">AIRPOCKET</span></div>
-    <a href="https://github.com/oncelozguleso/airpocket" style="height:36px;padding:0 14px;order:1;margin-left:clamp(12px,3vw,40px);background:var(--sand);color:var(--on-sand);display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:clamp(9px,2.6vw,11px);font-weight:700;letter-spacing:clamp(.02em,.4vw,.12em);white-space:nowrap;flex:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="flex:none"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>GITHUB</a>
-    <nav style="display:flex;gap:0;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;flex:0 1 auto;min-width:0;order:2;justify-content:flex-end;align-items:center">
-      <a href="#do" style="height:44px;padding:0 clamp(5px,1.2vw,14px);flex:0 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;font-size:clamp(9px,2.6vw,11px);letter-spacing:clamp(.02em,.4vw,.12em)"><span style="width:14px;height:2px;background:currentColor"></span>PHONE</a>
-      <a href="#how" style="height:44px;padding:0 clamp(5px,1.2vw,14px);flex:0 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;font-size:clamp(9px,2.6vw,11px);letter-spacing:clamp(.02em,.4vw,.12em);box-shadow:-1px 0 0 var(--stroke)"><span style="width:14px;height:2px;background:currentColor"></span>HOW</a>
-      <a href="#install" style="height:44px;padding:0 clamp(5px,1.2vw,14px);flex:0 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;font-size:clamp(9px,2.6vw,11px);letter-spacing:clamp(.02em,.4vw,.12em);box-shadow:-1px 0 0 var(--stroke)"><span style="width:14px;height:2px;background:currentColor"></span>INSTALL</a>
-      <a href="#security" style="height:44px;padding:0 clamp(5px,1.2vw,14px);flex:0 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;font-size:clamp(9px,2.6vw,11px);letter-spacing:clamp(.02em,.4vw,.12em);box-shadow:-1px 0 0 var(--stroke)"><span style="width:14px;height:2px;background:currentColor"></span>SECURITY</a>
-      <a href="#faq" style="height:44px;padding:0 clamp(5px,1.2vw,14px);flex:0 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;font-size:clamp(9px,2.6vw,11px);letter-spacing:clamp(.02em,.4vw,.12em);box-shadow:-1px 0 0 var(--stroke)"><span style="width:14px;height:2px;background:currentColor"></span>FAQ</a>
+<header class="strip">
+  <div class="hdr-row">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.4" stroke-linejoin="round"><path d="M5.5 18.5l13-6.5-13-6.5v4.2l7 2.3-7 2.3z"/></svg><span>AIRPOCKET</span></div>
+    <a class="hdr-gh" href="https://github.com/oncelozguleso/airpocket"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>GITHUB</a>
+    <nav class="hdr-nav">
+      <a href="#do"><span></span>PHONE</a>
+      <a href="#how"><span></span>HOW</a>
+      <a href="#install"><span></span>INSTALL</a>
+      <a href="#security"><span></span>SECURITY</a>
+      <a href="#faq"><span></span>FAQ</a>
     </nav>
       </div>
-  <div style="position:relative;height:2px;background:var(--stroke)"><div style="position:absolute;top:0;width:8px;height:2px;background:var(--green);box-shadow:var(--glow-green);animation:scan 6s linear infinite alternate"></div></div>
+  <div class="scanline"><div></div></div>
 </header>
 
 <main style="max-width:1200px;margin:0 auto;padding:0 clamp(24px,3.5vw,40px);display:flex;flex-direction:column;gap:120px;width:100%;box-sizing:border-box">
@@ -403,11 +394,11 @@ html.ap-in .ap-hud{opacity:1;transition:opacity .45s cubic-bezier(.22,.61,.36,1)
 </section>
 
 <!-- 01 FROM THE PHONE -->
-<section id="do" style="display:flex;flex-direction:column;gap:32px;scroll-margin-top:90px">
-  <div style="display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;border-bottom:1px solid var(--stroke);padding-bottom:16px">
-    <div style="font-family:var(--font-mono);font-size:clamp(28px,4vw,44px);color:var(--sand);line-height:1">01</div>
-    <div style="display:flex;flex-direction:column;gap:6px;flex:1 1 240px;min-width:0"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;color:var(--fg-3)">FROM THE PHONE</div><h2 style="margin:0;font-size:clamp(24px,3vw,36px);font-weight:400;line-height:1.1">Four things you'll do most</h2></div>
-    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);text-align:right;margin-left:auto;white-space:nowrap;align-self:flex-start;padding-top:4px">PAGE 01 / 06</div>
+<section id="do" class="sec">
+  <div class="sec-head">
+    <div class="sec-num">01</div>
+    <div class="sec-title"><div class="eyebrow">FROM THE PHONE</div><h2>Four things you'll do most</h2></div>
+    <div class="sec-page">PAGE 01 / 06</div>
   </div>
   <div style="display:grid;gap:20px" class="g2">
     <div style="background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--stroke);display:flex;flex-direction:column">
@@ -435,11 +426,11 @@ html.ap-in .ap-hud{opacity:1;transition:opacity .45s cubic-bezier(.22,.61,.36,1)
 </section>
 
 <!-- 02 HOW IT WORKS -->
-<section id="how" style="display:flex;flex-direction:column;gap:32px;scroll-margin-top:90px">
-  <div style="display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;border-bottom:1px solid var(--stroke);padding-bottom:16px">
-    <div style="font-family:var(--font-mono);font-size:clamp(28px,4vw,44px);color:var(--sand);line-height:1">02</div>
-    <div style="display:flex;flex-direction:column;gap:6px;flex:1 1 240px;min-width:0"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;color:var(--fg-3)">HOW IT WORKS</div><h2 style="margin:0;font-size:clamp(24px,3vw,36px);font-weight:400;line-height:1.1">Five lines, no server</h2></div>
-    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);text-align:right;margin-left:auto;white-space:nowrap;align-self:flex-start;padding-top:4px">PAGE 02 / 06</div>
+<section id="how" class="sec">
+  <div class="sec-head">
+    <div class="sec-num">02</div>
+    <div class="sec-title"><div class="eyebrow">HOW IT WORKS</div><h2>Five lines, no server</h2></div>
+    <div class="sec-page">PAGE 02 / 06</div>
   </div>
   <div class="g2" style="display:grid;gap:40px;align-items:center">
     <!-- schematic -->
@@ -480,11 +471,11 @@ html.ap-in .ap-hud{opacity:1;transition:opacity .45s cubic-bezier(.22,.61,.36,1)
 </section>
 
 <!-- 03 PREFLIGHT -->
-<section id="need" style="display:flex;flex-direction:column;gap:32px;scroll-margin-top:90px">
-  <div style="display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;border-bottom:1px solid var(--stroke);padding-bottom:16px">
-    <div style="font-family:var(--font-mono);font-size:clamp(28px,4vw,44px);color:var(--sand);line-height:1">03</div>
-    <div style="display:flex;flex-direction:column;gap:6px;flex:1 1 240px;min-width:0"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;color:var(--fg-3)">WHAT YOU NEED</div><h2 style="margin:0;font-size:clamp(24px,3vw,36px);font-weight:400;line-height:1.1">Preflight, four items</h2></div>
-    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);text-align:right;margin-left:auto;white-space:nowrap;align-self:flex-start;padding-top:4px">PAGE 03 / 06</div>
+<section id="need" class="sec">
+  <div class="sec-head">
+    <div class="sec-num">03</div>
+    <div class="sec-title"><div class="eyebrow">WHAT YOU NEED</div><h2>Preflight, four items</h2></div>
+    <div class="sec-page">PAGE 03 / 06</div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(max(200px,min(100%,calc(50% - 1px))),1fr));gap:1px;background:var(--stroke);border:1px solid var(--stroke)">
     <div style="background:var(--ground);padding:20px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">ITEM 1</span><span style="width:18px;height:18px;border:1px solid var(--green);display:inline-flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 10 10"><path d="M1.5 5.5l2.5 2.5 4.5-6" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></span></div><span style="font-size:20px">macOS</span><span style="font:14px/1.5 var(--font-read);color:var(--fg-2)">The Mac the agent already runs on.</span></div>
@@ -499,11 +490,11 @@ html.ap-in .ap-hud{opacity:1;transition:opacity .45s cubic-bezier(.22,.61,.36,1)
 </section>
 
 <!-- 04 INSTALL -->
-<section id="install" style="display:flex;flex-direction:column;gap:32px;scroll-margin-top:90px">
-  <div style="display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;border-bottom:1px solid var(--stroke);padding-bottom:16px">
-    <div style="font-family:var(--font-mono);font-size:clamp(28px,4vw,44px);color:var(--sand);line-height:1">04</div>
-    <div style="display:flex;flex-direction:column;gap:6px;flex:1 1 240px;min-width:0"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;color:var(--fg-3)">INSTALL</div><h2 style="margin:0;font-size:clamp(24px,3vw,36px);font-weight:400;line-height:1.1">Sequence, three steps</h2></div>
-    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);text-align:right;margin-left:auto;white-space:nowrap;align-self:flex-start;padding-top:4px">PAGE 04 / 06</div>
+<section id="install" class="sec">
+  <div class="sec-head">
+    <div class="sec-num">04</div>
+    <div class="sec-title"><div class="eyebrow">INSTALL</div><h2>Sequence, three steps</h2></div>
+    <div class="sec-page">PAGE 04 / 06</div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
     <div style="position:relative;border:1px solid var(--stroke-2);background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);padding:22px;display:flex;flex-direction:column;gap:14px">
@@ -529,11 +520,11 @@ html.ap-in .ap-hud{opacity:1;transition:opacity .45s cubic-bezier(.22,.61,.36,1)
 </section>
 
 <!-- 05 SECURITY -->
-<section id="security" style="display:flex;flex-direction:column;gap:32px;scroll-margin-top:90px">
-  <div style="display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;border-bottom:1px solid var(--stroke);padding-bottom:16px">
-    <div style="font-family:var(--font-mono);font-size:clamp(28px,4vw,44px);color:var(--sand);line-height:1">05</div>
-    <div style="display:flex;flex-direction:column;gap:6px;flex:1 1 240px;min-width:0"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;color:var(--fg-3)">SECURITY AND PRIVACY</div><h2 style="margin:0;font-size:clamp(24px,3vw,36px);font-weight:400;line-height:1.1">The first question, answered first</h2></div>
-    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);text-align:right;margin-left:auto;white-space:nowrap;align-self:flex-start;padding-top:4px">PAGE 05 / 06</div>
+<section id="security" class="sec">
+  <div class="sec-head">
+    <div class="sec-num">05</div>
+    <div class="sec-title"><div class="eyebrow">SECURITY AND PRIVACY</div><h2>The first question, answered first</h2></div>
+    <div class="sec-page">PAGE 05 / 06</div>
   </div>
   <div style="border:1px solid var(--stroke-2);background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;flex-direction:column">
     <div style="height:8px;background:var(--hazard)"></div>
@@ -551,11 +542,11 @@ html.ap-in .ap-hud{opacity:1;transition:opacity .45s cubic-bezier(.22,.61,.36,1)
 </section>
 
 <!-- 06 FAQ -->
-<section id="faq" style="display:flex;flex-direction:column;gap:32px;scroll-margin-top:90px">
-  <div style="display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;border-bottom:1px solid var(--stroke);padding-bottom:16px">
-    <div style="font-family:var(--font-mono);font-size:clamp(28px,4vw,44px);color:var(--sand);line-height:1">06</div>
-    <div style="display:flex;flex-direction:column;gap:6px;flex:1 1 240px;min-width:0"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.16em;color:var(--fg-3)">FAQ</div><h2 style="margin:0;font-size:clamp(24px,3vw,36px);font-weight:400;line-height:1.1">Questions people ask</h2></div>
-    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);text-align:right;margin-left:auto;white-space:nowrap;align-self:flex-start;padding-top:4px">PAGE 06 / 06</div>
+<section id="faq" class="sec">
+  <div class="sec-head">
+    <div class="sec-num">06</div>
+    <div class="sec-title"><div class="eyebrow">FAQ</div><h2>Questions people ask</h2></div>
+    <div class="sec-page">PAGE 06 / 06</div>
   </div>
   <div class="g2-faq" style="display:grid;gap:0 48px">
     <div style="display:grid;grid-template-columns:36px 1fr;gap:12px;padding:20px 0;border-bottom:1px solid var(--stroke)"><span style="font-family:var(--font-mono);font-size:12px;color:var(--sand);padding-top:4px">Q1</span><div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:18px">Does my code leave my Mac?</div><p style="margin:0;font:15px/1.55 var(--font-read);color:var(--fg-2)">No. The service reads and writes only on that Mac, and sends to your phone what you see on screen. Whatever your agent already sends to its own model provider is unchanged by Airpocket.</p></div></div>
@@ -581,12 +572,13 @@ html.ap-in .ap-hud{opacity:1;transition:opacity .45s cubic-bezier(.22,.61,.36,1)
 
 </main>
 
-<footer style="margin-top:80px;border-top:1px solid var(--stroke)">
-  <div style="height:10px;background:repeating-linear-gradient(90deg,var(--stroke-2) 0 1px,transparent 1px 12px)"></div>
-  <div style="max-width:1200px;margin:0 auto;padding:20px clamp(16px,3.5vw,40px) 48px;display:flex;gap:20px;flex-wrap:wrap;align-items:center;box-sizing:border-box">
-    <div style="display:flex;align-items:center;gap:10px;margin-right:auto"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.5" stroke-linejoin="round"><path d="M5.5 18.5l13-6.5-13-6.5v4.2l7 2.3-7 2.3z"/></svg><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;color:var(--fg-2)">AIRPOCKET · MIT LICENCE</span></div>
-    <nav style="display:flex;gap:20px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;flex-wrap:wrap"><a href="https://github.com/oncelozguleso/airpocket">GITHUB</a><a href="https://github.com/oncelozguleso/airpocket/blob/main/LICENSE">LICENCE</a><a href="#security">SECURITY</a><a href="#faq">FAQ</a></nav>
-    <span style="font:13px var(--font-read);color:var(--fg-3)">Made by the Airpocket contributors.</span>
+<footer class="foot">
+  <div class="foot-ruler"></div>
+  <div class="foot-row">
+    <div class="foot-brand"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.5" stroke-linejoin="round"><path d="M5.5 18.5l13-6.5-13-6.5v4.2l7 2.3-7 2.3z"/></svg><span>AIRPOCKET · MIT LICENCE</span></div>
+    <nav class="foot-nav"><a href="https://github.com/oncelozguleso/airpocket">GITHUB</a><a href="https://github.com/oncelozguleso/airpocket/blob/main/LICENSE">LICENCE</a><a href="#security">SECURITY</a><a href="#faq">FAQ</a></nav>
+    <span class="foot-note">Made by the Airpocket contributors.</span>
+    <nav class="foot-guides" aria-label="Guides"><span>GUIDES</span><a href="/install-tailscale">TAILNET</a><a href="/claude-code-on-iphone">CLAUDE CODE</a><a href="/codex-on-iphone">CODEX</a><a href="/any-terminal">ANY TERMINAL</a></nav>
   </div>
 </footer>
 
