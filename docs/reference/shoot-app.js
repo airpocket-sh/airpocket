@@ -106,12 +106,12 @@ const SCREENS = {
 };
 const screens = { "t-perm": SCREENS.perm, "t-work": SCREENS.working, "t-cx": SCREENS.codex };
 
-function mac(name, sessions, queue, { superset = true, delay = 0 } = {}) {
-  const h1 = homes(name.replace(/\W/g, ""));
-  const store = createStore(path.join(T, name.replace(/\W/g, "") + "-store"));
+function mac(name, sessions, queue, { superset = true, delay = 0, unseen = {}, tag = "" } = {}) {
+  const h1 = homes(name.replace(/\W/g, "") + tag);
+  const store = createStore(path.join(T, name.replace(/\W/g, "") + tag + "-store"));
   const sent = [];
   const app = createServer({ store, log: () => {}, hostLabel: name, homeDir: HOME, claudeDir: h1.claudeDir, codexHome: h1.codexHome, claudeProjects: h1.projects,
-    knownSessions: () => sessions, getQueue: () => queue, dequeue: () => 0, hasSuperset: () => superset, typeGap: () => 0,
+    knownSessions: () => sessions, getQueue: () => queue, dequeue: () => 0, hasSuperset: () => superset, typeGap: () => 0, unseenAgents: () => unseen,
     fileBase: async () => "http://127.0.0.1:47999",
     // This process stands in for every agent, in the foreground of a stand-in terminal.
     inspectAgent: (pid) => { const i = processInfo(pid); return i && { ...i, tty: "ttys990", pgid: 9, tpgid: 9 }; },
@@ -136,6 +136,14 @@ const A = mac("MacBook Air", [], []);
 const M = mac("Mini", [], [], { superset: false });
 const E = mac("Studio", [], [], { superset: false });          // one Mac, nothing running, some earlier
 const SLOW = mac("Studio", [], [], { delay: 60000 });
+// Agents that haven't checked in: none on the list, then a list with rows; the first also has Codex hooks not trusted yet.
+const U = mac("Studio", [], [], { superset: false, unseen: { claude: 29, codex: 10 }, tag: "-unseen" });
+const UO = mac("Studio", S.sessions, S.queue, { unseen: { claude: 1 }, tag: "-unseen1" });
+{
+  const cfg = require("../../src/agentconfig");
+  fs.mkdirSync(U.h.codexHome, { recursive: true });
+  fs.writeFileSync(path.join(U.h.codexHome, "hooks.json"), J(cfg.addHooks({}, "codex", cfg.hookCommand({ node: "/n", hook: "/h", agent: "codex" })).config));
+}
 
 S.sessions.push(
   { session_id: ID.perm, bridge_id: "session_perm", agent: "claude", title: "Fix checkout tests", branch: "fix/checkout", cwd: ROOT, pid: process.pid, started: ME, last_seen: now - 120, terminal: "t-perm", workspace: "w1",
@@ -234,7 +242,7 @@ const CHECKS = `(() => {
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
-  const macs = [S, A, M, E, SLOW];
+  const macs = [S, A, M, E, SLOW, U, UO];
   for (const m of macs) {
     m.port = await listen(m.app.server);
     m.base = "http://127.0.0.1:" + m.port;
@@ -273,6 +281,8 @@ const CHECKS = `(() => {
     { name: "3a-sessions", origin: S, hosts: () => [host(S, "", "h1"), host(A, A.base, "h2"), host(M, M.base, "h3")], hash: "#/", wait: 2200 },
     { name: "3b-sessions-empty-offline", origin: E, hosts: () => [host(E, "", "h1"), host(A, dead, "h2", "MacBook Air")], prefs: { showEarlier: true }, hash: "#/", wait: 2600 },
     { name: "3c-sessions-one-mac", origin: S, hosts: () => [host(S, "", "h1")], hash: "#/", wait: 2200 },
+    { name: "3d-sessions-unseen-empty", origin: U, hosts: () => [host(U, "", "h1")], hash: "#/", wait: 2200 },
+    { name: "3e-sessions-unseen", origin: UO, hosts: () => [host(UO, "", "h1")], hash: "#/", wait: 2200 },
     { name: "4a-session-working", origin: S, hosts: () => [host(S, "", "h1"), host(A, A.base, "h2")], hash: `#/s/h1/${ID.work}`, wait: 3200, before: () => { screens["t-work"] = SCREENS.working; } },
     { name: "4b-session-question", origin: S, hosts: () => [host(S, "", "h1"), host(A, A.base, "h2")], hash: `#/s/h1/${ID.perm}`, wait: 3200 },
     { name: "4c-session-terminal-typed", origin: S, hosts: () => [host(S, "", "h1"), host(A, A.base, "h2")], prefs: { view: "terminal", wrap: true }, hash: `#/s/h1/${ID.work}`, wait: 3200,

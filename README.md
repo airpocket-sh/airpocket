@@ -9,8 +9,9 @@ Nothing sits in between: your phone talks to your Macs over your own
 [Tailscale](https://tailscale.com) network. There is no Airpocket server, no
 account and no relay.
 
-> **Status: private, work in progress.** Not ready to install yet. See
-> [docs/PLAN.md](docs/PLAN.md).
+> **Status: private, work in progress.** Not on npm yet: to try it, install
+> from a clone (below). See [docs/PLAN.md](docs/PLAN.md), and
+> [CONTRIBUTING.md](CONTRIBUTING.md) to send a change.
 
 ## What it will do
 
@@ -27,16 +28,33 @@ account and no relay.
 
 ## Install (macOS)
 
-You need Node 20 or newer, [Tailscale](https://tailscale.com/download/mac)
-signed in with HTTPS certificates turned on for your tailnet, and Claude Code
-or Codex. tmux (`brew install tmux`) is what lets the phone answer a session
-in any terminal; without it, only sessions in Superset can be answered.
+**Airpocket runs on each Mac whose sessions you want to see.** Install it and
+run setup on every one of them, and pair your phone with each. There is no
+shared server and nothing passes between your Macs: the phone keeps one token
+per Mac and asks each one itself.
+
+You need, on each Mac: macOS, Node 20 or newer,
+[Tailscale](https://tailscale.com/download/mac) signed in with HTTPS
+certificates turned on for your tailnet, and Claude Code or Codex. On the
+phone: Tailscale, signed in to the same tailnet. tmux (`brew install tmux`) is
+what `airpocket run` needs, and what lets the phone answer a session in any
+terminal; without it, only sessions in Superset can be answered.
+
+### Try it from a clone
+
+Airpocket isn't on npm yet. Until it is, install it from a clone:
 
 ```sh
-npm install -g airpocket
+git clone https://github.com/oncelozguleso/airpocket.git
+cd airpocket
+npm install -g .            # puts the airpocket command on your PATH; no dependencies
 airpocket setup --dry-run   # every change it would make; changes nothing
 airpocket setup
 ```
+
+`npm install -g .` links the command to your clone. Setup copies Airpocket
+into its data folder and runs that copy, so after a `git pull`, run
+`airpocket setup` again to move the service and the hooks onto the new code.
 
 Setup checks first and stops with a plain explanation if something is
 missing. Then it:
@@ -61,7 +79,17 @@ missing. Then it:
 
 Codex asks you to review new hooks the next time it starts: choose to trust
 Airpocket's, or open `/hooks`. A Codex session shows up on the phone once
-you've sent it a first message.
+you've sent it a first message. In Superset it's different: Superset's `codex`
+wrapper starts Codex with the trust check bypassed, so the hooks run there
+without the review (and the phone's "not trusted yet" line is about Codex
+started anywhere else).
+
+Claude Code picks up the hooks while it runs, so sessions started before setup
+need no restart: each appears the next time you prompt it. Codex reads its
+hooks only when it starts, so restart a Codex session that was running before
+setup. Until then the phone says how many Claude Code and how many Codex
+agents are running that haven't checked in, and whether Codex's hooks still
+need trusting; setup prints the same when it finishes.
 
 ```sh
 airpocket doctor      # checks everything, says what to do; exits 1 if something is broken

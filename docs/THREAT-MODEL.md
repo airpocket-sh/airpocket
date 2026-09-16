@@ -82,6 +82,9 @@ owner of a valid token may type.
   is, after trimming rules and blank lines.
 - **Session list:** title (folder name), branch, the account's name before the
   `@`, the last prompt or reply snippet (at most 120 or 220 characters), state.
+  For the Mac: how many Claude Code and Codex agents run that haven't reached a
+  hook yet (two numbers; no pids, folders or names) and whether Codex trusts
+  Airpocket's hooks.
 - **Files** the user opens, under the file rules below.
 - **New-session options:** Superset project and workspace names and ids, agent
   presets, model names. No paths or repository addresses.
