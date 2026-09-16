@@ -170,7 +170,8 @@ test("run: a private tmux server on Airpocket's socket, with its config, the age
   // Airpocket's tmux.conf, not the user's.
   const show = (...a) => w.tmux("show-options", ...a).stdout.trim();
   assert.equal(show("-s", "escape-time"), "escape-time 0");
-  assert.equal(show("-s", "extended-keys"), "extended-keys on");
+  assert.equal(show("-s", "extended-keys"), "extended-keys always");
+  assert.equal(show("-s", "extended-keys-format"), "extended-keys-format csi-u");
   assert.equal(show("-s", "set-clipboard"), "set-clipboard on");
   assert.equal(show("-g", "status"), "status off");
   assert.equal(show("-g", "mouse"), "mouse on");

@@ -168,7 +168,7 @@ function createBridges(o = {}) {
       async ready() {
         const [pid, mode] = String(await t("display-message", "-p", "-t", pane, "#{pid} #{pane_in_mode}")).trim().split(" ");
         sameServer(pid);
-        return mode === "0" ? "" : "Its tmux pane is scrolled back in copy mode. Leave that on the Mac (q) first.";
+        return mode === "0" ? "" : "Its tmux pane is scrolled back in copy mode. Leave that on the Mac (Esc or q) first.";
       },
     };
   }

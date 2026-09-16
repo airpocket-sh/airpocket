@@ -164,3 +164,47 @@ with the pty in a process that outlives the service.
 4. Inside tmux or Superset already, `run` starts the agent in place instead
    of a nested session.
 5. A real-tmux test like step 7's, through `run`, on a temporary socket.
+
+## What the trial found (step 10b)
+
+`docs/reference/try-own-terminal.js` plays the terminal window (a pty with
+pyte, answering tmux's queries like iTerm2, or like a terminal that doesn't
+answer XTVERSION). It ran 54 checks that passed and 1 that failed, with tmux
+3.6a and Claude Code 2.1.273.
+
+Works as through a plain terminal, compared side by side with Claude run
+directly: Shift+Enter (CSI u and xterm encodings) and Option+Enter put a
+newline in the box; a three-line paste stays in the box; Ctrl+V pastes an
+image; Esc interrupts a turn (70 to 130 ms from key to "Interrupted" either
+way); Ctrl+C, Ctrl+U, Ctrl+R, Ctrl+O, Ctrl+D work. Resize redraws at the new
+width. The wheel scrolls back; scrolling to the end, or typing, leaves
+scrollback, and the typed key lands in the box. Dragging copies to the Mac's
+clipboard (pbcopy) and to the terminal's (OSC 52). Closing the window leaves
+Claude running and reachable from the phone; `airpocket attach` brings it back
+with its scrollback; the service restarting doesn't touch it; `/exit` ends it
+all.
+
+**The failure: Esc can lag 500 ms for the first seconds after attaching.**
+tmux holds a lone Esc for at least 500 ms, whatever `escape-time` says, while
+the outer terminal hasn't answered its startup queries (DA1, DA2, XTVERSION),
+for at most 5 seconds (tmux 3.6a, `tty-keys.c`). It also does this while a
+colour query is pending, which it repeats after a resize (at most every 30 s)
+or a theme change, until the terminal answers. A terminal that answers all of
+them (iTerm2, Ghostty, kitty, WezTerm) sees no delay at all. One that doesn't
+answer XTVERSION, which may include Terminal.app (not tried in a real window),
+gets 500 ms Esc for about 5 s after each `run` or `attach`, then none. No tmux
+option changes this. It is short and bounded, so option A stands, but it is a
+place where tmux shows through.
+
+Also found:
+- Codex asks for the kitty keyboard protocol, which tmux 3.6a doesn't accept
+  as a request, so with `extended-keys on` Codex would get Shift+Enter as a
+  plain Enter and send the prompt. The conf uses `extended-keys always` with
+  the CSI u format; a stand-in agent that asks the way Codex does gets
+  Shift+Enter as `ESC[13;2u` and Ctrl+C as its plain byte. Codex's own prompt
+  box through `run` isn't tried (it needs a login; step 13).
+- When the agent exits, tmux leaves its alternate screen: the window shows
+  what was there before `claude` was typed, plus `[exited]`, rather than the
+  end of the conversation as Claude run directly would leave it.
+- The window's `airpocket` (node) process stays as the tmux client's parent
+  while attached: about 40 MB per open window.

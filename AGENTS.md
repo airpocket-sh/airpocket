@@ -143,6 +143,22 @@ status line.
   returns no DNSName: take the tailnet host from the request's Host header
   (tailscale serve forwards it). The first HTTPS request after enabling serve
   can take over 15 s while the certificate is issued.
+- **tmux as an invisible terminal** (3.6a, step 10b): `escape-time 0` is not
+  enough. tmux holds Esc for at least 500 ms while the outer terminal hasn't
+  answered its queries (DA1, DA2, XTVERSION) or a colour query (OSC 10/11) is
+  pending: up to 5 s after a client attaches, and again after a resize (at most
+  every 30 s) or a theme change (`tty-keys.c`, `TTY_QUERY_TIMEOUT`). No option
+  changes it; a terminal that answers everything has no delay. Claude asks for
+  modifyOtherKeys 2 (`ESC[>4;2m`) and kitty (`ESC[>5u`); Codex asks for kitty
+  only (`ESC[>7u`, `ESC[>4;0m`), which tmux ignores, so with `extended-keys on`
+  Codex would get Shift+Enter as a plain Enter: Airpocket uses `always` with
+  `extended-keys-format csi-u`. Claude reads Ctrl keys in extended form (Ctrl+V
+  still pastes an image). In copy mode, `bind -T copy-mode Any if-shell -F 1
+  "send-keys -X cancel ; send-keys"` leaves scrollback and delivers the key
+  (without `if-shell` the key is lost). `-f` replaces `~/.tmux.conf`. Server
+  options apply to the server that is running: check them with `show-options`
+  on the socket, not in the file. A pane target by session name needs
+  `=name:`. A socket path must fit in 104 bytes, so tests put theirs under /tmp.
 - **macOS paths**: `/var` is `/private/var`. Compare real paths; resolve a
   session's relative paths from the folder it recorded.
 - **iOS**: a home-screen web app has storage separate from Safari (pair inside
@@ -391,10 +407,56 @@ status line.
   `docs/reference/try-codex.js` (a real Codex 0.154 with a throwaway
   `CODEX_HOME` and a private tmux socket; `--no-model` passed 9/9, the run
   with real replies waits for a fresh Codex login, see PLAN step 13).
-- `docs/OWN-TERMINAL.md`: options for sessions outside Superset and tmux;
-  recommends a private tmux session. Planned as step 10b, not built.
+- Step 10b, own-terminal mode (`src/ownterm.js`, `src/tmux.conf`):
+  `airpocket run claude|codex [args]` starts the agent in a tmux session on
+  `<data>/tmux/sock` with the shipped conf (`-S` and `-f` always; never the
+  user's server or `~/.tmux.conf`) and attaches this terminal; session names
+  `<agent>-<folder>`, numbered when taken. The agent gets this shell's
+  environment, not the server's: a start script (`tmux/start-<hex>.sh`, 0600,
+  deletes itself first) runs `exec /usr/bin/env -i` with the shell's variables
+  plus tmux's TMUX, TMUX_PANE, TERM, TERM_PROGRAM(_VERSION), then execs the
+  agent, so the pane's pid is the agent. Starts the agent directly instead
+  inside tmux or Superset (one line on stderr), off a terminal, or for
+  one-shot commands (`claude -p`, `codex exec`, `mcp`, `--version`…, table
+  `ONE_SHOT`). No tmux or tmux < 3.2: says so with `brew install tmux` and
+  exits 1. The node process stays as the parent while attached, ignoring
+  SIGINT/SIGQUIT/SIGTSTP. `airpocket attach [name]`: the one live session, else
+  the one detached, else a numbered list (off a terminal, the list and exit 2);
+  a session whose pane pid is dead is not offered and "has ended"; refused
+  inside tmux.
+- The conf: no status, no prefix (Ctrl+B stays Claude's), escape-time 0,
+  extended keys always/csi-u, RGB, mouse on, history 50000, copy to pbcopy and
+  OSC 52; in copy mode typing leaves it and reaches the agent, Esc and Ctrl+C
+  only leave it.
+- `src/shellalias.js` and setup step 7 "Shell aliases" (before Pairing): asked
+  on a terminal, `--alias`/`--no-alias`, a note without a terminal. zsh
+  `$ZDOTDIR/.zshrc` or `~/.zshrc`, bash `~/.bash_profile`, other shells a note.
+  Lines end in `# airpocket-alias`; appended, backed up first, skipped with a
+  note where the user defines that alias or function; `airpocket` when on
+  PATH, else the copy's node and cli.js in double quotes. `install.json`
+  `aliases: { file, createdFile, newlineAdded }`; uninstall removes our lines
+  and the newline setup added, byte for byte, or the file it created.
+  Uninstall `--remove-data` keeps the data folder while run's agents live.
+- Doctor: tmux PASS with version (and how many run agents); missing or older
+  than 3.2 is WARN, FAIL when setup's aliases are installed. "Shell aliases"
+  PASS / WARN (gone) / INFO (not added).
+- The phone: a session with no bridge says "Read-only here. Start it with
+  airpocket run and the phone can answer." (`bridges.caps().why`; app.js
+  unchanged).
+- `docs/reference/try-own-terminal.js` (+ `pty-term.py`, a pty with pyte that
+  plays the terminal window and answers tmux's queries like iTerm2 or like a
+  terminal without XTVERSION): bytes through tmux with a stand-in agent, a
+  real Claude directly, and a real Claude through `run` with the phone.
+  Result at step 10b in the PR. Needs pyte (`PYTHON=`). Uses the real
+  clipboard and puts its text back.
+- `docs/OWN-TERMINAL.md`: the options compared before the build (A chosen),
+  and what the trial found.
 - Open: Codex with real model replies driven from the phone (step 13, after
-  Öncel uses Codex once so its login is fresh). Setup has not run on Öncel's
+  Öncel uses Codex once so its login is fresh), and Codex's prompt box through
+  `airpocket run` (Shift+Enter as CSI u is checked only at byte level). Own
+  terminal in a real Terminal.app, iTerm2 or Ghostty window (the trial plays
+  the terminal; whether Terminal.app answers XTVERSION decides the Esc delay
+  after attaching). Setup has not run on Öncel's
   Mac or against the real Tailscale (his to run; 443 and 8443 are the private
   tool's, so it will pick 4443 and 5443). Superset's `codex` wrapper may point
   `CODEX_HOME` elsewhere, where hooks in `~/.codex` don't fire; setup doesn't

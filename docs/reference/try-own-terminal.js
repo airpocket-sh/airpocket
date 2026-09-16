@@ -235,9 +235,9 @@ async function partBytes() {
   const statusBar = (await w.screen()).some((l) => /\[claude-.*\]\s+0:/.test(l));
   check(P, "no tmux status bar on screen", !statusBar);
   const opt = (flag, name) => (tmuxOk("show-options", flag, name) || "").trim();
-  const running = [opt("-s", "escape-time"), opt("-s", "extended-keys"), opt("-g", "status"), opt("-g", "prefix"), opt("-g", "mouse"), opt("-s", "set-clipboard")];
+  const running = [opt("-s", "escape-time"), opt("-s", "extended-keys"), opt("-s", "extended-keys-format"), opt("-g", "status"), opt("-g", "prefix"), opt("-g", "mouse"), opt("-s", "set-clipboard")];
   check(P, "the running server has Airpocket's settings (read from the server, not the file)",
-    running.join(", ") === "escape-time 0, extended-keys on, status off, prefix None, mouse on, set-clipboard on", running.join(", "));
+    running.join(", ") === "escape-time 0, extended-keys always, extended-keys-format csi-u, status off, prefix None, mouse on, set-clipboard on", running.join(", "));
 
   await sleep(5500);                                      // past tmux's query window, for the byte checks below
 
@@ -256,7 +256,7 @@ async function partBytes() {
   r = await sendAndSee(w, KEY.ctrlV);
   // An agent that asked for extended keys (as Claude does) gets Ctrl+V in that form; one that didn't gets the byte.
   const ctrlV = r.got.map((g) => g.what).join("");
-  check(P, "Ctrl+V (Claude's image paste) arrives, as the byte or in the extended form the agent asked for", ctrlV === "16" || ctrlV === "1b5b32373b353b3131387e", `got ${ctrlV}`);
+  check(P, "Ctrl+V (Claude's image paste) arrives, as the byte or in the extended form the agent asked for", ctrlV === "16" || ctrlV === "1b5b3131383b3575", `got ${ctrlV}`);
 
   const resized = await sendAndSee({ send: () => w.resize(24, 70) }, "", 800);
   check(P, "a window resize reaches the agent with the new size", resized.got.some((g) => g.what === "WINCH 70x24"), resized.got.map((g) => g.what).join(", "));
@@ -295,9 +295,22 @@ async function partBytes() {
   check(P, "and to the terminal's own clipboard (OSC 52, for terminals that allow it)", osc && Buffer.from(osc[1], "base64").toString() === want, osc ? Buffer.from(osc[1], "base64").toString() : "no OSC 52");
   check(P, "copying leaves scrollback", !inMode());
 
+  // An agent that asks for the kitty keyboard protocol and turns modifyOtherKeys off, as Codex does.
+  fs.writeFileSync(path.join(data, "keylog-kitty.py"), fs.readFileSync(path.join(data, "keylog.py"), "utf8").replace("\\x1b[>4;2m", "\\x1b[>4;0m\\x1b[>7u"));
+  fs.writeFileSync(path.join(bin, "codex"), `#!/bin/sh\nexec /usr/bin/python3 ${q(path.join(data, "keylog-kitty.py"))}\n`, { mode: 0o755 });
+  const k = terminalWindow("kitty-agent");
+  await k.open([process.execPath, CLI, "run", "codex"], standIn);
+  await until(async () => (await k.screen()).some((l) => l.includes("output line 199")), 8000);
+  await sleep(500);
+  const kShift = (await sendAndSee(k, KEY.shiftEnterCsiU)).got.map((g) => g.what).join("");
+  const kCtrlC = (await sendAndSee(k, KEY.ctrlC)).got.map((g) => g.what).join("");
+  check(P, "an agent that asks for the kitty protocol (Codex) gets Shift+Enter as CSI 13;2u, and Ctrl+C as the plain byte",
+    kShift === "1b5b31333b3275" && kCtrlC === "03", `Shift+Enter ${kShift}, Ctrl+C ${kCtrlC}`);
+  await k.close(); await sleep(300); k.quit();
+
   await w.close();
   await sleep(500);
-  const kept = tmuxOk("list-sessions", "-F", "#{session_name} #{session_attached}");
+  const kept = (tmuxOk("list-sessions", "-F", "#{session_name} #{session_attached}") || "").split("\n").filter((l) => l.startsWith("claude-")).join("\n");
   check(P, "closing the window detaches; the agent keeps running", kept && / 0$/.test(kept.trim()), kept && kept.trim());
   w.quit();
   tmuxOk("kill-server");
@@ -398,21 +411,23 @@ async function partRun() {
   check(P, "a prompt from the phone gets a reply", r.status === 200 && (await until(async () => (await phoneReplies(id)).some((t) => t.includes("pong")), 90000, 500)));
   await until(() => readyScreen(w), 20000);
 
-  const keys = await claudeKeys(w, P);
-  const esc = await escLatency(w, P);
-
   // Copy a word from the reply on screen.
   let screen = await w.screen();
   const row = screen.findIndex((l) => /⏺\s+pong/i.test(l));
   if (row >= 0) {
-    const col = screen[row].toLowerCase().indexOf("pong") + 1;
-    await w.send(KEY.press(col, row + 1)); await sleep(80);
-    for (let x = col + 1; x <= col + 3; x++) { await w.send(KEY.drag(x, row + 1)); await sleep(30); }
-    await w.send(KEY.release(col + 3, row + 1));
+    // From the line's start to past the word: the ⏺ before it may take one cell or two, so columns are counted loosely.
+    const end = screen[row].toLowerCase().indexOf("pong") + 8;
+    await w.send(KEY.press(1, row + 1)); await sleep(80);
+    for (let x = 2; x <= end; x++) { await w.send(KEY.drag(x, row + 1)); await sleep(20); }
+    await w.send(KEY.release(end, row + 1));
     await sleep(700);
-    check(P, "dragging over the reply copies it to the clipboard", clipboardText().toLowerCase() === "pong", JSON.stringify(clipboardText()));
+    check(P, "dragging over the reply copies it to the clipboard", /⏺\s+pong/i.test(clipboardText()), JSON.stringify(clipboardText()));
     check(P, "and Claude's prompt box is still there to type in", !!(await until(() => readyScreen(w), 2000)));
   } else check(P, "dragging over the reply copies it to the clipboard", false, "pong isn't on screen");
+
+
+  const keys = await claudeKeys(w, P);
+  const esc = await escLatency(w, P);
 
   // Resize: Claude redraws at the new width, and back.
   const rules = (lines) => lines.filter((l) => /^─{20,}$/.test(l.trim())).map((l) => l.trim().length);
