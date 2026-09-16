@@ -102,9 +102,19 @@ Prove it, then launch
     simulator, and a tailnet trial needed Öncel's OK), so pairing opens on the
     six digits and the scan is one tap away. If it works, flip SCAN_FIRST in
     app.js.
+    And Codex end to end: use Codex once so its login refreshes, then run
+    `node docs/reference/try-codex.js`. Step 10 stopped short of this because a
+    throwaway copy would have refreshed the login and signed the real one out.
 14. Fresh-Mac test from the README alone: Superset and tmux, Claude and Codex,
     a second Mac, a real iPhone including a PDF.
 15. Launch material: README with screenshots, a short demo video, FAQ, first
     release.
-16. Go public: final secret scan, repo public, buy airpocket.sh last and point
-    it at the repo or a small page with the install command, post on X.
+16. Go public: final secret scan, remove `private: true` from package.json,
+    repo public, buy airpocket.sh last and point it at the repo or a small page
+    with the install command, post on X. Öncel decides three things first, all
+    found in step 11's review and all easier before anyone has cloned it:
+    - his personal Gmail address is the author of the commits, and goes public
+      with the history unless it is rewritten now;
+    - `claude-overlay`, `claude-accounts`, port 47820 and his name appear in
+      AGENTS.md, PLAN.md and `docs/reference/shoot.js`;
+    - Node 20 reached end of life in April and is still in `engines` and CI.

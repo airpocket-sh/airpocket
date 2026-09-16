@@ -6,7 +6,8 @@ needs a line of its own. Read it with [THREAT-MODEL.md](THREAT-MODEL.md).
 
 **Status (step 11, second half).** Worked through on branch `step-11-fixes`.
 `[x]` is confirmed with evidence (in the PR); `[ ]` with a note is a finding or
-still open; step 10 lines wait for that branch. Notes and rows changed by this
+still open. Step 10 (setup, doctor, uninstall, `tailscale.js`, the login
+item) landed after this pass, so its lines are not checked here. Notes and rows changed by this
 pass say *step 11*.
 
 How to work through it:
@@ -27,10 +28,12 @@ How to work through it:
 
 - [x] Each server binds `127.0.0.1` only (`start()`, `service.listen`). No
       `0.0.0.0`, `::` or tailnet address anywhere, tests included.
-- [x] Only `airpocket serve` publishes, only with `tailscale serve`, only the
-      app and file ports. Search the repo (docs too) for `funnel`: it may appear
+- [ ] Only `airpocket setup` publishes, only with `tailscale serve`, only the
+      app and file ports, never on a tailnet port another program uses;
+      `airpocket uninstall` turns off only ports that publish nothing but
+      Airpocket's own targets. Search the repo (docs too) for `funnel`: it may appear
       only as "never".
-      *Step 10 pending for setup. Note: `ports.js` would let `AIRPOCKET_FILE_PORT` equal the hook port, which `serve` would then publish.*
+      *Step 11 checked this for `airpocket serve`, before step 10 replaced it with setup; setup and uninstall are not checked here. Note: `ports.js` would let `AIRPOCKET_FILE_PORT` equal the hook port, which publishing would then expose.*
 - [x] Every table lookup keyed by request input uses `Object.hasOwn` (`STATIC`,
       `KEYS`, `COMMANDS`, `FILE_KINDS`, model lists), so `__proto__` or
       `constructor` resolve to nothing.
@@ -107,8 +110,8 @@ handler runs):
 
 ### Hook endpoint (47873)
 
-- [x] Never published; not in `TARGETS` in `cli.js`.
-      *Step 10 pending.*
+- [ ] Never published; not in `TARGETS` in `cli.js`.
+      *Held for `cli.js` before step 10; step 10 publishes through `setup.js` and `tailscale.js`, not checked in this pass.*
 - [x] Check order: path and event (404), method (405), Origin present or Host
       not loopback (403), secret (401), JSON type (415), size from
       `Content-Length` and while reading (413, connection closed), JSON object
@@ -134,7 +137,7 @@ handler runs):
       or turn off checks.
 - [ ] setup, doctor, uninstall: every file, setting and login item they write,
       and that uninstall removes exactly those.
-      *Step 10 pending.*
+      *Step 10 landed after this pass; not checked here.*
 - [x] Any new route, in the tables above.
       *None added; `STATIC` grew by fixed names only.*
 
@@ -158,7 +161,7 @@ Every read and write, and what guards it.
 - [x] No path from the phone reaches `fs` without going through the rules
       above.
 - [x] No write outside the data folder, apart from what setup documents.
-      *Apart from `airpocket serve` changing Tailscale's settings through Tailscale.*
+      *Checked for the code before step 10: apart from publishing through Tailscale, nothing outside the data folder. What setup writes is step 10's, not checked here.*
 - [ ] Every read of a file whose size someone else controls has a cap.
       *Finding: Codex `readOn` growth; `.git`/`HEAD` read whole; images and pages re-read whole after the size check.*
 - [ ] Tests use temp folders only; none touches the real home, `~/.claude`,
@@ -190,7 +193,7 @@ refs, query strings, request bodies, typed text, file contents, snippets.
       *Rows added above for what the search found missing. `cli.js` usage lines: step 10.*
 - [ ] Uncaught exceptions: what Node prints, and where it goes under the login
       item.
-      *No `uncaughtException` handler: Node prints the stack and exits 1; the exit handler still removes `hook.json` and the lock. Where stderr goes: step 10.*
+      *No `uncaughtException` handler: Node prints the stack and exits 1; the exit handler still removes `hook.json` and the lock. Where stderr goes under the login item (step 10): not checked here.*
 
 ## 4. External commands
 
@@ -217,7 +220,7 @@ All must use `execFile` or `execFileSync` with an argument list: no shell, no
 - [ ] Decide whether inherited environments are fine for Superset and
       Tailscale, and whether the CLI should stop trusting `PATH` for
       `tailscale`.
-      *Open for Öncel. Superset and Tailscale get the service's whole environment; `cli.js` runs `/usr/bin/which tailscale` on the inherited `PATH`, with no timeout (step 10).*
+      *Open for Öncel. Superset and Tailscale get the service's whole environment; `tailscale.js` (step 10) runs `/usr/bin/which tailscale` on the inherited `PATH`, with no timeout.*
 - [x] No command runs with text from a transcript or a screen.
 
 ## 5. Secrets at rest
@@ -234,7 +237,7 @@ All must use `execFile` or `execFileSync` with an argument list: no shell, no
 
 - [ ] Modes on a fresh install from step 10's setup, and after an upgrade
       over an existing folder with looser modes.
-      *Step 10 pending; see the `store.js` folder-mode finding in section 2.*
+      *Not checked here (step 10 landed after this pass); see the `store.js` folder-mode finding in section 2.*
 - [ ] No real token, code, secret, email or tailnet name in any file in the
       repo (section 7).
       *A manual pass found only placeholders and fixtures; no scanner run (section 7).*

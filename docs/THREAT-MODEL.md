@@ -30,18 +30,29 @@ One process (`start()` in `server.js`) runs three HTTP servers. All three bind
 
 | Server | Port (default) | Reached from | Answers without a token |
 | --- | --- | --- | --- |
-| App and API | 47871 | The tailnet, over HTTPS, through `tailscale serve` (tailnet port 443 for now). Also any process or account on this Mac, over loopback. | The static app (a fixed list of files in `STATIC`), CORS preflights, and `POST /api/pair`. Every other `/api/` route returns 401. A Host that isn't a `*.ts.net` name or loopback gets 403 before anything else. |
-| File-only origin | 47872 | The tailnet, through `tailscale serve` (tailnet port 8443 for now). Also loopback. | `GET` and `HEAD /f/<ticket>/<name>`, where the ticket is the credential. Anything else returns 404 or 405. The same Host check first. |
+| App and API | 47871 | The tailnet, over HTTPS, through `tailscale serve` (on the tailnet HTTPS port setup chose: 443 if free). Also any process or account on this Mac, over loopback. | The static app (a fixed list of files in `STATIC`), CORS preflights, and `POST /api/pair`. Every other `/api/` route returns 401. A Host that isn't a `*.ts.net` name or loopback gets 403 before anything else. |
+| File-only origin | 47872 | The tailnet, through `tailscale serve` (on the second port setup chose: 8443 if free). Also loopback. | `GET` and `HEAD /f/<ticket>/<name>`, where the ticket is the credential. Anything else returns 404 or 405. The same Host check first. |
 | Hook endpoint | 47873 | This Mac only. Never published. | Nothing. Unknown paths 404, other methods 405, a request with an Origin header or a non-loopback Host 403, no secret 401. |
 
 Tailscale ends TLS; the hop from `tailscaled` to Airpocket is plain HTTP on
 loopback. Airpocket cannot tell a request from the tailnet apart from one made
 by a local process: both arrive from 127.0.0.1.
 
-`airpocket serve` runs `tailscale serve --https=<port> --bg
-http://127.0.0.1:<port>` for the first two servers, and refuses a tailnet port
-where something else is already published. Nothing in Airpocket runs
-`tailscale funnel`.
+`airpocket setup` runs `tailscale serve --bg --https=<port>
+http://127.0.0.1:<port>` for the first two servers, on tailnet ports where
+nothing else is published (443 and 8443 if free, else the next of 4443, 5443,
+…), and keeps the choice in `install.json`. `airpocket uninstall` turns off
+only ports that publish nothing but Airpocket's targets. Nothing in Airpocket
+runs `tailscale funnel`.
+
+Setup is the only code that writes outside the data folder: Airpocket's hook
+entries in `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR`) and
+`$CODEX_HOME/hooks.json`, each marked `# airpocket-hook`, merged after a
+timestamped backup, and the login item
+`~/Library/LaunchAgents/sh.airpocket.service.plist`. The hooks and the login
+item run a copy of Airpocket in `<data folder>/app` with Node by absolute path.
+Anyone who can write that folder could change what the agents run on every
+event, which is why it stays 0700 like the rest.
 
 ### With a device token
 
@@ -84,6 +95,9 @@ On the Mac, in `~/Library/Application Support/Airpocket` (or
 | `sessions/<id>.json` | Folder, transcript path, title, branch, snippet, account email, pid and start time, terminal ids | `service.js` |
 | `queue.json` | The waiting list, with reply snippets | `service.js` |
 | `airpocket.lock` | The running service's pid and start time | `service.js` |
+| `install.json` | What setup added: ports, hook files, created containers, serve ports | `setup.js` |
+| `app/` | The copy of Airpocket the hooks and login item run | `setup.js` |
+| `logs/service.log` | The service's log (launchd, umask 077) | launchd |
 
 Files are created 0600. Only in memory: the file-ref key (`FILE_SECRET`), file
 tickets, parsed transcripts.
@@ -144,7 +158,7 @@ user's to set; Airpocket assumes they may allow everyone on the tailnet.
   rebinding reaches nothing, not even the static app.
 - **Limits.** JSON bodies up to 32 KB; request timeout 30 s, header timeout
   15 s.
-- **Tailnet only.** `tailscale serve`, never `funnel`, and `airpocket serve`
+- **Tailnet only.** `tailscale serve`, never `funnel`, and `airpocket setup`
   won't replace another program's handler on the same tailnet port, so the app
   never shares an origin with something else.
 

@@ -25,6 +25,52 @@ account and no relay.
   PDFs, pages, under strict rules.
 - **A web app**, added to your home screen. No App Store.
 
+## Install (macOS)
+
+You need Node 20 or newer, [Tailscale](https://tailscale.com/download/mac)
+signed in with HTTPS certificates turned on for your tailnet, and Claude Code
+or Codex. tmux is optional (for sessions you run in tmux).
+
+```sh
+npm install -g airpocket
+airpocket setup --dry-run   # every change it would make; changes nothing
+airpocket setup
+```
+
+Setup checks first and stops with a plain explanation if something is
+missing. Then it:
+
+- adds Airpocket's hooks to `~/.claude/settings.json` and `~/.codex/hooks.json`
+  (or under `$CLAUDE_CONFIG_DIR` and `$CODEX_HOME`). It merges: every other
+  setting and hook stays as it was, a timestamped backup is written next to the
+  file first, and a file that isn't valid JSON is left alone. Running it again
+  adds nothing twice.
+- adds a login item (`~/Library/LaunchAgents/sh.airpocket.service.plist`) that
+  starts Airpocket at login and brings it back after a crash. It runs a copy of
+  Airpocket kept in its data folder, so it works the same after `npx airpocket
+  setup`.
+- publishes the app and its file-only origin inside your tailnet with
+  `tailscale serve` (never `funnel`), on ports nothing else uses: 443 and
+  8443 when they are free.
+- prints a pairing code and its QR.
+
+Codex asks you to review new hooks the next time it starts: choose to trust
+Airpocket's, or open `/hooks`. A Codex session shows up on the phone once
+you've sent it a first message.
+
+```sh
+airpocket doctor      # checks everything, says what to do; exits 1 if something is broken
+airpocket pair        # a new pairing code
+airpocket devices     # paired phones; airpocket revoke <id> cuts one off
+airpocket uninstall   # removes exactly what setup added; asks before deleting paired phones
+```
+
+**Tested so far:** setup, doctor and uninstall against a temporary home folder
+(with the real launchd in a trial), Claude Code end to end with real
+sessions, and Codex against recorded session files and a real Codex's hooks
+(installed, trusted, firing). Codex with real model replies driven from the
+phone has not been run end to end yet.
+
 ## Security in one paragraph
 
 Airpocket listens on 127.0.0.1 and is published only inside your tailnet. Each

@@ -82,7 +82,7 @@ We won't pursue anyone who follows this policy in good faith.
 These hold for every release. A change that breaks one of them won't be
 accepted.
 
-- **Tailnet only.** Every server listens on 127.0.0.1. `airpocket serve`
+- **Tailnet only.** Every server listens on 127.0.0.1. `airpocket setup`
   publishes the app and the file-only origin with `tailscale serve`, which
   reaches only devices on your tailnet. Airpocket never uses `tailscale
   funnel` and never publishes anything to the public internet. The hook
