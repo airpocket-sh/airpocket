@@ -129,12 +129,12 @@ Prove it, then launch
     On the day itself, three settings only a public repository can have: switch on
     private vulnerability reporting (SECURITY.md and the code of conduct both
     send people to it, and GitHub only offers it once the repository is public),
-    give the repository its topics, and protect `main` — a pull request and the
-    CI checks before anything lands, no force pushes, no deleting it, admins
-    allowed to bypass so a one-line fix doesn't need ceremony. Branch protection
-    is a paid feature on a private repository, so it cannot be set beforehand;
-    it becomes available the moment the repository is public, which is also the
-    moment `main` starts being what strangers install.
+    and give the repository its topics. Protecting `main` is available then too,
+    and the owner has decided against the part that would matter: co-founders
+    keep write access and may push to `main`. Nobody outside can, with or
+    without it — write access is a list, and a stranger's only route is a fork
+    and a pull request. Worth having anyway, if it is ever wanted: no force
+    pushes and no deleting the branch, neither of which stops anyone working.
 
     npm last, after the repository is public and not before: publishing puts the
     source on npm, so doing it earlier would open the code while the repository
