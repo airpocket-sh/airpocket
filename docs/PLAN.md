@@ -111,4 +111,10 @@ Prove it, then launch
     release.
 16. Go public: final secret scan, remove `private: true` from package.json,
     repo public, buy airpocket.sh last and point it at the repo or a small page
-    with the install command, post on X.
+    with the install command, post on X. Öncel decides three things first, all
+    found in step 11's review and all easier before anyone has cloned it:
+    - his personal Gmail address is the author of the commits, and goes public
+      with the history unless it is rewritten now;
+    - `claude-overlay`, `claude-accounts`, port 47820 and his name appear in
+      AGENTS.md, PLAN.md and `docs/reference/shoot.js`;
+    - Node 20 reached end of life in April and is still in `engines` and CI.
