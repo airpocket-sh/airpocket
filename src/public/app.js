@@ -414,7 +414,7 @@
   // A Mac running an older copy of Airpocket than the folder setup copied it from (behind.js on the Mac).
   function behindLine(name, copy) {
     if (!copy || copy.behind !== true) return "";
-    const versions = typeof copy.running === "string" && typeof copy.source === "string" ? ` (${copy.running}; the folder has ${copy.source})` : "";
+    const versions = typeof copy.running === "string" && typeof copy.available === "string" ? ` (${copy.running}; the folder has ${copy.available})` : "";
     return `${name} runs an older Airpocket than the folder it was set up from${versions}. Run airpocket setup on that Mac to bring it up to date.`;
   }
 

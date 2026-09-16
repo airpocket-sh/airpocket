@@ -43,7 +43,7 @@ test("the copy is behind only once something under the source's src/ is newer th
   w.pull();
   assert.deepEqual(behindSource(w.data, w.app), { behind: true }, "same version: no version strings");
   fs.writeFileSync(path.join(w.source, "package.json"), JSON.stringify({ version: "0.2.0" }));
-  assert.deepEqual(behindSource(w.data, w.app), { behind: true, running: "0.1.0", source: "0.2.0" }, "the versions ride along when they differ");
+  assert.deepEqual(behindSource(w.data, w.app), { behind: true, running: "0.1.0", available: "0.2.0" }, "the versions ride along when they differ");
 });
 
 test("a newer file deep in src/ counts; links and setup's own leftovers don't", () => {
@@ -152,7 +152,7 @@ test("the app says a Mac is behind only for a true flag, and shows versions only
   assert.equal(behindLine("Studio", {}), "");
   assert.equal(behindLine("Studio", { behind: true }),
     "Studio runs an older Airpocket than the folder it was set up from. Run airpocket setup on that Mac to bring it up to date.");
-  assert.match(behindLine("Studio", { behind: true, running: "0.1.0", source: "0.2.0" }), /from \(0\.1\.0; the folder has 0\.2\.0\)\. Run/);
+  assert.match(behindLine("Studio", { behind: true, running: "0.1.0", available: "0.2.0" }), /from \(0\.1\.0; the folder has 0\.2\.0\)\. Run/);
   assert.doesNotMatch(behindLine("Studio", { behind: true, running: "0.1.0" }), /\(/);
 });
 

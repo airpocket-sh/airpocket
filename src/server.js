@@ -864,7 +864,7 @@ function createServer(opts = {}) {
     codexHome: opts.codexHome || process.env.CODEX_HOME || path.join(os.homedir(), ".codex"),
     homeDir: opts.homeDir || os.homedir(),
     // Whether this Mac runs an older copy than the folder setup copied it from (behind.js):
-    // { behind: true, running?, source? } or undefined, asked at most once a minute. Never a path.
+    // { behind: true, running?, available? } or undefined, asked at most once a minute. Never a path.
     copy: opts.copyCheck || createBehindCheck({ dataDir: store.dir }),
     ticketMs: opts.ticketMs || 120000,
   };

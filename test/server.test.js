@@ -898,7 +898,7 @@ test("the list and hello say the Mac runs an older copy than its source, only wh
     await new Promise((ok) => mac.server.listen(0, "127.0.0.1", ok));
     at = `http://127.0.0.1:${mac.server.address().port}`;
     const running = require("../package.json").version;
-    assert.deepEqual(await both(), [{ behind: true, running, source: "99.0.0" }, { behind: true, running, source: "99.0.0" }]);
+    assert.deepEqual(await both(), [{ behind: true, running, available: "99.0.0" }, { behind: true, running, available: "99.0.0" }]);
   } finally {
     mac.server.close();
     fs.rmSync(data, { recursive: true, force: true });

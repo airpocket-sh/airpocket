@@ -9,8 +9,10 @@
 // are not enough: a pull changes the version only when someone bumps it.
 //
 // The answer the phone gets is { behind: true } and, when they differ, the two
-// version strings. Never the path. A source that is gone, moved, unreadable, or
-// is the very folder the service runs from gives no answer at all.
+// version strings, `running` and `available`. Never the path, and no field named
+// like it: `source` is the path, so the version found there is `available`. A
+// source that is gone, moved, unreadable, or is the very folder the service runs
+// from gives no answer at all.
 const fs = require("fs");
 const path = require("path");
 
@@ -45,7 +47,7 @@ function newestUnder(dir) {
 
 /**
  * The check itself, uncached: undefined when there is nothing to say, else
- * { behind: true, running?, source? } with both versions only when they differ.
+ * { behind: true, running?, available? } with both versions only when they differ.
  * `dataDir` holds install.json; `root` is the folder this service runs from.
  */
 function behindSource(dataDir, root) {
@@ -66,7 +68,7 @@ function behindSource(dataDir, root) {
   const newest = newestUnder(src);
   if (newest == null || newest <= installed) return undefined;
   const now = versionAt(root), then = versionAt(source);
-  return { behind: true, ...(now && then && now !== then ? { running: now, source: then } : {}) };
+  return { behind: true, ...(now && then && now !== then ? { running: now, available: then } : {}) };
 }
 
 /** behindSource, asked at most once a minute however often the phone polls. */
