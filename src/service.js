@@ -16,7 +16,8 @@
 // One service per data folder: airpocket.lock holds the running one's pid and
 // the time it started. A second one refuses to start and writes nothing; a lock
 // whose process is gone (or whose pid now belongs to another process) is stale
-// and is taken over.
+// and is taken over. A running service checks the lock on every sweep and stops
+// if it no longer names this process.
 //
 //   POST /hook/session   a session started, or something about it changed
 //   POST /hook/enqueue   it waits for you: finished, waiting for you, needs permission, ...
@@ -42,6 +43,7 @@
 //   queue.json           the waiting list
 //   hook.json            { port, secret } for the hooks
 //   airpocket.lock       "<pid> <start time>" of the running service
+//   airpocket.lock.takeover  held for a moment by a service taking over a stale lock
 //
 // The waiting list's rules: a turn that finished is "done" and waits 20
 // minutes; anything that needs a decision is "input" and waits 60. A session
@@ -124,32 +126,71 @@ function transcriptPath(p, sid, agent) {
 
 const lockOf = (s) => { const m = LOCK.exec(String(s)); return m ? { pid: pidOf(Number(m[1])), started: startOf(Number(m[2] || 0)) } : { pid: 0, started: 0 }; };
 
+/** Sleep without leaving the call stack: takeLock runs before anything is served. */
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 /**
  * Take the data folder's lock, or throw (code ELOCKED) when another running
  * service holds it. The lock says "<pid> <start time>"; one whose process is
  * gone, whose pid now belongs to a newer process, or that says nothing, is stale.
  *
  * The lock appears whole or not at all: it is written to a private temporary
- * file and linked into place, which fails if a lock is already there. A stale
- * lock is renamed aside before anyone links a new one, and the one renamed is
- * checked: if it wasn't the stale lock (another starter got there first and
- * took the folder), it is put back and this one gives way. Two services that
- * find the same stale lock at once can't both end up holding it.
+ * file and linked into place, which fails if a lock is already there. Nobody
+ * ever overwrites or unlinks a lock that isn't stale:
  *
- * `seams` are for the tests: alive(pid, started), and onStale(), called between
- * judging a lock stale and moving it aside.
+ * - Only one process moves a stale lock at a time. It first takes the takeover
+ *   marker (airpocket.lock.takeover, linked into place the same way), then
+ *   reads the lock again and moves it aside only if it is still exactly what
+ *   it judged stale. Anything else, and it lets the marker go and looks again.
+ * - With the stale lock aside it links its own; if a newcomer linked one in
+ *   between, that one stands and this one looks again (and gives way).
+ * - A marker whose process is gone is moved aside the same careful way, so a
+ *   crash in the middle of a takeover can't keep the folder locked for good.
+ *
+ * `seams` are for the tests: alive(pid, started); onStale(), called between
+ * judging a lock stale and taking the marker; and patience, how many ms to keep
+ * trying (5000).
  */
 function takeLock(file, identity, seams = {}) {
   const alive = seams.alive || processAlive;
   const held = (content) => { const l = lockOf(content); return !!l.pid && alive(l.pid, l.started); };
   const tag = () => `${process.pid}.${crypto.randomBytes(6).toString("hex")}`;
+  const marker = `${file}.takeover`;
   const tmp = `${file}.${tag()}.tmp`;
+  // The marker's first line is its owner; the second makes every marker unique,
+  // so one read before a move and one after tell whether it is the same marker.
+  const mark = `${identity}\n${tag()}`;
+  const markTmp = `${marker}.${tag()}.tmp`;
   writeAtomic(tmp, identity);
+  writeAtomic(markTmp, mark);
+
+  /** The takeover marker, or false while a running process holds it. */
+  function takeMarker() {
+    try { fs.linkSync(markTmp, marker); return true; } catch (err) { if (err.code !== "EEXIST") throw err; }
+    let seen;
+    try { seen = fs.readFileSync(marker, "utf8"); } catch (err) { if (err.code === "ENOENT") return false; throw err; }
+    if (held(seen.split("\n")[0])) return false;
+    // Its owner died mid-takeover. Move it aside; if what moved wasn't that marker
+    // (someone cleared it and took a new one in between), put the new one back.
+    const aside = `${marker}.stale.${tag()}`;
+    try { fs.renameSync(marker, aside); } catch (err) { if (err.code === "ENOENT") return false; throw err; }
+    let moved = "";
+    try { moved = fs.readFileSync(aside, "utf8"); } catch {}
+    if (moved !== seen) { try { fs.linkSync(aside, marker); } catch {} }
+    try { fs.unlinkSync(aside); } catch {}
+    return false;
+  }
+  const dropMarker = () => { try { if (fs.readFileSync(marker, "utf8") === mark) fs.unlinkSync(marker); } catch {} };
+
   try {
-    for (let tries = 0; tries < 5; tries++) {
+    // A look that found things changing waits a moment before the next, and never
+    // while holding the marker: the marker is let go first.
+    let wait = false;
+    for (const until = Date.now() + (seams.patience || 5000); Date.now() < until;) {
+      if (wait) { pause(5); wait = false; }
       try { fs.linkSync(tmp, file); return; } catch (err) { if (err.code !== "EEXIST") throw err; }
       let seen;
-      try { seen = fs.readFileSync(file, "utf8"); } catch (err) { if (err.code === "ENOENT") continue; throw err; }
+      try { seen = fs.readFileSync(file, "utf8"); } catch (err) { if (err.code === "ENOENT") { wait = true; continue; } throw err; }
       if (held(seen)) {
         const l = lockOf(seen);
         const err = new Error(`Airpocket is already running for ${path.dirname(file)} (process ${l.pid}).`);
@@ -157,22 +198,44 @@ function takeLock(file, identity, seams = {}) {
         throw err;
       }
       if (seams.onStale) seams.onStale();
-      const aside = `${file}.stale.${tag()}`;
-      try { fs.renameSync(file, aside); } catch (err) { if (err.code === "ENOENT") continue; throw err; }
-      let moved = "";
-      try { moved = fs.readFileSync(aside, "utf8"); } catch {}
-      // Not the lock judged stale: someone took the folder in between. Put theirs
-      // back (if nobody has linked another since) and look again.
-      if (moved !== seen && held(moved)) { try { fs.linkSync(aside, file); } catch {} }
-      try { fs.unlinkSync(aside); } catch {}
+      if (!takeMarker()) { wait = true; continue; }
+      wait = true;                                         // unless it returns below, it looks again
+      try {
+        let again;
+        try { again = fs.readFileSync(file, "utf8"); } catch (err) { if (err.code === "ENOENT") continue; throw err; }
+        if (again !== seen) continue;                        // someone took the folder since: look again
+        const aside = `${file}.stale.${tag()}`;
+        try { fs.renameSync(file, aside); } catch (err) { if (err.code === "ENOENT") continue; throw err; }
+        let moved = "";
+        try { moved = fs.readFileSync(aside, "utf8"); } catch {}
+        if (moved !== seen) {
+          // Can't happen while the marker is ours, but if it does: put it back,
+          // and if that fails, leave it aside rather than delete someone's lock.
+          try { fs.linkSync(aside, file); fs.unlinkSync(aside); } catch {}
+          continue;
+        }
+        fs.unlinkSync(aside);
+        // A newcomer may have linked its lock while the file was away: then
+        // this fails, and the next look finds that one running.
+        try { fs.linkSync(tmp, file); return; } catch (err) { if (err.code !== "EEXIST") throw err; }
+      } finally {
+        dropMarker();
+      }
     }
     throw new Error(`Couldn't take ${file}.`);
   } finally {
     try { fs.unlinkSync(tmp); } catch {}
+    try { fs.unlinkSync(markTmp); } catch {}
   }
 }
 
-function createService({ dir, log = () => {}, now = Date.now, alive = processAlive, readStarts = startTimes } = {}) {
+/**
+ * `onLost` runs once if the lock stops naming this process (someone removed or
+ * replaced it): the service has stopped by then, and by default the whole
+ * process exits, so the phone server doesn't go on beside another service.
+ */
+function createService({ dir, log = () => {}, now = Date.now, alive = processAlive, readStarts = startTimes,
+                         onLost = () => process.exit(1) } = {}) {
   if (!dir) throw new Error("createService needs a data folder");
   const sessionsDir = path.join(dir, "sessions");
   const queueFile = path.join(dir, "queue.json");
@@ -182,7 +245,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
   // The lock comes before anything else is written, so a second service changes nothing.
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   takeLock(lockFile, identity);
-  let locked = true;
+  let locked = true, lost = false;
   privateDir(dir);
   privateDir(sessionsDir);
 
@@ -207,7 +270,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
       .filter((q) => q && typeof q.id === "string" && typeof q.sid === "string" && SESSION_ID.test(q.sid) && Object.hasOwn(TTL_MS, q.kind));
   } catch {}
 
-  const persist = (what, fn) => { try { fn(); } catch (err) { log(`service: couldn't save ${what}: ${err.code || err.message}`); } };
+  const persist = (what, fn) => { if (lost) return; try { fn(); } catch (err) { log(`service: couldn't save ${what}: ${err.code || err.message}`); } };
   const saveQueue = () => persist("the waiting list", () => writeAtomic(queueFile, JSON.stringify({ queue }, null, 2)));
   const saveRecord = (r) => persist("a session", () => writeAtomic(path.join(sessionsDir, r.session_id + ".json"), JSON.stringify(r, null, 2)));
   const dropRecord = (sid) => { records.delete(sid); try { fs.unlinkSync(path.join(sessionsDir, sid + ".json")); } catch {} };
@@ -229,8 +292,33 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
   /** Is a record's process still there? For the phone's list; false without a pid. */
   const isLive = (r) => !!(r && r.pid) && here(r);
 
+  /**
+   * Is the folder still ours? If the lock is gone or names another process,
+   * stop: no more writes, no hooks, an empty list, and the lock left alone.
+   */
+  function stillHeld() {
+    if (lost) return false;
+    // Stopping ends the whole process by default, so a lock must look wrong twice,
+    // a few ms apart, before this one gives up. A read that fails otherwise proves nothing.
+    const read = () => { try { return fs.readFileSync(lockFile, "utf8"); } catch (err) { return err.code === "ENOENT" ? "" : identity; } };
+    if (read() === identity) return true;
+    pause(5);
+    const content = read();
+    if (content === identity) return true;
+    lost = true;
+    locked = false;
+    const other = lockOf(content).pid;
+    log(`service: airpocket.lock ${other ? `now names process ${other}` : "is gone"}; this service (process ${process.pid}) stops`);
+    records.clear();
+    queue = [];
+    if (hookServer.listening) hookServer.close();
+    try { onLost(); } catch (err) { log("service: onLost failed:", err && err.message); }
+    return false;
+  }
+
   /** Expired entries, gone processes and day-old records leave. Cheap enough to run on every read. */
   function sweep() {
+    if (!stillHeld()) return;
     const t = now();
     let changed = false;
     for (const [sid, r] of records) {
@@ -314,6 +402,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
 
   /** One hook event. Returns an HTTP status. */
   function handle(event, b) {
+    if (!stillHeld()) return 503;
     if (!SESSION_ID.test(String(b.session_id))) return 400;
     switch (event) {
       case "session":
@@ -411,6 +500,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
   function release() {
     if (!locked) return;
     locked = false;
+    // Only a lock that still names this process; one that was replaced is someone else's.
     try { if (fs.readFileSync(lockFile, "utf8") === identity) fs.unlinkSync(lockFile); } catch {}
   }
   /** Stop the hook endpoint and release the lock. */
@@ -420,7 +510,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     else if (cb) cb();
   }
 
-  return { dir, hookFile, lockFile, identity, knownSessions, getQueue, dequeue, isLive, sweep, hookServer, listen, release, close };
+  return { dir, hookFile, lockFile, identity, stillHeld, knownSessions, getQueue, dequeue, isLive, sweep, hookServer, listen, release, close };
 }
 
 module.exports = { createService, takeLock, transcriptPath, kindOf, writeAtomic, TTL_MS, REASONS };

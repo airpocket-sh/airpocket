@@ -519,3 +519,172 @@ test("six services started at the same moment over a stale lock: one runs, five 
   assert.deepEqual(outs.sort(), ["ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ok"]);
   assert.deepEqual(fs.readdirSync(dir).filter((n) => n.startsWith("airpocket.lock")), ["airpocket.lock"], "no lock copies left behind");
 });
+
+test("a newcomer can't slip a lock in while a stale one is moved: the running holder keeps the folder", () => {
+  const dir = tempDir();
+  const file = path.join(dir, "airpocket.lock");
+  fs.writeFileSync(file, "999999 5");                          // a service long gone
+  const running = new Set(["111 1000", "222 2000", "333 3000"]);
+  const alive = (pid, started) => running.has(`${pid} ${started}`);
+  // B finds the stale lock. Just after B judges it, A takes the folder. Whenever B
+  // then checks a lock that isn't the stale one, C starts too, right then (the
+  // moment the old code had moved A's lock aside and left the name free).
+  const tries = { a: null, c: [] };
+  const aliveB = (pid, started) => {
+    if (`${pid} ${started}` !== "999999 5") {
+      try { takeLock(file, "333 3000", { alive }); tries.c.push("ok"); } catch (err) { tries.c.push(err.code); }
+    }
+    return alive(pid, started);
+  };
+  assert.throws(() => takeLock(file, "222 2000", { alive: aliveB, onStale: () => { if (!tries.a) { takeLock(file, "111 1000", { alive }); tries.a = "ok"; } } }),
+    { code: "ELOCKED" }, "B gives way");
+  assert.equal(tries.a, "ok");
+  assert.ok(tries.c.length > 0 && tries.c.every((c) => c === "ELOCKED"), `C is refused: ${tries.c}`);
+  assert.equal(fs.readFileSync(file, "utf8"), "111 1000", "A's lock is still in place");
+  assert.deepEqual(fs.readdirSync(dir), ["airpocket.lock"], "no marker, nothing aside");
+});
+
+test("eight services over a stale lock, twenty times: one holds it each time, and keeps it", async () => {
+  const { spawn } = require("child_process");
+  const dir = tempDir();
+  const file = path.join(dir, "airpocket.lock");
+  const [ROUNDS, GAP, KIDS] = [20, 400, 8];
+  const at = Date.now() + 1000;
+  // Round r starts at at + r*GAP, and its locks say "<pid> <r+1>". A lock from an
+  // earlier round counts as gone, so every round starts over a stale lock; one from
+  // a later round is running (a child running late mustn't call the future stale).
+  // alive() waits a moment, as ps does (which is what widened the old gap), without using the CPU.
+  const code = `const fs = require("fs");
+    const { takeLock } = require(${JSON.stringify(path.join(__dirname, "..", "src", "service"))});
+    const sleepUntil = (t) => { const w = t - Date.now() - 2; if (w > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, w); while (Date.now() < t) {} };
+    const [file, at] = [process.argv[1], Number(process.argv[2])];
+    for (let r = 0; r < ${ROUNDS}; r++) {
+      sleepUntil(at + r * ${GAP});
+      const me = process.pid + " " + (r + 1);
+      const alive = (pid, started) => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1); return started >= r + 1; };
+      // Times in ms from the round's start: began, took (or was refused), checked.
+      const since = () => Date.now() - (at + r * ${GAP});
+      const times = [since()];
+      let got, found = "";
+      try { takeLock(file, me, { alive }); got = "ok"; } catch (e) { got = (e.code || e.message).replace(/\\s+/g, "_"); }
+      times.push(since());
+      if (got === "ok") {
+        // Check the hold soon, well inside this round, before the next round may rightly take over.
+        sleepUntil(Date.now() + 20);
+        try { found = fs.readFileSync(file, "utf8"); } catch (e) { found = e.code; }
+        times.push(since());
+        got = found === me ? "held" : "lost";
+      }
+      // "pid round outcome at=began,took,checked [what a lost holder found]"
+      process.stdout.write(process.pid + " " + r + " " + got + " at=" + times.join(",") + (got === "lost" ? " found=" + JSON.stringify(found) : "") + "\\n");
+    }`;
+  const outs = await Promise.all(Array.from({ length: KIDS }, () => new Promise((ok) => {
+    const c = spawn(process.execPath, ["-e", code, file, String(at)]);
+    let out = "";
+    c.stdout.on("data", (d) => (out += d));
+    c.stderr.on("data", (d) => (out += d));
+    c.on("close", () => ok(out));
+  })));
+  const rounds = Array.from({ length: ROUNDS }, () => []);
+  const stray = [];
+  for (const line of outs.join("").trim().split("\n")) {
+    const [, r, got, at] = line.split(" ");
+    const times = String(at).slice(3).split(",").map(Number);
+    if (rounds[Number(r)]) rounds[Number(r)].push({ got, line, began: times[0], checked: times[2] }); else stray.push(line);
+  }
+  // A slow runner can crowd rounds together, and then the next round rightly takes
+  // an old round's lock. Such a round proves nothing either way: a child that began
+  // after half the round, or a holder that checked late. Otherwise exactly one holds,
+  // and a child that began on time and checked in time must never lose its lock.
+  const want = ["ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "ELOCKED", "held"].join(" ");
+  const inTime = (c) => c.began <= GAP / 2 && !(c.checked > GAP * 0.75);
+  const judged = rounds.map((x) => (x.length === KIDS && x.every(inTime) ? "judged" : "crowded"));
+  const bad = rounds.map((x, r) => ((judged[r] === "judged" && x.map((c) => c.got).sort().join(" ") !== want) ||
+    x.some((c) => c.got === "lost" && inTime(c)) ? r : -1)).filter((r) => r >= 0);
+  const show = [...new Set(bad.flatMap((r) => [r - 1, r, r + 1]))].filter((r) => rounds[r])
+    .map((r) => `round ${r} (${bad.includes(r) ? "failed" : judged[r]}):\n  ` + rounds[r].map((c) => c.line).join("\n  "));
+  assert.deepEqual([bad, stray], [[], []], `failed rounds ${bad.join(", ")}; lines as "pid round outcome at=began,took,checked":\n${show.join("\n")}`);
+  const count = judged.filter((j) => j === "judged").length;
+  assert.ok(count >= ROUNDS / 2, `only ${count} of ${ROUNDS} rounds ran in time to judge:\n` +
+    rounds.map((x, r) => `round ${r} (${judged[r]}):\n  ` + x.map((c) => c.line).join("\n  ")).join("\n"));
+  assert.deepEqual(fs.readdirSync(dir), ["airpocket.lock"], "no marker, no lock copies left behind");
+});
+
+test("a takeover marker left by a process that died mid-takeover doesn't block the folder", () => {
+  const { spawnSync } = require("child_process");
+  const gone = spawnSync(process.execPath, ["-e", ""]).pid;
+  const dir = tempDir();
+  fs.writeFileSync(path.join(dir, "airpocket.lock"), `${gone} 5`);
+  fs.writeFileSync(path.join(dir, "airpocket.lock.takeover"), `${gone} 5\n${gone}.abc`);
+  const svc = createService({ dir });
+  try {
+    assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), svc.identity);
+    assert.deepEqual(fs.readdirSync(dir).filter((n) => n.startsWith("airpocket.lock")), ["airpocket.lock"], "the old marker is gone");
+  } finally { svc.release(); }
+  // One whose process still runs is respected: the start gives up rather than move a lock under it.
+  const dir2 = tempDir();
+  fs.writeFileSync(path.join(dir2, "airpocket.lock"), `${gone} 5`);
+  fs.writeFileSync(path.join(dir2, "airpocket.lock.takeover"), `111 1000\nx`);
+  const alive = (pid, started) => pid === 111 && started === 1000;
+  assert.throws(() => takeLock(path.join(dir2, "airpocket.lock"), "222 2000", { alive, patience: 300 }), /Couldn't take/);
+  assert.equal(fs.readFileSync(path.join(dir2, "airpocket.lock"), "utf8"), `${gone} 5`, "the lock wasn't moved");
+});
+
+test("a service whose lock was replaced stops, and never deletes the other one's lock", async () => {
+  const dir = tempDir();
+  const logs = [];
+  let lostCalls = 0;
+  const svc = createService({ dir, log: (...a) => logs.push(a.join(" ")), onLost: () => lostCalls++ });
+  const port = await new Promise((ok) => svc.listen(0, ok));
+  const secret = JSON.parse(fs.readFileSync(path.join(dir, "hook.json"), "utf8")).secret;
+  const hook = (event, body) => call(port, "/hook/" + event, body, { Authorization: "Bearer " + secret });
+  const other = `${process.ppid} ${startTimeOf(process.ppid)}`;
+  try {
+    await hook("session", { session_id: ID, pid: process.pid, started: startTimeOf(process.pid) });
+    assert.deepEqual(svc.knownSessions().map((r) => r.session_id), [ID]);
+    fs.writeFileSync(path.join(dir, "airpocket.lock"), other);   // another service took the folder
+    assert.deepEqual(svc.knownSessions(), [], "the next sweep notices and stops");
+    assert.equal(lostCalls, 1);
+    assert.ok(logs.some((l) => l.includes(`airpocket.lock now names process ${process.ppid}`) && l.includes("stops")), logs.join("\n"));
+    await new Promise((ok) => setImmediate(ok));
+    assert.equal(svc.hookServer.listening, false, "the hook endpoint is closed");
+    assert.deepEqual(svc.getQueue(), []);
+    svc.knownSessions();
+    assert.equal(lostCalls, 1, "onLost runs once");
+    assert.equal(await hook("touch", { session_id: ID }).catch(() => "refused"), "refused", "no hooks");
+  } finally {
+    svc.release();
+    await new Promise((ok) => svc.close(ok));
+  }
+  assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), other, "release left the other one's lock alone");
+});
+
+test("release() on a service whose lock was replaced, before any sweep noticed, leaves the other lock", () => {
+  const dir = tempDir();
+  const svc = createService({ dir, onLost: () => {} });
+  const other = `${process.ppid} ${startTimeOf(process.ppid)}`;
+  fs.writeFileSync(path.join(dir, "airpocket.lock"), other);
+  svc.release();
+  assert.equal(fs.readFileSync(path.join(dir, "airpocket.lock"), "utf8"), other);
+});
+
+test("one odd read of the lock isn't enough to stop: it must look wrong twice, a few ms apart", () => {
+  const dir = tempDir();
+  let lostCalls = 0;
+  const svc = createService({ dir, onLost: () => lostCalls++ });
+  const lockFile = path.join(dir, "airpocket.lock");
+  const real = fs.readFileSync;
+  let odd = 1;
+  fs.readFileSync = function (f, ...rest) { return f === lockFile && odd-- > 0 ? "1 1" : real.call(this, f, ...rest); };
+  try {
+    assert.equal(svc.stillHeld(), true, "the second read shows this process's lock");
+    assert.equal(lostCalls, 0);
+    odd = 2;
+    assert.equal(svc.stillHeld(), false, "wrong twice: stops");
+    assert.equal(lostCalls, 1);
+  } finally {
+    fs.readFileSync = real;
+    svc.release();
+  }
+  assert.equal(fs.readFileSync(lockFile, "utf8"), svc.identity, "a service that stopped leaves the lock alone, even its own");
+});
