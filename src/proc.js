@@ -83,6 +83,21 @@ function stillRunning(pid, started, startOf = startTimeOf) {
 }
 
 /**
+ * A process as typing into its terminal needs it, from one ps call: when it
+ * started (seconds), its terminal ("ttys001", or "" when it has none), its
+ * process group, and the process group that holds that terminal's foreground.
+ * null when the pid is gone or ps can't tell.
+ */
+function processInfo(pid) {
+  const p = pidOf(pid);
+  if (!p) return null;
+  const m = /^\s*(\d+)\s+(\S+)\s+(\d+)\s+(-?\d+)\s+(.+)$/.exec(ps([p], "pid=,tty=,pgid=,tpgid=,lstart=").split("\n")[0] || "");
+  const started = m && Number(m[1]) === p ? parseLstart(m[5]) : 0;
+  if (!started) return null;
+  return { started, tty: /^[a-z0-9]{1,32}$/i.test(m[2]) ? m[2] : "", pgid: Number(m[3]), tpgid: Number(m[4]) };
+}
+
+/**
  * The agent a hook runs for: its parent, or the first parent that isn't a
  * shell (Claude Code and Codex run hooks through one). { pid, started }, or
  * zeros when it can't be told.
@@ -100,4 +115,4 @@ function agentProcess(ppid = process.ppid) {
   return { pid: 0, started: 0 };
 }
 
-module.exports = { parseLstart, startTimes, startTimeOf, pidExists, processAlive, stillRunning, agentProcess, pidOf };
+module.exports = { parseLstart, startTimes, startTimeOf, pidExists, processAlive, stillRunning, processInfo, agentProcess, pidOf };

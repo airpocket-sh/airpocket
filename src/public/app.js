@@ -13,6 +13,8 @@
   // app's camera hasn't been tried on an iPhone yet, so the six digits come first
   // and the scan is one tap away. Flip this once it has been tried there.
   const SCAN_FIRST = false;
+  // A message the agent runs as a shell command: "!" first, after any spaces or control characters.
+  const SHELL_MODE = /^[\s\x00-\x1f\x7f]*!/;
   const root = document.documentElement;
   const bar = document.getElementById("bar");
   const view = document.getElementById("view");
@@ -824,6 +826,11 @@
     const submit = async (enter) => {
       const text = box.value.trim();
       if (!text) { box.focus(); if (!enter) toast("Write something first."); return; }
+      // A message that starts with "!" is a shell command to Claude Code (and Codex), run on the Mac as it is.
+      // The Mac drops control characters, so they don't hide the "!" from this check.
+      if (SHELL_MODE.test(text) && !(await confirmDialog({ title: "Run a shell command?",
+        body: `It starts with "!", so the agent runs it as a command in a shell on ${host.name || "the Mac"}, not as a message.` +
+          (enter ? "" : " Typed into its box, it runs when Enter is pressed."), action: enter ? "Run it" : "Type it" }))) return;
       sendBtn.disabled = true;
       try {
         await api(host, "/api/send", { method: "POST", body: { id, text, submit: enter } });
@@ -1171,6 +1178,9 @@
 
   // ---- pairing: the six digits, or the QR code the Mac shows -------------------------------------
   const canScan = () => !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.AirpocketQR);
+  // What pairing hands over, said before the code is entered or scanned.
+  const pairWarning = () => h("p", { class: "hint" }, "A paired phone can type anything into your agents, shell commands too. It stays paired until you revoke it on the Mac (",
+    h("code", { class: "k", text: "airpocket devices" }), ").");
   function renderPair(adding) {
     // On glass: on the bare map at its brightest, an error in red and a field's border fall under 4.5:1 and 3:1.
     screenIs("pair", "thin");
@@ -1257,7 +1267,7 @@
         h("div", { class: "field" }, h("div", { class: "label", text: "Code" }), digits, msg),
         h("div", { class: "field" }, h("div", { class: "label", text: "Name for this phone" }), h("div", { class: "fw" }, name),
           h("p", { class: "hint", text: "Shown on the Mac so you know which phone is connected." })),
-        h("div", { class: "pushdown" }, pad, btn)));
+        h("div", { class: "pushdown" }, pad, btn, pairWarning())));
       paint();
     }
 
@@ -1274,6 +1284,7 @@
       fill(view, h("div", { class: "page" },
         h("p", { class: "lede" }, "On your Mac, run ", h("code", { class: "k", text: "airpocket pair" }), " and point the camera at the code it shows."),
         vf,
+        pairWarning(),
         h("button", { class: "btn outline wide", onclick: () => { st.mode = "code"; draw(); } }, "Enter the six-digit code instead")));
 
       let stream = null, timer = 0, running = false;

@@ -14,16 +14,20 @@ const { createStore } = require("../src/store");
 const { createService } = require("../src/service");
 const { portsFrom } = require("../src/ports");
 const { othersOn, serveLines } = require("../src/cli");
-const { startTimeOf } = require("../src/proc");
+const { startTimeOf, processInfo } = require("../src/proc");
 const ME = startTimeOf(process.pid);          // the stand-in sessions' agent is this test process
 
 const ESC = String.fromCharCode(27);
 const BELL = String.fromCharCode(7);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "airpocket-test-"));
 const store = createStore(dir);
+// Everything the server logs, and every code and token it handed out, for the log check at the end.
+const logged = [], codes = [], tokens = [];
+const newCode = store.newCode;
+store.newCode = (...a) => { const r = newCode(...a); codes.push(r.code); return r; };
 const now = Math.floor(Date.now() / 1000);
-const CLAUDE = "cb2d94c7-3e54-464a-8086-79db7d007c02";
-const CODEX = "01a09c74-c19c-79d0-926f-81a420e20565";
+const CLAUDE = "7c1e2d3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f";
+const CODEX = "0199bbbb-cccc-7ddd-8eee-ffffffffffff";
 const PLAIN = "aaaaaaaa-0000-0000-0000-000000000000";
 const SESS = [
   { session_id: PLAIN, bridge_id: "local:" + PLAIN, title: "plain", agent: "claude", last_seen: now - 120 },
@@ -54,7 +58,7 @@ fs.writeFileSync(path.join(proj, CLAUDE2 + ".jsonl"), [
 ].join("\n"));
 // A Codex session in a Superset terminal, mid-turn. Its session file already has
 // the steps so far; the screen has Codex's dot animation over the prompt line.
-const CODEX_T = "01a0a069-1fef-7a71-b5f1-1db10d06b25c";
+const CODEX_T = "0199cccc-dddd-7eee-8fff-000000000000";
 SESS.push({ session_id: CODEX_T, bridge_id: "codex:" + CODEX_T, title: "PM", agent: "codex", pid: process.pid, started: ME,last_seen: now - 3, terminal: "term-3", workspace: "ws-3" });
 const D1 = String.fromCharCode(0x2801), D2 = String.fromCharCode(0x2840);
 const BRAILLE_RE = new RegExp("[" + String.fromCharCode(0x2800) + "-" + String.fromCharCode(0x28ff) + "]");
@@ -138,7 +142,7 @@ const calls = { superset: [], dequeue: [], tmux: [] };
 let removes = 1;                                  // what the stand-in dequeue reports it took off
 
 const app = createServer({
-  store, log: () => {}, hostLabel: "Test-Mac", claudeProjects: path.join(dir, "projects"), codexHome: path.join(dir, "codex"),
+  store, log: (...a) => logged.push(a.map(String).join(" ")), hostLabel: "Test-Mac", claudeProjects: path.join(dir, "projects"), codexHome: path.join(dir, "codex"),
   homeDir: HOME, fileBase: async () => fileBase, ticketMs: 1500,
   knownSessions: () => SESS,
   getQueue: () => QUEUE,
@@ -156,10 +160,12 @@ const app = createServer({
   tmux: async (args) => {
     calls.tmux.push(args);
     if (args.includes("capture-pane")) return `${TMUX_SERVER}\n${TMUX_SCREEN}`;
-    if (args[3] === "display-message") return `${TMUX_SERVER} 0\n`;
+    if (args[3] === "display-message") return `${TMUX_SERVER} 0 /dev/ttys998\n`;
     return "";
   },
   typeGap: () => 0,
+  // This test process stands in for every agent: its real start time, in the foreground of the stand-in terminal.
+  inspectAgent: (pid) => { const i = processInfo(pid); return i && { ...i, tty: "ttys998", pgid: 9, tpgid: 9 }; },
 });
 test.after(() => sockServer.close());
 
@@ -176,7 +182,7 @@ function req(method, p, { body, headers = {}, raw, at = base } = {}) {
     const r = http.request(at + p, { method, headers: { ...(data ? { "Content-Type": "application/json", "Content-Length": data.length } : {}), ...headers } }, (res) => {
       let b = "";
       res.on("data", (c) => (b += c));
-      res.on("end", () => { let json = null; try { json = JSON.parse(b); } catch {} resolve({ status: res.statusCode, headers: res.headers, body: b, json }); });
+      res.on("end", () => { let json = null; try { json = JSON.parse(b); } catch {} if (json && json.token) tokens.push(json.token); resolve({ status: res.statusCode, headers: res.headers, body: b, json }); });
     });
     r.on("error", reject);
     if (data) r.write(data);
@@ -307,7 +313,7 @@ test("a tmux session: read with capture-pane, typed with send-keys, keys by tmux
   assert.deepEqual(calls.tmux.at(-1), ["-u", "-S", TMUX_SOCK, "display-message", "-p", "-t", "%7", "#{pid}", ";", "capture-pane", "-p", "-t", "%7"]);
   calls.tmux.length = 0;
   assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: TMUXS, text: "a\nb;" } })).status, 200);
-  assert.deepEqual(calls.tmux.map((a) => a.slice(3)), [["display-message", "-p", "-t", "%7", "#{pid} #{pane_in_mode}"],
+  assert.deepEqual(calls.tmux.map((a) => a.slice(3)), [["display-message", "-p", "-t", "%7", "#{pid} #{pane_in_mode} #{pane_tty}"],
     ["send-keys", "-t", "%7", "-l", "--", "a b\\;"], ["send-keys", "-t", "%7", "Enter"]]);
   await req("POST", "/api/key", { headers: auth(), body: { id: TMUXS, key: "esc" } });
   assert.deepEqual(calls.tmux.at(-1).slice(3), ["send-keys", "-t", "%7", "Escape"]);
@@ -729,12 +735,22 @@ test("files: PDFs and pages open from the file-only origin, through a short link
   for (const p of ["/", "/api/sessions", "/app.js", "/f/", "/f/x/y"]) assert.equal((await get(fileBase + p)).status, 404, "the file origin serves nothing else: " + p);
 
   const viaTailnet = await req("POST", "/api/file/open", { headers: { ...auth(), Host: "mac-b.tail1234.ts.net" }, body: { id: FILES, ref: refOf(files, "report.pdf") } });
+  const forwarded = await req("POST", "/api/file/open", { headers: { ...auth(), "X-Forwarded-Host": "evil.tail9999.ts.net" }, body: { id: FILES, ref: refOf(files, "report.pdf") } });
+  assert.ok(forwarded.json.url.startsWith(fileBase + "/f/"), "the link's origin comes from Host only, never X-Forwarded-Host");
   assert.match(viaTailnet.json.url, /^https:\/\/mac-b\.tail1234\.ts\.net:8443\/f\/[A-Za-z0-9_-]{43}\/report\.pdf$/, "the link uses the Mac's tailnet name on the file port");
   const page = await req("POST", "/api/file/open", { headers: auth(), body: { id: FILES, ref: refOf(files, "page.html") } });
   const pg = await get(page.json.url);
   assert.equal(pg.status, 200);
   assert.match(pg.headers["content-security-policy"], /sandbox/);
   assert.match(pg.headers["content-security-policy"], /script-src 'none'/);
+  // An empty page is served empty, at once (a byte range of nothing used to hang the response).
+  const pageText = fs.readFileSync(path.join(ROOT, "page.html"));
+  put("page.html", "");
+  try {
+    const empty = await req("POST", "/api/file/open", { headers: auth(), body: { id: FILES, ref: refOf(files, "page.html") } });
+    const e = await Promise.race([get(empty.json.url), new Promise((r) => setTimeout(() => r({ status: "hung" }), 3000))]);
+    assert.deepEqual([e.status, e.body && e.body.length], [200, 0]);
+  } finally { put("page.html", pageText); }
   assert.equal((await req("POST", "/api/file/open", { headers: auth(), body: { id: FILES, ref: refOf(files, "notes.md") } })).status, 400, "text is drawn by the app, not linked");
 
   await new Promise((r) => setTimeout(r, 1600));
@@ -743,6 +759,37 @@ test("files: PDFs and pages open from the file-only origin, through a short link
   put("out/report.pdf", "<html>now a page</html>");
   assert.equal((await get(again.json.url)).status, 404, "a file that stopped being a PDF is refused at the moment of use");
   put("out/report.pdf", PDF);
+});
+
+test("DNS rebinding: the app and the file origin answer only to the tailnet name or loopback", async () => {
+  const rebound = ["attacker.example", "attacker.example:47871", "127.0.0.1.attacker.example", "ts.net.attacker.example",
+                   "mac.tail1234.ts.net.attacker.example", "192.168.1.5", "[::1]", "localhost.", "mac..ts.net"];
+  for (const host of rebound) {
+    assert.equal((await req("GET", "/", { headers: { Host: host } })).status, 403, "the static app, Host " + JSON.stringify(host));
+  }
+  // Pairing: a rebound page can't spend the code's tries.
+  const { code } = store.newCode();
+  for (let i = 0; i < 6; i++) {
+    const r = await req("POST", "/api/pair", { headers: { Host: "attacker.example" }, body: { code: "000000" } });
+    assert.equal(r.status, 403);
+  }
+  // X-Forwarded-Host is the page's to set; only Host counts.
+  assert.equal((await req("GET", "/", { headers: { Host: "attacker.example", "X-Forwarded-Host": "mac-b.tail1234.ts.net" } })).status, 403);
+  assert.equal((await req("GET", "/api/hello", { headers: { ...auth(), Host: "attacker.example" } })).status, 403, "a token doesn't help");
+  for (const host of ["mac-b.tail1234.ts.net", "MAC-B.tail1234.ts.net:443", "127.0.0.1", "localhost:47871"]) {
+    assert.equal((await req("GET", "/", { headers: { Host: host } })).status, 200, "Host " + host);
+  }
+  const paired = await req("POST", "/api/pair", { headers: { Host: "mac-b.tail1234.ts.net" }, body: { code, name: "rebind test" } });
+  assert.equal(paired.status, 200, "the code still had all its tries");
+  store.revoke(paired.json.deviceId);
+
+  // A file link: refused under a rebound name, and the refusal doesn't count as a use.
+  const files = await fileList();
+  const o = await req("POST", "/api/file/open", { headers: auth(), body: { id: FILES, ref: refOf(files, "report.pdf") } });
+  for (let i = 0; i < 41; i++) assert.equal((await get(o.json.url, { Host: "attacker.example" })).status, 403);
+  assert.equal((await get(o.json.url, { Host: "mac-b.tail1234.ts.net:8443" })).status, 200);
+  assert.equal((await get(o.json.url)).status, 200, "loopback");
+  assert.equal((await req("POST", "/api/send", { headers: { ...auth(), Host: "attacker.example" }, body: { id: CLAUDE, text: "hi" } })).status, 403);
 });
 
 test("files: a session's folder must be a real folder inside home, not home itself and not a hidden one", () => {
@@ -851,13 +898,31 @@ test("serve never takes a tailnet port that publishes something else, and unserv
 
 test("nothing in the app points at the private tool it came from", () => {
   const src = path.join(__dirname, "..", "src");
-  const files = [];
-  const walk = (d) => { for (const n of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, n.name); if (n.isDirectory()) walk(p); else if (!n.name.endsWith(".png")) files.push(p); } };
-  walk(src);
-  for (const f of files) {
+  const walk = (d, files = []) => { for (const n of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, n.name); if (n.isDirectory()) walk(p, files); else if (!n.name.endsWith(".png")) files.push(p); } return files; };
+  // Real session ids from the Mac this was built on; tests use invented ones. Joined
+  // here, so this file doesn't hold the ids it looks for.
+  const realIds = [["01a09c74", "c19c-79d0-926f-81a420e20565"], ["01a0a069", "1fef-7a71-b5f1-1db10d06b25c"], ["cb2d94c7", "3e54-464a-8086-79db7d007c02"]].map((p) => new RegExp(p.join("-"), "i"));
+  for (const f of walk(src)) {
     const t = fs.readFileSync(f, "utf8");
-    for (const bad of [/4782[012]\b/, /claude-overlay/i, /claude-accounts/i, /accounts\.json/, /\/api\/accounts/, /joinvoicedata/i, /[OÖ]ncel/, /mobile:[a-z]/, /\bpanel\b/i]) {
+    for (const bad of [/4782[012]\b/, /claude-overlay/i, /claude-accounts/i, /accounts\.json/, /\/api\/accounts/, /joinvoicedata/i, /[OÖ]ncel/, /mobile:[a-z]/, /\bpanel\b/i, ...realIds]) {
       assert.ok(!bad.test(t), `${path.relative(src, f)} matches ${bad}`);
     }
   }
+  // The tests and their fixtures too, for the ids (the other patterns appear in tests on purpose).
+  for (const f of walk(__dirname)) {
+    const t = fs.readFileSync(f, "utf8");
+    for (const bad of realIds) assert.ok(!bad.test(t), `${path.relative(__dirname, f)} holds a real session id`);
+  }
+});
+
+test("the log holds no pairing code, token, ticket, query string or typed text", () => {
+  assert.ok(logged.length > 10, "the server logged this run: " + logged.length);
+  assert.ok(codes.length > 3 && tokens.length > 1, "codes and tokens were handed out");
+  const all = logged.join("\n");
+  for (const c of codes) assert.ok(!all.includes(c), "a pairing code in the log");
+  for (const t of tokens) assert.ok(!all.includes(t), "a token in the log");
+  assert.ok(!/[A-Za-z0-9_-]{43}/.test(all), "nothing shaped like a token or a file ticket");
+  assert.ok(!all.includes("?"), "no query string");
+  for (const typed of ["rm -rf", "whoami", "staged", "iPhone " + BELL]) assert.ok(!all.includes(typed), "typed text in the log: " + typed);
+  assert.ok(!all.includes(HOME), "no file path");
 });
