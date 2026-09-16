@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#0A0D08;--bezel:#0D110C;--glass:rgba(14,18,12,.55);--glass-2:rgba(20,26,17,.74);--glass-line:rgba(231,233,222,.07);--stroke:#2B3327;--stroke-2:#626E57;--fg:#E7E9DE;--fg-2:#AEB5A1;--fg-3:#929A83;--green:#8FD14F;--amber:#E9A227;--red:#E4614D;--red-solid:#C8382A;--sand:#D7C49E;--on-sand:#14180F;--green-dim:rgba(143,209,79,.14);--amber-dim:rgba(233,162,39,.14);--red-dim:rgba(228,97,77,.14);--sand-dim:rgba(215,196,158,.14);--map-0:#0B0E09;--map-1:#0D110B;--map-2:#0F140C;--map-3:#11170E;--map-4:#131A10;--map-5:#151D11;--map-6:#172013;--map-7:#192316;--map-ink:var(--map-3);--map-line:rgba(143,209,79,.055);--map-index:rgba(143,209,79,.08);--map-grid:rgba(231,233,222,.03);--glow-green:0 0 4px rgba(143,209,79,.35);--glow-amber:0 0 4px rgba(233,162,39,.35);--glow-red:0 0 4px rgba(228,97,77,.35);--glow-sand:0 0 4px rgba(215,196,158,.3);--hazard:repeating-linear-gradient(135deg,#E9A227 0 10px,#0B0B0B 10px 20px);--blur:blur(18px) saturate(.85);--display:var(--glass-2);--pane:rgba(231,233,222,.04);--pane-2:rgba(231,233,222,.09);--font-ui:'B612',system-ui,sans-serif;--font-mono:'B612 Mono',ui-monospace,monospace;--font-read:'IBM Plex Sans',system-ui,sans-serif;--stroke-w:1px;--stroke-w-focus:2px;--r-1:2px;--r-2:4px;--s-1:4px;--s-2:8px;--s-3:12px;--s-4:16px;--s-5:24px;--s-6:32px;--map:url("map.svg")}
+body{margin:0;background:#070906;color:var(--fg);font-family:var(--font-ui);-webkit-font-smoothing:antialiased}
+a{color:var(--sand);text-decoration:none}a:hover{color:#EAD9B8}
+@keyframes sweep{to{transform:rotate(360deg)}}
+@keyframes scan{0%{left:0}100%{left:calc(100% - 8px)}}
+@keyframes caution{0%,100%{opacity:1}50%{opacity:.4}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+@media (prefers-reduced-transparency:reduce){[style*="backdrop-filter"]{background:var(--ground)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:inset 0 0 0 1px var(--stroke)!important}[data-screen-label]{background-image:linear-gradient(rgba(10,13,8,.6),rgba(10,13,8,.6)),var(--map)!important}}
+</style>
+</helmet>
+<section style="padding:40px;display:flex;flex-direction:column;gap:40px">
+<nav style="display:flex;gap:16px;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase"><a href="Airpocket.dc.html">Index</a><a href="Airpocket Design System.dc.html">Design system</a><a href="Airpocket Screens A.dc.html">Screens A</a><span style="color:var(--fg)">Screens B</span><a href="Airpocket Screens C.dc.html">Screens C</a><a href="Airpocket Map and Glass.dc.html">Map &amp; glass</a></nav>
+<div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start">
+
+<!-- 4a SESSION · WORKING -->
+<div id="4a" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">4a</span>SESSION · CONVERSATION · WORKING</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="4a Session working" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -390px -260px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px">
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Fix checkout tests</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--fg-3)">STUDIO · fix/checkout</span></div>
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg></span>
+  <div style="display:flex;gap:1px;background:var(--stroke);border:1px solid var(--stroke)"><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:var(--pane-2);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;box-shadow:inset 0 -2px 0 var(--sand)">CHAT</div><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:var(--display);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">TERM</div></div>
+</div>
+<div style="flex:1;position:relative;overflow:hidden;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;flex-direction:column;justify-content:flex-end;padding:16px 16px 56px;gap:14px">
+  <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3);text-align:center">14:28</div>
+  <div style="align-self:flex-end;max-width:85%;border:1px solid var(--sand);padding:10px 12px;font:16px/1.5 var(--font-read)">Fix the failing checkout tests. Don't touch the pricing module.</div>
+  <div style="font:16px/1.55 var(--font-read)">Two tests fail because the cart fixture predates the tax change. I'll update the fixture and re-run the suite.</div>
+  <div style="border:1px solid var(--stroke);display:flex;flex-direction:column">
+    <div style="height:40px;display:flex;align-items:center;gap:10px;padding:0 12px;font-family:var(--font-mono);font-size:12px;color:var(--fg-2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>Ran 3 commands<span style="margin-left:auto;color:var(--green)">exit 0</span></div>
+    <div style="border-top:1px solid var(--stroke);padding:8px 12px;font-family:var(--font-mono);font-size:13px;background:var(--pane);display:flex;flex-direction:column;gap:4px"><div>$ npm test -- checkout</div><div style="color:var(--fg-2)">2 failed, 14 passed · 4.2s</div></div>
+  </div>
+  <div style="border:1px solid var(--stroke);height:40px;display:flex;align-items:center;gap:10px;padding:0 12px;font-family:var(--font-mono);font-size:12px;color:var(--fg-2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>Edited 2 files</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--stroke-2);color:var(--sand);font-family:var(--font-mono);font-size:12px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>checkout.spec.ts</span><span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--stroke-2);color:var(--sand);font-family:var(--font-mono);font-size:12px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>cart.fixture.ts</span></div>
+  <div style="font:16px/1.55 var(--font-read)">Re-running the suite now.</div>
+  <div style="position:absolute;left:50%;bottom:12px;transform:translateX(-50%);height:32px;padding:0 14px;border:1px solid var(--sand);background:var(--display);color:var(--sand);display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;box-shadow:0 4px 16px rgba(0,0,0,.6)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>NEW BELOW</div>
+</div>
+<div style="flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke);display:flex;flex-direction:column">
+  <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 8px 0 16px">
+    <div style="position:relative;width:16px;height:16px;border-radius:50%;border:1px solid var(--green);overflow:hidden;flex:none"><div style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(63,224,138,.7),transparent 90deg);animation:sweep 4s linear infinite"></div></div>
+    <span style="font-family:var(--font-mono);font-size:13px;color:var(--green)">Working… 3m 12s</span>
+    <span style="font-family:var(--font-mono);font-size:12px;color:var(--fg-2);flex:1;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Opus 5 · high</span>
+    <span style="height:36px;padding:0 10px;border:1px solid var(--red);background:var(--hazard) bottom/100% 3px no-repeat,var(--red-dim);color:var(--red);display:flex;align-items:center;gap:6px;font-size:13px;flex:none"><svg width="12" height="12" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" fill="currentColor"/></svg>Stop</span>
+  </div>
+  <div style="display:flex;gap:8px;padding:6px 16px 10px">
+    <div style="flex:1;height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;padding:0 12px;font:16px var(--font-read);color:var(--fg-3)">Message the agent</div>
+    <div style="width:48px;height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;color:var(--fg-3)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;padding:0 max(0px,calc((100% - 420px)/2));background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)">
+    <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">CONTROLS</div></div>
+    <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">KEYS</div></div>
+    </div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 4b SESSION · QUESTION -->
+<div id="4b" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">4b</span>SESSION · ASKING YOU TO CHOOSE</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="4b Session question" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -390px -260px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px">
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Fix checkout tests</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--fg-3)">STUDIO · fix/checkout</span></div>
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg></span>
+  <div style="display:flex;gap:1px;background:var(--stroke);border:1px solid var(--stroke)"><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:var(--pane-2);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;box-shadow:inset 0 -2px 0 var(--sand)">CHAT</div><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:var(--display);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">TERM</div></div>
+</div>
+<div style="flex:1;overflow:hidden;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;flex-direction:column;justify-content:flex-end;padding:16px 16px 12px;gap:14px">
+  <div style="font:16px/1.55 var(--font-read)">The fixture is updated. Before I run the suite I need to run a shell command.</div>
+  <div style="border:1px solid var(--stroke);display:flex;flex-direction:column">
+    <div style="height:40px;display:flex;align-items:center;gap:10px;padding:0 12px;font-family:var(--font-mono);font-size:12px;color:var(--fg-2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>Edited 2 files</div>
+    <div style="border-top:1px solid var(--stroke);padding:8px 12px;font-family:var(--font-mono);font-size:13px;background:var(--pane);display:flex;flex-direction:column;gap:4px"><div><span style="color:var(--green)">+14</span> <span style="color:var(--red)">−6</span> cart.fixture.ts</div><div><span style="color:var(--green)">+2</span> <span style="color:var(--red)">−2</span> checkout.spec.ts</div></div>
+  </div>
+  <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3);text-align:center">14:31</div>
+</div>
+<div style="flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke);display:flex;flex-direction:column">
+  <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 16px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.5" style="flex:none;filter:drop-shadow(var(--glow-amber))"><path d="M12 3l9 17H3z"/><path d="M12 10v5M12 17.5v.5"/></svg>
+    <span style="font-family:var(--font-mono);font-size:13px;color:var(--amber);white-space:nowrap;flex:none">Asking you to choose</span>
+    <span style="font-family:var(--font-mono);font-size:12px;color:var(--fg-2);flex:1;min-width:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Opus 5 · high</span>
+  </div>
+  <div style="margin:0 16px 10px;border:1px solid var(--amber);display:flex;flex-direction:column">
+    <div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px;border-bottom:1px solid var(--stroke)"><div style="font:15px/1.45 var(--font-read)">Allow Bash to run this command?</div><div style="font-family:var(--font-mono);font-size:13px;color:var(--fg-2);background:var(--pane);padding:6px 8px">npm test -- checkout</div></div>
+    <div style="height:48px;display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--pane-2);box-shadow:inset 0 0 0 1px var(--sand);color:var(--sand)"><span style="width:24px;height:24px;border:1px solid currentColor;display:flex;align-items:center;justify-content:center;font:12px var(--font-mono)">1</span><span style="font-size:15px;flex:1">Yes</span></div>
+    <div style="height:48px;display:flex;align-items:center;gap:12px;padding:0 14px;color:var(--sand);border-top:1px solid var(--stroke)"><span style="width:24px;height:24px;border:1px solid currentColor;display:flex;align-items:center;justify-content:center;font:12px var(--font-mono)">2</span><span style="font-size:15px;flex:1">Yes, and don't ask again for npm test</span></div>
+    <div style="height:48px;display:flex;align-items:center;gap:12px;padding:0 14px;color:var(--sand);border-top:1px solid var(--stroke)"><span style="width:24px;height:24px;border:1px solid currentColor;display:flex;align-items:center;justify-content:center;font:12px var(--font-mono)">3</span><span style="font-size:15px;flex:1">No, and tell Claude what to do instead</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-3)">ESC</span></div>
+  </div>
+  <div style="display:flex;gap:8px;padding:0 16px 10px">
+    <div style="flex:1;height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;padding:0 12px;font:16px var(--font-read);color:var(--fg-3)">Or type a reply</div>
+    <div style="width:48px;height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;color:var(--fg-3)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;padding:0 max(0px,calc((100% - 420px)/2));background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)">
+    <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">CONTROLS</div></div>
+    <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">KEYS</div></div>
+    </div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 4c TERMINAL -->
+<div id="4c" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">4c</span>SESSION · TERMINAL · TYPED, NOT SENT</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="4c Terminal" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -390px -260px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px">
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Refactor auth</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--fg-3)">STUDIO · refactor/auth</span></div>
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg></span>
+  <div style="display:flex;gap:1px;background:var(--stroke);border:1px solid var(--stroke)"><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:var(--display);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">CHAT</div><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:var(--pane-2);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;box-shadow:inset 0 -2px 0 var(--sand)">TERM</div></div>
+</div>
+<div style="height:32px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-3)"><span>TTY 120×40 · LIVE</span><span style="display:flex;gap:1px;background:var(--stroke);border:1px solid var(--stroke)"><span style="padding:0 8px;height:22px;display:flex;align-items:center;background:var(--pane-2);color:var(--sand)">WRAP</span><span style="padding:0 8px;height:22px;display:flex;align-items:center;background:var(--display)">SCROLL</span></span></div>
+<div style="flex:1;overflow:hidden;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);padding:12px 16px;font-family:var(--font-mono);font-size:11px;line-height:1.5;color:#C9CDBD;display:flex;flex-direction:column;justify-content:flex-end;white-space:pre-wrap;overflow-wrap:anywhere">
+<div style="color:var(--fg-3)">● Read src/auth/session.ts (212 lines)</div>
+<div style="color:var(--fg-3)">● Edit src/auth/session.ts</div>
+<div>  Replaced the cookie parser with the shared</div>
+<div>  helper and removed the duplicated expiry check.</div>
+<div style="color:var(--fg-3)">● Bash(npm run typecheck)</div>
+<div>  src/auth/middleware.ts:41:7 - error TS2345:</div>
+<div>  Argument of type 'string | undefined' is not</div>
+<div>  assignable to parameter of type 'string'.</div>
+<div>  Found 1 error.</div>
+<div><span style="color:var(--green)">✻</span> Thinking…</div>
+<div>  The middleware still passes the raw header. I'll</div>
+<div>  narrow it before the call.</div>
+<div style="color:var(--fg-3)">● Edit src/auth/middleware.ts</div>
+<div style="margin-top:10px;border:1px solid var(--stroke-2);padding:6px 8px;color:var(--fg)">&gt; run the auth tests only<span style="display:inline-block;width:7px;height:13px;background:var(--sand);vertical-align:-2px;margin-left:1px"></span></div>
+<div style="color:var(--fg-3);display:flex;justify-content:space-between;padding:4px 8px 0"><span>? for shortcuts</span><span>⏵⏵ high</span></div>
+</div>
+<div style="flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke);display:flex;flex-direction:column">
+  <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 16px">
+    <span style="width:16px;height:16px;border:1px solid var(--sand);display:flex;align-items:center;justify-content:center;flex:none"><span style="width:6px;height:6px;background:var(--sand)"></span></span>
+    <span style="font-family:var(--font-mono);font-size:13px;color:var(--sand);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Typed, not sent: run the auth tests only</span>
+    <span style="font-family:var(--font-mono);font-size:12px;color:var(--fg-2);flex:none;margin-left:auto">Opus 5 · high</span>
+  </div>
+  <div style="display:flex;gap:8px;padding:6px 16px 10px">
+    <div style="flex:1;height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;padding:0 12px;font:16px var(--font-read);color:var(--fg-3)">Message the agent</div>
+    <div style="width:48px;height:48px;border:1px solid var(--sand);background:var(--sand);display:flex;align-items:center;justify-content:center;color:var(--on-sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/><path d="M4 12h11"/></svg></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;padding:0 max(0px,calc((100% - 420px)/2));background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)">
+    <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">CONTROLS</div></div>
+    <div style="height:48px;background:var(--pane-2);box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor;box-shadow:var(--glow-sand)"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">KEYS</div></div>
+    </div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 4d READ-ONLY -->
+<div id="4d" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">4d</span>SESSION · READ-ONLY · MARKDOWN</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="4d Read-only" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -390px -260px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px">
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Write release notes</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--fg-3)">MACBOOK AIR · main</span></div>
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg></span>
+  <div style="display:flex;gap:1px;background:var(--stroke);border:1px solid var(--stroke)"><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:var(--pane-2);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;box-shadow:inset 0 -2px 0 var(--sand)">CHAT</div><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:var(--display);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">TERM</div></div>
+</div>
+<div style="flex:1;overflow:hidden;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;flex-direction:column;justify-content:flex-end;padding:16px 16px 12px;gap:14px">
+  <div style="align-self:flex-end;max-width:85%;border:1px solid var(--stroke-2);padding:6px 10px;font:13px var(--font-mono);color:var(--sand)">/compact</div>
+  <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3);display:flex;align-items:center;gap:8px"><span style="flex:1;height:1px;background:var(--stroke)"></span>You interrupted · 13:58<span style="flex:1;height:1px;background:var(--stroke)"></span></div>
+  <div style="align-self:flex-end;max-width:85%;border:1px solid var(--sand);padding:10px 12px;font:16px/1.5 var(--font-read)">Draft the 2.4.0 release notes from the merged PRs.</div>
+  <div style="display:flex;flex-direction:column;gap:10px;font:16px/1.55 var(--font-read)">
+    <div style="font-size:17px;font-weight:600">2.4.0 highlights</div>
+    <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px"><li>Webhooks are retried with backoff (<a href="#4d">#412</a>)</li><li>Checkout totals include regional tax</li><li>New <code style="font-family:var(--font-mono);font-size:14px;background:var(--pane-2);padding:1px 4px">--dry-run</code> flag for migrations</li></ul>
+    <table style="border-collapse:collapse;font-size:14px;width:100%"><thead><tr><th style="text-align:left;padding:6px 8px;border:1px solid var(--stroke);font-weight:500;color:var(--fg-2)">Area</th><th style="text-align:left;padding:6px 8px;border:1px solid var(--stroke);font-weight:500;color:var(--fg-2)">PRs</th></tr></thead><tbody><tr><td style="padding:6px 8px;border:1px solid var(--stroke)">Billing</td><td style="padding:6px 8px;border:1px solid var(--stroke);font-family:var(--font-mono);font-size:13px">4</td></tr><tr><td style="padding:6px 8px;border:1px solid var(--stroke)">Checkout</td><td style="padding:6px 8px;border:1px solid var(--stroke);font-family:var(--font-mono);font-size:13px">3</td></tr></tbody></table>
+    <div>Saved to <span style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;border:1px solid var(--stroke-2);color:var(--sand);font-family:var(--font-mono);font-size:12px;vertical-align:middle">CHANGELOG.md</span></div>
+  </div>
+  <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3);display:flex;align-items:center;gap:8px"><span style="flex:1;height:1px;background:var(--stroke)"></span>Stopped · 14:07<span style="flex:1;height:1px;background:var(--stroke)"></span></div>
+</div>
+<div style="flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke);display:flex;flex-direction:column">
+  <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 16px">
+    <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px dashed var(--fg-3);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" fill="currentColor"/></svg>ENDED</span>
+    <span style="font-family:var(--font-mono);font-size:13px;color:var(--fg-2)">Not running</span>
+    <span style="font-family:var(--font-mono);font-size:12px;color:var(--fg-3);flex:1;text-align:right">Sonnet 5</span>
+  </div>
+  <div style="margin:6px 16px 10px;height:48px;border:1px dashed var(--stroke-2);display:flex;align-items:center;padding:0 12px;font:14px var(--font-read);color:var(--fg-2)">Read-only here. Its agent has exited.</div>
+  <div style="display:grid;grid-template-columns:1fr;padding:0 max(0px,calc((100% - 420px)/2));background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)">
+    <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">RESUME</div></div>
+    </div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 4e SESSION · 375×667 -->
+<div id="4e" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">4e</span>SESSION · CONVERSATION · 375×667</div>
+<div style="width:387px;height:679px;padding:6px;background:var(--bezel);border-radius:44px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="4e Session small" style="position:relative;width:375px;height:667px;border-radius:38px;background:var(--ground) var(--map) -390px -260px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="height:20px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:var(--font-mono);font-size:12px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px">
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Fix checkout tests</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--fg-3)">STUDIO · fix/checkout</span></div>
+  <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg></span>
+  <div style="display:flex;gap:1px;background:var(--stroke);border:1px solid var(--stroke)"><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:var(--pane-2);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;box-shadow:inset 0 -2px 0 var(--sand)">CHAT</div><div style="height:32px;padding:0 10px;display:flex;align-items:center;background:transparent;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">TERM</div></div>
+</div>
+<div style="flex:1;overflow:hidden;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;flex-direction:column;justify-content:flex-end;padding:14px 16px 12px;gap:12px">
+  <div style="align-self:flex-end;max-width:85%;border:1px solid var(--sand);padding:10px 12px;font:16px/1.5 var(--font-read)">Fix the failing checkout tests.</div>
+  <div style="font:16px/1.55 var(--font-read)">Two tests fail because the cart fixture predates the tax change. I'll update the fixture and re-run the suite.</div>
+  <div style="border:1px solid var(--stroke);height:40px;display:flex;align-items:center;gap:10px;padding:0 12px;font-family:var(--font-mono);font-size:12px;color:var(--fg-2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>Ran 3 commands<span style="margin-left:auto;color:var(--green)">exit 0</span></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--stroke-2);color:var(--sand);font-family:var(--font-mono);font-size:12px">checkout.spec.ts</span></div>
+  <div style="font:16px/1.55 var(--font-read)">Re-running the suite now.</div>
+</div>
+<div style="flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke);display:flex;flex-direction:column">
+  <div style="height:44px;display:flex;align-items:center;gap:12px;padding:0 8px 0 16px">
+    <div style="position:relative;width:16px;height:16px;border-radius:50%;border:1px solid var(--green);overflow:hidden;flex:none"><div style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(143,209,79,.7),transparent 90deg);animation:sweep 4s linear infinite"></div></div>
+    <span style="font-family:var(--font-mono);font-size:13px;color:var(--green)">Working… 3m 12s</span>
+    <span style="font-family:var(--font-mono);font-size:12px;color:var(--fg-2);flex:1;min-width:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Opus 5 · high</span>
+    <span style="height:36px;padding:0 10px;border:1px solid var(--red);background:var(--hazard) bottom/100% 3px no-repeat,var(--red-dim);color:var(--red);display:flex;align-items:center;gap:6px;font-size:13px;flex:none"><svg width="12" height="12" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" fill="currentColor"/></svg>Stop</span>
+  </div>
+  <div style="display:flex;gap:8px;padding:6px 16px 10px">
+    <div style="flex:1;height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;padding:0 12px;font:16px var(--font-read);color:var(--fg-3)">Message the agent</div>
+    <div style="width:48px;height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;color:var(--fg-3)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--stroke)">
+    <div style="height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">CONTROLS</div></div>
+    <div style="height:48px;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">KEYS</div></div>
+  </div>
+</div>
+<div style="height:12px;flex:none"></div>
+</div></div></div>
+
+</div>
+
+<div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start">
+
+<!-- 5a CONTROLS · CLAUDE -->
+<div id="5a" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">5a</span>CONTROLS · CLAUDE · SONNET SELECTED, OPUS ACTIVE</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="5a Controls Claude" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -390px -260px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px;opacity:.4"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px;opacity:.4"><span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span><div style="flex:1;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px">Fix checkout tests</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--fg-3)">STUDIO · fix/checkout</span></div></div>
+<div style="flex:1;position:relative">
+  <div style="position:absolute;inset:0;background:rgba(5,7,4,.7)"></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;top:8px;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.10);border-top:1px solid var(--glass-line);display:flex;flex-direction:column">
+    <div style="height:20px;display:flex;align-items:center;justify-content:center"><div style="width:36px;height:4px;border-radius:2px;background:var(--stroke-2)"></div></div>
+    <div style="padding:4px 20px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--stroke)"><span style="font-size:17px">Controls</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--sand);text-align:right;max-width:58%;line-height:1.3">Opus 5 · high · Next mode · Bash asks</span></div>
+    <div style="display:flex;flex:1;min-height:0">
+      <div style="width:84px;flex:none;border-right:1px solid var(--stroke);display:flex;flex-direction:column;gap:1px;background:var(--stroke)">
+        <div style="height:56px;background:var(--pane-2);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;box-shadow:inset 3px 0 0 var(--sand)">MODEL</div>
+        <div style="height:56px;background:var(--display);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">MODE</div>
+        <div style="height:56px;background:var(--display);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">SESSION</div>
+        <div style="height:56px;background:var(--display);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">KEYS</div>
+        <div style="flex:1;background:var(--display)"></div>
+      </div>
+      <div style="flex:1;padding:12px 16px;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">MODEL</div>
+          <div style="display:flex;flex-direction:column;gap:1px;background:var(--stroke);border:1px solid var(--stroke)">
+            <div style="height:44px;background:var(--display);display:flex;align-items:center;padding:0 12px;font-size:15px;color:var(--sand)">Fable 5.1</div>
+            <div style="height:44px;background:var(--sand);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;color:var(--on-sand)">Opus 5<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">ACTIVE</span></div>
+            <div style="height:44px;background:var(--pane-2);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;color:var(--sand);box-shadow:inset 0 0 0 1px var(--sand)">Sonnet 5<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">NEXT</span></div>
+            <div style="height:44px;background:var(--display);display:flex;align-items:center;padding:0 12px;font-size:15px;color:var(--sand)">Haiku 4.5</div>
+            <div style="height:44px;background:var(--display);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;color:var(--sand)">More…<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 6l6 6-6 6"/></svg></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">EFFORT</div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px">
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--sand)">low</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--sand)">med</div>
+            <div style="height:44px;border:1px solid var(--sand);background:var(--sand);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--on-sand)">high</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--sand)">xhigh</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--sand)">max</div>
+          </div>
+          <div style="height:6px;background:repeating-linear-gradient(90deg,var(--stroke-2) 0 1px,transparent 1px 8px)"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">PERMISSION MODE</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
+            <div style="height:44px;border:1px solid var(--sand);background:var(--sand);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--on-sand)">Next mode</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sand)">Plan</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sand)">Fast mode</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">SESSION</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sand)">Compact</div><div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sand)">Context</div><div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sand)">Usage</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sand)">Resume…</div><div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sand)">Rewind…</div><div style="height:44px;border:1px solid var(--red);background:var(--hazard) top/100% 4px no-repeat;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--red)">Clear</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="height:48px;flex:none;display:flex;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)"><div style="flex:1;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">CLOSE</div></div><div style="flex:1;background:var(--sand);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--on-sand)"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;font-weight:700">APPLY · SONNET 5</div></div></div>
+  </div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 5b CONTROLS · CODEX -->
+<div id="5b" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">5b</span>CONTROLS · CODEX · TOAST</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="5b Controls Codex" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -390px -260px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px;opacity:.4"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px;opacity:.4"><span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span><div style="flex:1;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px">Migrate billing webhooks</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--fg-3)">STUDIO · feat/webhooks-v2</span></div></div>
+<div style="flex:1;position:relative">
+  <div style="position:absolute;inset:0;background:rgba(5,7,4,.7)"></div>
+  <div style="position:absolute;top:8px;left:50%;transform:translateX(-50%);height:40px;padding:0 16px;border:1px solid var(--green);background:var(--display);display:flex;align-items:center;gap:10px;font:14px var(--font-mono);color:var(--green);box-shadow:0 4px 16px rgba(0,0,0,.6);z-index:2"><svg width="12" height="12" viewBox="0 0 10 10"><path d="M1.5 5.5l2.5 2.5 4.5-6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Effort: xhigh</div>
+  <div style="position:absolute;left:0;right:0;bottom:0;top:56px;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.10);border-top:1px solid var(--glass-line);display:flex;flex-direction:column">
+    <div style="height:20px;display:flex;align-items:center;justify-content:center"><div style="width:36px;height:4px;border-radius:2px;background:var(--stroke-2)"></div></div>
+    <div style="padding:4px 20px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--stroke)"><span style="font-size:17px">Controls</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--sand);text-align:right;max-width:58%;line-height:1.3">GPT-6-Astra · xhigh · fast · Workspace</span></div>
+    <div style="display:flex;flex:1;min-height:0">
+      <div style="width:84px;flex:none;border-right:1px solid var(--stroke);display:flex;flex-direction:column;gap:1px;background:var(--stroke)">
+        <div style="height:56px;background:var(--pane-2);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;box-shadow:inset 3px 0 0 var(--sand)">MODEL</div>
+        <div style="height:56px;background:var(--display);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">ACCESS</div>
+        <div style="height:56px;background:var(--display);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">SESSION</div>
+        <div style="height:56px;background:var(--display);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">KEYS</div>
+        <div style="flex:1;background:var(--display)"></div>
+      </div>
+      <div style="flex:1;padding:12px 16px;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">MODEL</div>
+          <div style="display:flex;flex-direction:column;gap:1px;background:var(--stroke);border:1px solid var(--stroke)">
+            <div style="height:44px;background:var(--sand);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;color:var(--on-sand)">GPT-6-Astra<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">ACTIVE</span></div>
+            <div style="height:44px;background:var(--display);display:flex;align-items:center;padding:0 12px;font-size:15px;color:var(--sand)">GPT-6</div>
+            <div style="height:44px;background:var(--display);display:flex;align-items:center;padding:0 12px;font-size:15px;color:var(--sand)">GPT-6 mini</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">EFFORT</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--sand)">low</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--sand)">medium</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--sand)">high</div>
+            <div style="height:44px;border:1px solid var(--sand);background:var(--sand);display:flex;align-items:center;justify-content:center;font:12px var(--font-mono);color:var(--on-sand)">xhigh</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">PERMISSIONS</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sand)">Read only</div>
+            <div style="height:44px;border:1px solid var(--sand);background:var(--sand);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--on-sand)">Workspace</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sand)">Full</div>
+          </div>
+          <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:13px;color:var(--sand)"><span>Plan</span><span style="width:36px;height:20px;border:1px solid var(--stroke-2);position:relative"><span style="position:absolute;left:2px;top:2px;width:14px;height:14px;background:var(--fg-3)"></span></span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">SESSION</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sand)">Compact</div><div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sand)">Status</div><div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sand)">Usage</div><div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sand)">Diff</div>
+            <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sand)">Review</div><div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sand)">Resume…</div><div style="grid-column:span 2;height:44px;border:1px solid var(--red);background:var(--hazard) top/100% 4px no-repeat;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--red)">New chat</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="height:48px;flex:none;display:flex;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)"><div style="flex:1;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">CLOSE</div></div></div>
+  </div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 5c KEYS + CONFIRM -->
+<div id="5c" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">5c</span>CONTROLS · KEYS · ↓ PRESSED · CLEAR CONFIRM</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="5c Keys" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -390px -260px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px;opacity:.4"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px;opacity:.4"><span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span><div style="flex:1;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px">Refactor auth</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--fg-3)">STUDIO · refactor/auth</span></div></div>
+<div style="flex:1;position:relative">
+  <div style="position:absolute;inset:0;background:rgba(5,7,4,.7)"></div>
+  <div style="position:absolute;left:20px;right:20px;top:24px;border:1px solid var(--glass-line);background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.10),0 12px 40px rgba(0,0,0,.7);z-index:3">
+    <div style="height:8px;background:var(--hazard)"></div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:17px">Clear this session?</div>
+      <div style="font:14px/1.5 var(--font-read);color:var(--fg-2)">The conversation for <span style="color:var(--fg)">Refactor auth</span> on Studio is wiped. The agent keeps running with an empty context.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button style="height:44px;background:transparent;color:var(--fg);border:1px solid var(--stroke-2);border-radius:2px;font:15px var(--font-ui)">Keep</button><button style="height:44px;background:var(--red-solid);color:#fff;border:0;border-radius:2px;font:15px var(--font-ui);font-weight:700">Clear</button></div>
+    </div>
+  </div>
+  <div style="position:absolute;left:0;right:0;bottom:0;top:36px;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.10);border-top:1px solid var(--glass-line);display:flex;flex-direction:column;opacity:.5">
+    <div style="height:20px;display:flex;align-items:center;justify-content:center"><div style="width:36px;height:4px;border-radius:2px;background:var(--stroke-2)"></div></div>
+    <div style="padding:4px 20px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--stroke)"><span style="font-size:17px">Controls</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--sand);text-align:right;max-width:58%;line-height:1.3">Opus 5 · high · Next mode · Bash asks</span></div>
+    <div style="display:flex;flex:1;min-height:0">
+      <div style="width:84px;flex:none;border-right:1px solid var(--stroke);display:flex;flex-direction:column;gap:1px;background:var(--stroke)">
+        <div style="height:56px;background:var(--display);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">MODEL</div>
+        <div style="height:56px;background:var(--display);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">MODE</div>
+        <div style="height:56px;background:var(--display);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--fg-2)">SESSION</div>
+        <div style="height:56px;background:var(--pane-2);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;box-shadow:inset 3px 0 0 var(--sand)">KEYS</div>
+        <div style="flex:1;background:var(--display)"></div>
+      </div>
+      <div style="flex:1;padding:16px;display:flex;flex-direction:column;gap:16px;background:var(--bezel)">
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">KEYS · SENT TO THE TERMINAL</div>
+        <div style="display:grid;grid-template-columns:repeat(4,56px);grid-auto-rows:56px;gap:10px;justify-content:center">
+          <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;text-shadow:0 1px 0 #000">1</div>
+          <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;text-shadow:0 1px 0 #000">2</div>
+          <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;text-shadow:0 1px 0 #000">3</div>
+          <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:11px var(--font-mono);letter-spacing:.1em;color:#C9CDBD;text-shadow:0 1px 0 #000">ESC</div>
+          <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:11px var(--font-mono);letter-spacing:.1em;color:#C9CDBD;text-shadow:0 1px 0 #000">TAB</div>
+          <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;color:#C9CDBD"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div>
+          <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:11px var(--font-mono);letter-spacing:.06em;color:#C9CDBD;text-shadow:0 1px 0 #000;text-align:center;line-height:1.3">SHIFT<br>TAB</div>
+          <div style="grid-row:span 2;border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;font:11px var(--font-mono);letter-spacing:.1em;color:#C9CDBD;text-shadow:0 1px 0 #000">ENTER</div>
+          <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;color:#C9CDBD"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></div>
+          <div style="border-radius:4px;background:var(--sand-dim);border:1px solid var(--sand);box-shadow:inset 0 2px 4px rgba(0,0,0,.6);transform:translateY(2px);display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+          <div style="border-radius:4px;background:linear-gradient(#1A2116,#121710);border:1px solid var(--stroke-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 #060805;display:flex;align-items:center;justify-content:center;color:#C9CDBD"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        </div>
+        <div style="height:44px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:space-between;padding:0 12px;color:var(--sand);font-size:13px"><span>Type it without sending</span><span style="width:14px;height:14px;border:1px solid var(--sand);display:inline-block"></span></div>
+        <div style="font:13px/1.45 var(--font-read);color:var(--fg-3)">Each key goes straight to the live terminal on Studio.</div>
+      </div>
+    </div>
+    <div style="height:48px;flex:none;display:flex;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)"><div style="flex:1;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">CLOSE</div></div></div>
+  </div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 5d CONTROLS · ENDED -->
+<div id="5d" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">5d</span>CONTROLS · SESSION HAS ENDED</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="5d Controls ended" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -390px -260px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px;opacity:.4"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px;opacity:.4"><span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span><div style="flex:1;display:flex;flex-direction:column;gap:1px"><span style="font-size:15px">Write release notes</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--fg-3)">MACBOOK AIR · main</span></div></div>
+<div style="flex:1;position:relative">
+  <div style="position:absolute;inset:0;background:rgba(5,7,4,.7)"></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;top:180px;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.10);border-top:1px solid var(--glass-line);display:flex;flex-direction:column">
+    <div style="height:20px;display:flex;align-items:center;justify-content:center"><div style="width:36px;height:4px;border-radius:2px;background:var(--stroke-2)"></div></div>
+    <div style="padding:4px 20px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--stroke)"><span style="font-size:17px">Controls</span><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px dashed var(--fg-3);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" fill="currentColor"/></svg>ENDED</span></div>
+    <div style="padding:16px 20px;display:flex;flex-direction:column;gap:16px;flex:1;min-height:0;overflow:hidden">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">LAST MODEL</div><div style="height:44px;border:1px solid var(--stroke);display:flex;align-items:center;padding:0 12px;font:15px var(--font-mono);color:var(--fg-2)">Sonnet 5</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">LAST EFFORT</div><div style="height:44px;border:1px solid var(--stroke);display:flex;align-items:center;padding:0 12px;font:15px var(--font-mono);color:var(--fg-2)">medium</div></div>
+      </div>
+      <div style="border:1px dashed var(--stroke-2);padding:14px;font:15px/1.5 var(--font-read);color:var(--fg-2)">Nothing to control. Its agent exited on MacBook Air at 14:07, so model, mode and keys are unavailable until you resume it.</div>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+        <button style="height:48px;background:var(--sand);color:var(--on-sand);border:0;border-radius:2px;font:15px var(--font-ui);font-weight:700">Resume this session</button>
+        <button style="height:48px;background:transparent;color:var(--sand);border:1px solid var(--stroke-2);border-radius:2px;font:15px var(--font-ui)">Start a new one here</button>
+      </div>
+    </div>
+    <div style="height:48px;flex:none;display:flex;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)"><div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">CLOSE</div></div></div>
+  </div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+</div>
+</section>
+</x-dc>
+</body>
+</html>

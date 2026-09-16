@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#0A0D08;--bezel:#0D110C;--glass:rgba(14,18,12,.55);--glass-2:rgba(20,26,17,.74);--glass-line:rgba(231,233,222,.07);--stroke:#2B3327;--stroke-2:#626E57;--fg:#E7E9DE;--fg-2:#AEB5A1;--fg-3:#929A83;--green:#8FD14F;--amber:#E9A227;--red:#E4614D;--red-solid:#C8382A;--sand:#D7C49E;--on-sand:#14180F;--green-dim:rgba(143,209,79,.14);--amber-dim:rgba(233,162,39,.14);--red-dim:rgba(228,97,77,.14);--sand-dim:rgba(215,196,158,.14);--map-0:#0B0E09;--map-1:#0D110B;--map-2:#0F140C;--map-3:#11170E;--map-4:#131A10;--map-5:#151D11;--map-6:#172013;--map-7:#192316;--map-ink:var(--map-3);--map-line:rgba(143,209,79,.055);--map-index:rgba(143,209,79,.08);--map-grid:rgba(231,233,222,.03);--glow-green:0 0 4px rgba(143,209,79,.35);--glow-amber:0 0 4px rgba(233,162,39,.35);--glow-red:0 0 4px rgba(228,97,77,.35);--glow-sand:0 0 4px rgba(215,196,158,.3);--hazard:repeating-linear-gradient(135deg,#E9A227 0 10px,#0B0B0B 10px 20px);--blur:blur(18px) saturate(.85);--display:var(--glass-2);--pane:rgba(231,233,222,.04);--pane-2:rgba(231,233,222,.09);--font-ui:'B612',system-ui,sans-serif;--font-mono:'B612 Mono',ui-monospace,monospace;--font-read:'IBM Plex Sans',system-ui,sans-serif;--stroke-w:1px;--stroke-w-focus:2px;--r-1:2px;--r-2:4px;--s-1:4px;--s-2:8px;--s-3:12px;--s-4:16px;--s-5:24px;--s-6:32px;--map:url("map.svg")}
+body{margin:0;background:#070906;color:var(--fg);font-family:var(--font-ui);-webkit-font-smoothing:antialiased}
+a{color:var(--sand);text-decoration:none}a:hover{color:#EAD9B8}
+@keyframes sweep{to{transform:rotate(360deg)}}
+@keyframes scan{0%{left:0}100%{left:calc(100% - 8px)}}
+@keyframes scanY{0%{top:0}100%{top:calc(100% - 2px)}}
+@keyframes caution{0%,100%{opacity:1}50%{opacity:.4}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+@media (prefers-reduced-transparency:reduce){[style*="backdrop-filter"]{background:var(--ground)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:inset 0 0 0 1px var(--stroke)!important}[data-screen-label]{background-image:linear-gradient(rgba(10,13,8,.6),rgba(10,13,8,.6)),var(--map)!important}}
+</style>
+</helmet>
+<section style="padding:40px;display:flex;flex-direction:column;gap:40px">
+<nav style="display:flex;gap:16px;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase"><a href="Airpocket.dc.html">Index</a><a href="Airpocket Design System.dc.html">Design system</a><span style="color:var(--fg)">Screens A</span><a href="Airpocket Screens B.dc.html">Screens B</a><a href="Airpocket Screens C.dc.html">Screens C</a><a href="Airpocket Map and Glass.dc.html">Map &amp; glass</a></nav>
+<div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start">
+
+<!-- 1a FIRST RUN -->
+<div id="1a" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">1a</span>FIRST RUN · IN SAFARI</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="1a First run" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -330px -820px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:32px;padding:24px 28px">
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;gap:10px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.5"><path d="M4 20l16-8L4 4v5l9 3-9 3z"/></svg><span style="font-size:22px;letter-spacing:.06em">AIRPOCKET</span></div>
+    <p style="margin:0;font:16px/1.55 var(--font-read);color:var(--fg-2)">Follow and steer the coding agents on your Macs from your phone. Over your Tailscale network, no accounts, no cloud.</p>
+  </div>
+  <div style="border:1px solid var(--glass-line);background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);padding:20px;display:flex;flex-direction:column;gap:18px">
+    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">ADD TO THE HOME SCREEN</div>
+    <div style="display:flex;gap:14px;align-items:center"><span style="width:28px;height:28px;border:1px solid var(--sand);color:var(--sand);display:flex;align-items:center;justify-content:center;font:13px var(--font-mono);flex:none">1</span><span style="font:15px/1.4 var(--font-read)">Tap <span style="color:var(--sand)">Share</span> in the Safari bar below</span></div>
+    <div style="display:flex;gap:14px;align-items:center"><span style="width:28px;height:28px;border:1px solid var(--sand);color:var(--sand);display:flex;align-items:center;justify-content:center;font:13px var(--font-mono);flex:none">2</span><span style="font:15px/1.4 var(--font-read)">Choose <span style="color:var(--sand)">Add to Home Screen</span></span></div>
+    <div style="display:flex;gap:14px;align-items:center"><span style="width:28px;height:28px;border:1px solid var(--sand);color:var(--sand);display:flex;align-items:center;justify-content:center;font:13px var(--font-mono);flex:none">3</span><span style="font:15px/1.4 var(--font-read)">Open Airpocket from there to pair this phone</span></div>
+    <div style="align-self:center;display:flex;align-items:center;gap:16px;margin-top:6px">
+      <div style="width:44px;height:78px;border:1px solid var(--stroke-2);border-radius:8px;position:relative"><div style="position:absolute;top:5px;left:14px;width:16px;height:4px;border-radius:2px;background:var(--stroke-2)"></div><div style="position:absolute;top:18px;left:8px;display:grid;grid-template-columns:repeat(3,7px);gap:3px"><span style="width:7px;height:7px;border:1px solid var(--stroke-2)"></span><span style="width:7px;height:7px;border:1px solid var(--stroke-2)"></span><span style="width:7px;height:7px;border:1px solid var(--stroke-2)"></span><span style="width:7px;height:7px;border:1px solid var(--stroke-2)"></span><span style="width:7px;height:7px;border:1px solid var(--stroke-2)"></span><span style="width:7px;height:7px;border:1px solid var(--sand);background:var(--sand-dim);box-shadow:var(--glow-sand)"></span></div></div>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--fg-3)" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      <div style="width:44px;height:44px;border:1px solid var(--sand);border-radius:10px;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="1.5"><path d="M4 20l16-8L4 4v5l9 3-9 3z"/></svg></div>
+    </div>
+  </div>
+</div>
+<div style="flex:none;border-top:1px solid #1a2224;background:#0d1416;padding:10px 16px 0;display:flex;flex-direction:column;gap:12px">
+  <div style="height:40px;border-radius:10px;background:#18222a;display:flex;align-items:center;justify-content:center;font:15px var(--font-read);color:var(--fg-2)">studio.tailnet.ts.net</div>
+  <div style="display:flex;justify-content:space-between;padding:0 12px;color:#4aa0ff"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".4"><path d="M9 6l6 6-6 6"/></svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="filter:drop-shadow(0 0 6px rgba(74,160,255,.8))"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M7 11H5v9h14v-9h-2"/></svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M4 12h16M4 18h16"/></svg><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="6" width="14" height="14"/><rect x="7" y="3" width="13" height="13"/></svg></div>
+  <div style="height:34px;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div>
+</div></div></div>
+
+<!-- 2a PAIR · SCANNING -->
+<div id="2a" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">2a</span>PAIR · SCANNING</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="2a Pair scanning" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -330px -820px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 20px;justify-content:space-between"><span style="font-size:17px">Pair this phone</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">STEP 1 / 1</span></div>
+<div style="flex:1;display:flex;flex-direction:column;padding:20px;gap:20px">
+  <p style="margin:0;font:16px/1.5 var(--font-read);color:var(--fg-2)">On your Mac, run <code style="font-family:var(--font-mono);font-size:14px;color:var(--fg);background:var(--pane-2);padding:1px 5px">airpocket pair</code> and point the camera at the code it shows.</p>
+  <div style="position:relative;flex:1;background:rgba(0,0,0,.55);border:1px solid var(--stroke);overflow:hidden">
+    <div style="position:absolute;inset:60px 60px">
+      <div style="position:absolute;left:0;top:0;width:28px;height:28px;border-left:2px solid var(--sand);border-top:2px solid var(--sand)"></div><div style="position:absolute;right:0;top:0;width:28px;height:28px;border-right:2px solid var(--sand);border-top:2px solid var(--sand)"></div><div style="position:absolute;left:0;bottom:0;width:28px;height:28px;border-left:2px solid var(--sand);border-bottom:2px solid var(--sand)"></div><div style="position:absolute;right:0;bottom:0;width:28px;height:28px;border-right:2px solid var(--sand);border-bottom:2px solid var(--sand)"></div>
+      <div style="position:absolute;left:50%;top:50%;width:40px;height:1px;background:var(--sand);transform:translate(-50%,-50%)"></div><div style="position:absolute;left:50%;top:50%;width:1px;height:40px;background:var(--sand);transform:translate(-50%,-50%)"></div>
+      <div style="position:absolute;left:50%;top:50%;width:120px;height:120px;border:1px dashed rgba(215,196,158,.5);border-radius:50%;transform:translate(-50%,-50%);overflow:hidden"><div style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(215,196,158,.5),transparent 90deg);animation:sweep 3s linear infinite"></div></div>
+      <div style="position:absolute;left:0;right:0;height:2px;background:var(--sand);box-shadow:var(--glow-sand);animation:scanY 2.4s linear infinite alternate"></div>
+    </div>
+    <div style="position:absolute;left:12px;top:10px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--sand)">SCANNING</div>
+    <div style="position:absolute;right:12px;top:10px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">CAMERA · REAR</div>
+    <div style="position:absolute;left:12px;bottom:10px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">QR · AIRPOCKET</div>
+  </div>
+  <button style="height:48px;border:1px solid var(--sand);background:transparent;color:var(--sand);border-radius:2px;font:15px var(--font-ui)">Enter the six-digit code instead</button>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 2b PAIR · CODE -->
+<div id="2b" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">2b</span>PAIR · CODE · WRONG CODE</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="2b Pair code" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -330px -820px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 8px 0 4px;gap:4px"><span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--sand)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg></span><span style="font-size:17px;flex:1">Enter the code</span></div>
+<div style="flex:1;display:flex;flex-direction:column;padding:24px 20px;gap:28px">
+  <p style="margin:0;font:16px/1.5 var(--font-read);color:var(--fg-2)">The Mac shows six digits under <code style="font-family:var(--font-mono);font-size:14px;color:var(--fg);background:var(--pane-2);padding:1px 5px">airpocket pair</code>.</p>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">CODE</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr) 16px repeat(3,1fr);gap:8px">
+      <div style="height:64px;border:1px solid var(--red);display:flex;align-items:center;justify-content:center;font:28px var(--font-mono);color:var(--fg)">4</div>
+      <div style="height:64px;border:1px solid var(--red);display:flex;align-items:center;justify-content:center;font:28px var(--font-mono);color:var(--fg)">8</div>
+      <div style="height:64px;border:1px solid var(--red);display:flex;align-items:center;justify-content:center;font:28px var(--font-mono);color:var(--fg)">1</div>
+      <div style="display:flex;align-items:center;justify-content:center;color:var(--fg-3)">·</div>
+      <div style="height:64px;border:1px solid var(--red);display:flex;align-items:center;justify-content:center;font:28px var(--font-mono);color:var(--fg)">2</div>
+      <div style="height:64px;border:1px solid var(--red);display:flex;align-items:center;justify-content:center;font:28px var(--font-mono);color:var(--fg)">0</div>
+      <div style="height:64px;border:1px solid var(--red);display:flex;align-items:center;justify-content:center;font:28px var(--font-mono);color:var(--fg)">7</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:12px;color:var(--red)"><svg width="12" height="12" viewBox="0 0 10 10"><path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.5"/></svg>Wrong code · 2 tries left</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">NAME FOR THIS PHONE</div>
+    <div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;padding:0 12px;font:16px var(--font-read);color:var(--fg)">Kim's iPhone</div>
+    <div style="font:13px/1.4 var(--font-read);color:var(--fg-3)">Shown on the Mac so you know which phone is connected.</div>
+  </div>
+  <div style="margin-top:auto;display:flex;flex-direction:column;gap:12px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">1</div><div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">2</div><div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">3</div>
+      <div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">4</div><div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">5</div><div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">6</div>
+      <div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">7</div><div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">8</div><div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">9</div>
+      <div></div><div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;font:20px var(--font-mono);color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px">0</div><div style="height:48px;border:1px solid var(--stroke-2);display:flex;align-items:center;justify-content:center;color:#C9CDBD;background:linear-gradient(#1A2116,#121710);border-radius:4px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 6h11v12H9l-5-6z"/><path d="M12 10l4 4M16 10l-4 4"/></svg></div>
+    </div>
+    <button style="height:48px;background:var(--sand);color:var(--on-sand);border:0;border-radius:2px;font:15px var(--font-ui);font-weight:700">Pair</button>
+  </div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 2c PAIRED -->
+<div id="2c" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">2c</span>PAIR · PAIRED</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="2c Paired" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -330px -820px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:28px;padding:20px">
+  <div style="width:96px;height:96px;border:1px solid var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:var(--glow-green),inset var(--glow-green)"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5"><path d="M5 12l5 5 9-10"/></svg></div>
+  <div style="text-align:center;display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:22px">Paired with Studio</div>
+    <div style="font-family:var(--font-mono);font-size:13px;color:var(--fg-2)">studio · 100.101.7.22</div>
+  </div>
+  <div style="border:1px solid var(--glass-line);background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);width:100%;display:grid;grid-template-columns:1fr 1fr">
+    <div style="padding:12px 14px;border-right:1px solid var(--stroke);display:flex;flex-direction:column;gap:4px"><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">THIS PHONE</span><span style="font-size:15px">Kim's iPhone</span></div>
+    <div style="padding:12px 14px;display:flex;flex-direction:column;gap:4px"><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3)">SESSIONS FOUND</span><span style="font-size:15px;color:var(--green)">4</span></div>
+  </div>
+</div>
+<div style="padding:0 20px 12px;display:flex;flex-direction:column;gap:10px">
+  <button style="height:48px;background:var(--sand);color:var(--on-sand);border:0;border-radius:2px;font:15px var(--font-ui);font-weight:700">Open sessions</button>
+  <button style="height:48px;background:transparent;color:var(--sand);border:1px solid var(--stroke-2);border-radius:2px;font:15px var(--font-ui)">Add another Mac</button>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+</div>
+
+<div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start">
+
+<!-- 3a SESSIONS -->
+<div id="3a" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">3a</span>SESSIONS · 3 MACS</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="3a Sessions" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -40px -844px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 20px;justify-content:space-between"><span style="font-size:17px">Sessions</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--green)">3 MACS · ONLINE</span></div>
+<div style="flex:1;overflow:hidden;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;flex-direction:column">
+  <div style="height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--amber);border-bottom:1px solid var(--stroke)"><span>NEEDS YOU</span><span>3</span></div>
+  <div style="padding:12px 20px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CL</span><span style="width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:var(--glow-green)"></span><span style="font-size:15px;flex:1">Fix checkout tests</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">2m</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;background:var(--amber);color:#1a1200;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;font-weight:700;box-shadow:var(--glow-amber);animation:caution 2.4s ease-in-out infinite"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 1L9.5 9H.5z" fill="none" stroke="#1a1200" stroke-width="1.4"/></svg>NEEDS PERMISSION</span><span style="font:13px var(--font-read);color:var(--fg-2)">to use Bash</span></div>
+    <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>Studio</span><span>fix/checkout</span></div>
+  </div>
+  <div style="padding:12px 20px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CX</span><span style="width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:var(--glow-green)"></span><span style="font-size:15px;flex:1">Migrate billing webhooks</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">9m</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--sand);color:var(--sand);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 1l6 4-6 4z" fill="currentColor"/></svg>YOUR TURN</span><span style="font:13px var(--font-read);color:var(--fg-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Which Stripe API version should I target?</span></div>
+    <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>Studio</span><span>feat/webhooks-v2</span></div>
+  </div>
+  <div style="padding:12px 20px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CL</span><span style="width:6px;height:6px;border-radius:50%;border:1px solid var(--fg-3)"></span><span style="font-size:15px;flex:1">Write release notes</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">41m</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--green);color:var(--green);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 5.5l2.5 2.5 4.5-6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>FINISHED</span><span style="font:13px var(--font-read);color:var(--fg-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Drafted CHANGELOG.md for 2.4.0.</span></div>
+    <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>MacBook Air</span><span>main</span></div>
+  </div>
+  <div style="height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--green);border-bottom:1px solid var(--stroke)"><span>OPEN</span><span>2</span></div>
+  <div style="padding:12px 20px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CL</span><span style="position:relative;display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid rgba(143,209,79,.8);overflow:hidden;flex:none"><span style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(143,209,79,0.7),transparent 90deg);animation:sweep 4s linear infinite"></span></span><span style="font-size:15px;flex:1">Refactor auth</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">now</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><span style="position:relative;display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--green);color:var(--green);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;overflow:hidden"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5"/></svg>WORKING<span style="position:absolute;left:0;bottom:0;width:8px;height:2px;background:var(--green);animation:scan 1.8s linear infinite alternate"></span></span><span style="font:13px var(--font-mono);color:var(--green)">3m</span><span style="font:13px var(--font-read);color:var(--fg-2)">Opus 5 · high</span></div>
+    <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>Studio</span><span>refactor/auth</span></div>
+  </div>
+  <div style="padding:12px 20px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CX</span><span style="width:6px;height:6px;border-radius:50%;border:1px solid var(--fg-3)"></span><span style="font-size:15px;flex:1">Profile image pipeline</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">1h</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><span style="font:13px var(--font-read);color:var(--fg-2)">Idle</span><span style="font:13px var(--font-read);color:var(--fg-3)">GPT-6-Astra · xhigh · fast</span></div>
+    <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>Mini</span><span>perf/images</span></div>
+  </div>
+  <div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);border-bottom:1px solid var(--stroke)"><span style="display:flex;align-items:center;gap:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>EARLIER</span><span>12</span></div>
+</div>
+<div style="flex:none;display:grid;grid-template-columns:1fr 1fr 1fr;padding:0 max(0px,calc((100% - 420px)/2));background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)">
+  <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">MACS</div></div>
+  <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">REFRESH</div></div>
+  <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">NEW</div></div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 3b SESSIONS · EMPTY + MAC OFFLINE -->
+<div id="3b" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">3b</span>SESSIONS · EMPTY · ONE MAC DIDN'T ANSWER</div>
+<div style="width:402px;height:856px;padding:6px;background:var(--bezel);border-radius:60px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="3b Sessions empty" style="position:relative;width:390px;height:844px;border-radius:54px;background:var(--ground) var(--map) -40px -844px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="position:absolute;top:11px;left:132px;width:126px;height:37px;border-radius:20px;background:#000;z-index:5"></div>
+<div style="height:59px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 32px 8px;font-family:var(--font-mono);font-size:14px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 20px;justify-content:space-between"><span style="font-size:17px">Sessions</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">2 MACS · <span style="color:var(--red)">1 OFFLINE</span></span></div>
+<div style="flex:1;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);display:flex;flex-direction:column">
+  <div style="margin:12px 20px 0;border:1px solid var(--red);display:flex;flex-direction:column"><div style="height:4px;background:var(--hazard)"></div>
+    <div style="padding:12px 14px;display:flex;align-items:center;gap:10px"><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--red);color:var(--red);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.5"/></svg>OFFLINE</span><span style="font-size:15px;flex:1">MacBook Air didn't answer</span></div>
+    <div style="padding:0 14px 12px;font:13px/1.45 var(--font-read);color:var(--fg-2)">Last seen 14 min ago at 100.101.7.31. Its sessions are hidden until it's back.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;padding:0 max(0px,calc((100% - 420px)/2));background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)"><div style="height:44px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;align-items:center;justify-content:center;color:var(--sand);font-size:14px">Retry</div><div style="height:44px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;align-items:center;justify-content:center;color:var(--sand);font-size:14px">Pair again</div></div>
+  </div>
+  <div style="height:36px;margin-top:12px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2);border-bottom:1px solid var(--stroke)"><span>NEEDS YOU</span><span>0</span></div>
+  <div style="padding:28px 20px;text-align:center;font:15px var(--font-read);color:var(--fg-3);border-bottom:1px solid var(--stroke)">Nothing is waiting on you.</div>
+  <div style="height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2);border-bottom:1px solid var(--stroke)"><span>OPEN</span><span>0</span></div>
+  <div style="padding:28px 20px;text-align:center;font:15px var(--font-read);color:var(--fg-3);border-bottom:1px solid var(--stroke)">No sessions are running.</div>
+  <div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);border-bottom:1px solid var(--stroke)"><span style="display:flex;align-items:center;gap:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>EARLIER</span><span>5</span></div>
+  <div style="padding:12px 20px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px;opacity:.55">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CL</span><span style="font-size:15px;flex:1">Fix checkout tests</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">Yesterday</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px dashed var(--fg-3);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" fill="currentColor"/></svg>ENDED</span></div>
+    <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>Studio</span><span>fix/checkout</span></div>
+  </div>
+  <div style="padding:12px 20px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px;opacity:.55">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CX</span><span style="font-size:15px;flex:1">Profile image pipeline</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">Mon</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px dashed var(--fg-3);color:var(--fg-3);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" fill="currentColor"/></svg>ENDED</span></div>
+    <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>Mini</span><span>perf/images</span></div>
+  </div>
+</div>
+<div style="flex:none;display:grid;grid-template-columns:1fr 1fr 1fr;padding:0 max(0px,calc((100% - 420px)/2));background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)">
+  <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">MACS</div></div>
+  <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">REFRESH</div></div>
+  <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">NEW</div></div>
+</div>
+<div style="height:34px;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:134px;height:5px;border-radius:3px;background:var(--fg-2)"></div></div>
+</div></div></div>
+
+<!-- 3c SESSIONS · 375×667 -->
+<div id="3c" style="display:flex;flex-direction:column;gap:10px;flex:none">
+<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)"><span style="border:1px solid var(--stroke-2);padding:2px 6px;margin-right:8px;color:var(--fg)">3c</span>SESSIONS · 375×667 · ONE MAC · NO NEW</div>
+<div style="width:387px;height:679px;padding:6px;background:var(--bezel);border-radius:44px;box-shadow:0 0 0 1px #2B3327">
+<div data-screen-label="3c Sessions small" style="position:relative;width:375px;height:667px;border-radius:38px;background:var(--ground) var(--map) -40px -844px/780px 1688px no-repeat;overflow:hidden;display:flex;flex-direction:column">
+<div style="height:20px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:var(--font-mono);font-size:12px"><span>9:41</span><span style="width:22px;height:11px;border:1px solid var(--fg);border-radius:2px;position:relative"><span style="position:absolute;inset:1px;right:5px;background:var(--fg)"></span></span></div>
+<div style="height:48px;flex:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-bottom:1px solid var(--stroke);display:flex;align-items:center;padding:0 16px;justify-content:space-between"><span style="font-size:17px">Sessions</span><span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-2)">STUDIO · <span style="color:var(--amber)">READ-ONLY</span></span></div>
+<div style="flex:1;overflow:hidden;background:var(--glass-2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;flex-direction:column">
+  <div style="height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--amber);border-bottom:1px solid var(--stroke)"><span>NEEDS YOU</span><span>1</span></div>
+  <div style="padding:12px 16px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CL</span><span style="width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:var(--glow-green)"></span><span style="font-size:15px;flex:1">Fix checkout tests</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">2m</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;background:var(--amber);color:#1a1200;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;font-weight:700;box-shadow:var(--glow-amber)"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 1L9.5 9H.5z" fill="none" stroke="#1a1200" stroke-width="1.4"/></svg>NEEDS PERMISSION</span><span style="font:13px var(--font-read);color:var(--fg-2)">to use Bash</span></div>
+    <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>fix/checkout</span></div>
+  </div>
+  <div style="height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--green);border-bottom:1px solid var(--stroke)"><span>OPEN</span><span>1</span></div>
+  <div style="padding:12px 16px;border-bottom:1px solid var(--stroke);display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;gap:8px"><span style="width:20px;height:20px;border:1px solid var(--stroke-2);display:inline-flex;align-items:center;justify-content:center;font:11px var(--font-mono);color:var(--fg-2)">CL</span><span style="position:relative;display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid rgba(143,209,79,.8);overflow:hidden;flex:none"><span style="position:absolute;inset:0;background:conic-gradient(from 0deg,rgba(143,209,79,0.7),transparent 90deg);animation:sweep 4s linear infinite"></span></span><span style="font-size:15px;flex:1">Refactor auth</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-3)">now</span></div>
+    <div style="display:flex;align-items:center;gap:8px"><span style="position:relative;display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;white-space:nowrap;flex:none;border:1px solid var(--green);color:var(--green);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;overflow:hidden"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5"/></svg>WORKING<span style="position:absolute;left:0;bottom:0;width:8px;height:2px;background:var(--green);animation:scan 1.8s linear infinite alternate"></span></span><span style="font:13px var(--font-mono);color:var(--green)">3m</span><span style="font:13px var(--font-read);color:var(--fg-2)">Opus 5 · high</span></div>
+    <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:11px;color:var(--fg-3)"><span>refactor/auth</span></div>
+  </div>
+  <div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;color:var(--fg-3);border-bottom:1px solid var(--stroke)"><span style="display:flex;align-items:center;gap:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>EARLIER</span><span>12</span></div>
+</div>
+<div style="flex:none;display:grid;grid-template-columns:1fr 1fr;padding:0 max(0px,calc((100% - 420px)/2));background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:inset 0 1px 0 rgba(231,233,222,.08);border-top:1px solid var(--stroke)">
+  <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">MACS</div></div>
+  <div style="height:48px;background:transparent;box-shadow:-1px 0 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--sand)"><div style="width:16px;height:2px;background:currentColor"></div><div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.12em">REFRESH</div></div>
+</div>
+<div style="height:12px;flex:none"></div>
+</div></div></div>
+
+</div>
+</section>
+</x-dc>
+</body>
+</html>
