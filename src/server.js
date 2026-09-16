@@ -7,7 +7,7 @@
 //
 //   POST /api/pair      six-digit code from `airpocket pair` -> device token
 //   GET  /api/hello     which Mac is this
-//   GET  /api/sessions  every session this Mac knows, the waiting ones marked, and what each allows
+//   GET  /api/sessions  every session this Mac knows: waiting or not, working or idle, and what each allows
 //   GET  /api/screen    one session: its conversation, live state, or terminal screen
 //   POST /api/send      type text into a session, with or without Enter
 //   POST /api/key       one of a few fixed keys: digits, arrows, Tab, Enter, Esc
@@ -86,23 +86,30 @@ const COMMANDS = Object.freeze({
 const cleanPrompt = (t) => (typeof t !== "string" ? "" : Array.from(t.replace(/\r\n?/g, "\n"))
   .filter((ch) => { const c = ch.charCodeAt(0); return c === 10 || (c > 31 && c !== 127); }).join("").trim());
 
+// The app's own files, by name: nothing else under public/ is served.
+const LAUNCH_SIZES = ["375x667@2", "414x736@3", "375x812@3", "414x896@2", "414x896@3", "390x844@3", "428x926@3", "393x852@3", "430x932@3", "402x874@3", "440x956@3", "420x912@3"];
+const FONTS = ["b612-400", "b612-700", "b612-mono-400", "b612-mono-700", "plex-400", "plex-500", "plex-600"];
 const STATIC = Object.freeze({
   "/": ["index.html", "text/html; charset=utf-8"],
   "/index.html": ["index.html", "text/html; charset=utf-8"],
   "/app.js": ["app.js", "text/javascript; charset=utf-8"],
   "/md.js": ["md.js", "text/javascript; charset=utf-8"],
+  "/qr.js": ["qr.js", "text/javascript; charset=utf-8"],
+  "/where.js": ["where.js", "text/javascript; charset=utf-8"],
   "/app.css": ["app.css", "text/css; charset=utf-8"],
   "/sw.js": ["sw.js", "text/javascript; charset=utf-8"],
   "/manifest.webmanifest": ["manifest.webmanifest", "application/manifest+json; charset=utf-8"],
+  "/map.svg": ["map.svg", "image/svg+xml"],
   "/icon-180.png": ["icon-180.png", "image/png"],
   "/icon-512.png": ["icon-512.png", "image/png"],
+  "/icon-maskable-512.png": ["icon-maskable-512.png", "image/png"],
   "/apple-touch-icon.png": ["icon-180.png", "image/png"],
-  "/agent-claude.png": ["agent-claude.png", "image/png"],
-  "/agent-codex.png": ["agent-codex.png", "image/png"],
+  ...Object.fromEntries(FONTS.map((f) => [`/fonts/${f}.woff2`, [`fonts/${f}.woff2`, "font/woff2"]])),
+  ...Object.fromEntries(LAUNCH_SIZES.map((l) => [`/launch/${l}.jpg`, [`launch/${l}.jpg`, "image/jpeg"]])),
 });
 
 const CSP = [
-  "default-src 'none'", "script-src 'self'", "style-src 'self'", "img-src 'self' data: blob:",
+  "default-src 'none'", "script-src 'self'", "style-src 'self'", "img-src 'self' data: blob:", "font-src 'self'",
   "connect-src 'self' https://*.ts.net http://127.0.0.1:* http://localhost:*",
   "manifest-src 'self'", "worker-src 'self'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
 ].join("; ");
@@ -113,7 +120,8 @@ const BASE_HEADERS = Object.freeze({
   "Cache-Control": "no-store",
   "X-Frame-Options": "DENY",
   "Cross-Origin-Opener-Policy": "same-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  // The camera for this origin only, to read the pairing QR code; nothing else.
+  "Permissions-Policy": "camera=(self), microphone=(), geolocation=()",
 });
 
 // ---------------------------------------------------------------- helpers ---
@@ -871,20 +879,25 @@ function createServer(opts = {}) {
 
   // Where each Claude session's transcript lives: the one on record, or else
   // found once under ~/.claude/projects and remembered.
-  const transcriptPaths = new Map();
-  function transcriptFor(e) {
+  // For the list, which asks for every running session, a miss is remembered for ten
+  // seconds; the session view always looks again.
+  const transcriptPaths = new Map(), transcriptMiss = new Map();
+  function transcriptFor(e, forList = false) {
     const sid = String(e.session_id);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sid)) return null;
     const own = recordedTranscript(e, "claude");
     if (own) return own;
     const known = transcriptPaths.get(sid);
     if (known && fs.existsSync(known)) return known;
+    if (forList && Date.now() - (transcriptMiss.get(sid) || 0) < 10000) return null;
     let dirs = [];
-    try { dirs = fs.readdirSync(deps.claudeProjects); } catch { return null; }
+    try { dirs = fs.readdirSync(deps.claudeProjects); } catch { dirs = []; }
     for (const d of dirs) {
       const p = path.join(deps.claudeProjects, d, sid + ".jsonl");
-      if (fs.existsSync(p)) { transcriptPaths.set(sid, p); return p; }
+      if (fs.existsSync(p)) { transcriptPaths.set(sid, p); transcriptMiss.delete(sid); return p; }
     }
+    if (transcriptMiss.size > 200) transcriptMiss.clear();
+    transcriptMiss.set(sid, Date.now());
     return null;
   }
   // Parse a transcript again only when it has changed: its chat items, and what
@@ -930,6 +943,17 @@ function createServer(opts = {}) {
     if (rolloutMiss.size > 200) rolloutMiss.clear();
     rolloutMiss.set(tid, Date.now());
     return null;
+  }
+  /** What a session's own file records: Claude's transcript (its items and info), or Codex's session file. */
+  function recordedOf(e, agent, forList = false) {
+    if (agent === "claude") {
+      const file = transcriptFor(e, forList);
+      const chat = file ? chatItems(file) : null;
+      return { chat, recorded: chat ? chat.info : null, rollout: null };
+    }
+    const file = rolloutFor(e);
+    const rollout = file ? codexChat(file) : null;
+    return { chat: null, recorded: rollout ? rollout.ctx || null : null, rollout };
   }
   // Read incrementally: the first look reads the tail, later polls only what was appended.
   const rollouts = new Map();
@@ -1021,6 +1045,17 @@ function createServer(opts = {}) {
       const q = byId.get(String(e.bridge_id)) || byId.get("sid:" + e.session_id);
       const live = deps.isLive(e);
       const can = deps.bridges.caps(e, live);
+      // Working or idle, and what it runs with, the way the session view says it without a
+      // screen: the same statusOf over the same cached files, and the same cached liveness.
+      let status = null, info = null;
+      if (live) {
+        const agent = agentOf(e);
+        const { rollout, recorded } = recordedOf(e, agent, true);
+        const st = statusOf(e, rollout, recorded, live);
+        if (st) status = { state: st.state, elapsed: st.elapsed };
+        const i = mergeInfo(agent, recorded, null, deps.models.nameOf);
+        if (Object.keys(i).length) info = i;
+      }
       out.push({
         id: String(e.session_id),
         title: String(e.title || path.basename(e.cwd || "") || "session"),
@@ -1035,6 +1070,8 @@ function createServer(opts = {}) {
         via: can.bridge ? "terminal" : null,             // null: no terminal to show or type into
         can,                                             // which bridge, and what the phone may do with it
         reason: q ? String(q.reason || "") : "",
+        status,                                          // { state: working | idle, elapsed } while its agent runs, else null
+        info,                                            // model, effort, fast, mode, as its own files record them
       });
     }
     const rank = (s) => (s.waiting && s.kind === "input" ? 0 : s.waiting ? 1 : s.live ? 2 : 3);
@@ -1073,8 +1110,8 @@ function createServer(opts = {}) {
    * starts a turn, Stop ends it. Claude's transcript ends one early when you
    * interrupted it, since no hook fires then. null when its agent has exited.
    */
-  function statusOf(e, rollout, recorded) {
-    if (!deps.isLive(e)) return null;
+  function statusOf(e, rollout, recorded, live = deps.isLive(e)) {
+    if (!live) return null;
     let since;
     if (rollout && rollout.turns) since = rollout.running || 0;
     else {
@@ -1107,18 +1144,11 @@ function createServer(opts = {}) {
       if (text !== null) live = liveState(text);
     }
 
-    let items = null, recorded = null, rollout = null;
-    if (agent === "claude") {
-      const file = transcriptFor(e);
-      const c = file ? chatItems(file) : null;
-      if (c) { items = c.items; recorded = c.info; }
-    } else {
-      // Codex: steps come from its session file as they finish, even mid-turn.
-      const file = rolloutFor(e);
-      rollout = file ? codexChat(file) : null;
-      recorded = rollout ? rollout.ctx || null : null;
-      if (rollout && rollout.items.length) items = rollout.items.slice(-MAX_ITEMS);
-    }
+    let items = null;
+    const { rollout, recorded, chat } = recordedOf(e, agent);
+    if (chat) items = chat.items;
+    // Codex: steps come from its session file as they finish, even mid-turn.
+    else if (rollout && rollout.items.length) items = rollout.items.slice(-MAX_ITEMS);
     if (!terminal && items === null) return json(res, 409, { error: "no_route", message: "This session isn't in a Superset or tmux terminal, so it can't be reached from here." }, cors);
     // With a screen, the screen says what it is doing; without one, the files and the hooks do.
     if (!live) live = statusOf(e, rollout, recorded);
