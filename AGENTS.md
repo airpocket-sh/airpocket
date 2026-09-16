@@ -1,6 +1,6 @@
 # Airpocket: brief for the agent building it
 
-Read this and docs/PLAN.md before touching anything. Öncel (the owner) talks to
+Read this and docs/PLAN.md before touching anything. The owner talks to
 you directly; a separate Claude session supervises and reviews each step.
 
 ## What this is
@@ -12,37 +12,39 @@ and open the files they made. It talks to each Mac over the user's own
 Tailscale network. No server of ours, no account, no relay. Free, MIT, macOS
 first, private repo until launch.
 
-It already exists as the phone part of Öncel's private tool. Your job is to
-carry it over, cut it loose from that tool's desktop panel, and make it
-installable by anyone. docs/PLAN.md has the build steps in order.
+It already exists as the phone part of a private tool that is not published.
+Your job is to carry it over, cut it loose from that tool's desktop panel, and
+make it installable by anyone. docs/PLAN.md has the build steps in order.
 
-## Where the code comes from (read only)
+## Where the code came from
 
-`~/Developer/claude-overlay` is Öncel's live private tool. **Never modify it,
-never restart it, never change its data or ports.** Copy from it.
+The private tool this came from is not in this repo and is not published.
+Steps 4 to 6 copied from it; everything they took is here now, so nothing in
+Airpocket needs it. What it held:
 
-- `overlay/mobile/server.js`: the phone API server and the file-only server.
-  Claude transcript parser, Codex session-file reader, live state from the
-  terminal screen, model/effort/mode detection, the Controls command table,
-  new sessions through Superset, file viewing with all its rules, "seen".
-  The Accounts routes are Öncel's personal tool: drop them.
-- `overlay/mobile/store.js`: pairing codes and device tokens.
-- `overlay/mobile/cli.js`: pair, devices, revoke, serve, unserve, status.
-- `overlay/mobile/public/`: the web app (plain DOM, no framework), safe
-  Markdown renderer, styles, service worker, manifest, icons.
-- `overlay/mobile/test.js`: the node:test suite (fake Superset, fake panel,
-  temp dirs). It must keep passing here.
-- `overlay/main.js`: the desktop panel. Not carried over, but its waiting-list
-  logic is what step 5 reimplements: `enqueue`, `dequeue`, `sweep`,
-  `kindOf`, `knownSessions`, and the `/enqueue`, `/dequeue`, `/touch` routes.
-- `hooks/claude-attention.sh`: the hook that records sessions (session id,
-  cwd, title, account, pid, Superset terminal and workspace ids) and calls
-  the panel. Step 6 replaces it with an Airpocket hook.
-- `README.md`, section "Phone": the user-facing description and security list.
+- The phone API server and the file-only server: Claude transcript parser,
+  Codex session-file reader, live state from the terminal screen,
+  model/effort/mode detection, the Controls command table, new sessions
+  through Superset, file viewing with all its rules, "seen". Its account
+  routes belonged to the private tool alone and were dropped.
+- Pairing codes and device tokens.
+- The CLI: pair, devices, revoke, serve, unserve, status.
+- The web app (plain DOM, no framework), safe Markdown renderer, styles,
+  service worker, manifest, icons.
+- The node:test suite (fake Superset, fake panel, temp dirs). It must keep
+  passing here.
+- The desktop panel. Not carried over, but its waiting-list logic is what
+  step 5 reimplements: `enqueue`, `dequeue`, `sweep`, `kindOf`,
+  `knownSessions`, and the `/enqueue`, `/dequeue`, `/touch` routes.
+- A Claude hook that recorded sessions (session id, cwd, title, account,
+  pid, Superset terminal and workspace ids) and called the panel. Step 6
+  replaces it with an Airpocket hook.
+- A README section for the phone: the user-facing description and security
+  list.
 
-Airpocket must not depend on: the desktop panel (port 47820), claude.ai,
-`~/.claude-accounts` (never read `accounts.json`), or Öncel's custom Claude
-status line.
+Airpocket must not depend on: the private tool or its desktop panel,
+claude.ai, a folder of other Claude accounts (never read `accounts.json`), or
+a custom Claude status line.
 
 ## Security rules (non-negotiable)
 
@@ -171,7 +173,7 @@ status line.
   unquoted `$VAR`. `replaceChildren` does not flatten arrays.
 - **Shell traps (zsh)**: never name a variable `path` (it is the PATH array;
   every command after it goes missing). `$var:t...` applies a modifier, so
-  write `${var}:file`. The Mac has an `rtk` hook that rewrites `git diff`
+  write `${var}:file`. If the Mac has an `rtk` hook, it rewrites `git diff`
   and `grep` output into short summaries: use `rtk proxy git diff` when you
   need the real lines.
 - **Probing a TUI**: run it in a hidden pty (Python `pty` + `pyte`). An
@@ -179,7 +181,7 @@ status line.
   writes a trust entry to `~/.codex/config.toml` (remove it), Claude's is
   "No, exit". Start Claude with `--settings '{"remoteControlAtStartup":false}'`
   so it does not register a Remote Control session. Add
-  `--setting-sources project` so Öncel's own hooks (and the private tool)
+  `--setting-sources project` so your own hooks (and anything they call)
   never hear of it. Answer the terminal's queries (subclass `pyte.Screen`,
   write `write_process_input` back to the pty) and type key by key:
   unanswered, Claude takes the first keys for the answer and prompts are lost.
@@ -187,37 +189,39 @@ status line.
 ## Testing
 
 - `node --test`. Everything in temp directories. Never write the real
-  `~/.claude/settings.json`, anything in `~/.codex`, or the private tool's
-  data (`overlay/sessions`, `queue.json`,
-  `~/Library/Application Support/claude-overlay`).
-- **Only `airpocket setup`, run by Öncel himself, may write the agents'
-  config files** (`~/.claude/settings.json`, `$CODEX_HOME/hooks.json`) or the
-  login item in `~/Library/LaunchAgents`. No test, no trial and no agent may.
-  Tests and trials run setup, doctor and uninstall with `HOME` (and
-  `CODEX_HOME`) pointed at a temp folder, a stand-in launchctl and a
-  stand-in Tailscale (`test/setup.test.js`), and check the real files'
-  modification times at the end.
+  `~/.claude/settings.json`, anything in `~/.codex`, or a real Airpocket's
+  data (`sessions/`, `queue.json`, `~/Library/Application Support/Airpocket`).
+- **Only `airpocket setup`, run by the Mac's owner themselves, may write the
+  agents' config files** (`~/.claude/settings.json`, `$CODEX_HOME/hooks.json`)
+  or the login item in `~/Library/LaunchAgents`. No test, no trial and no
+  agent may. Tests and trials run setup, doctor and uninstall with `HOME` (and
+  `CODEX_HOME`) pointed at a temp folder, a stand-in launchctl and a stand-in
+  Tailscale (`test/setup.test.js`), and check the real files' modification
+  times at the end.
 - Checking against real sessions: start a throwaway server instance on another
   loopback port with a temporary pairing store, give it an empty waiting list
   and a panel stub that blocks `/dequeue`, so nothing real changes.
 - Screenshots: headless Chrome over the DevTools protocol at 390x844, scale 2
-  (`docs/reference/shoot.js` is the harness used for the private tool).
-- Never send text, keys or commands into Öncel's real sessions while testing.
-- The private tool owns HTTPS ports 443 and 8443 on this Mac. Do not change
-  Tailscale serve settings without Öncel's OK.
+  (`docs/reference/shoot-app.js` is the harness; `shoot.js` is the older
+  one carried over from the private tool).
+- Never send text, keys or commands into the owner's real sessions while
+  testing.
+- Another program may already publish HTTPS ports on this Mac (on the Mac
+  Airpocket was built on, 443 and 8443 are taken). Do not change Tailscale
+  serve settings without the owner's OK.
 
 ## Working agreement
 
 - One branch per build step: `step-<n>-<slug>`. Commit as you go, push the
   branch, never merge to main. At the end of a step, stop and report: what
   changed, how you tested it (with output), what is left. The supervisor
-  reviews; Öncel merges.
+  reviews; the owner merges.
 - Plain Node (CommonJS), no frameworks, DOM-only UI (no innerHTML, no HTML
   strings), as few dependencies as possible (none today).
-- The UI design is Öncel's (a fighter-jet, flight-screen theme). His design
-  pack is in `docs/design` and the app follows it since step 9; change the
-  look only from that pack or with his OK.
-- Write to Öncel plainly and briefly; he reads on his phone.
+- The UI design is the owner's (a fighter-jet, flight-screen theme). The
+  design pack is in `docs/design` and the app follows it since step 9; change
+  the look only from that pack or with the owner's OK.
+- Write to the owner plainly and briefly; they read on their phone.
 
 ## Where the code stands
 
@@ -477,22 +481,22 @@ status line.
 - `docs/OWN-TERMINAL.md`: the options compared before the build (A chosen),
   and what the trial found.
 - Open: Codex with real model replies driven from the phone (step 13, after
-  Öncel uses Codex once so its login is fresh), and Codex's prompt box through
-  `airpocket run` (Shift+Enter as CSI u is checked only at byte level). Own
-  terminal in a real Terminal.app, iTerm2 or Ghostty window (the trial plays
-  the terminal; whether Terminal.app answers XTVERSION decides the Esc delay
-  after attaching). Setup has not run on Öncel's
-  Mac or against the real Tailscale (his to run; 443 and 8443 are the private
-  tool's, so it will pick 4443 and 5443). Superset's `codex` wrapper may point
-  `CODEX_HOME` elsewhere, where hooks in `~/.codex` don't fire; setup doesn't
-  detect it. `logs/service.log` has no rotation. Denying a Claude
-  permission with Esc leaves "needs permission" until the next prompt (no
-  hook fires). `/effort` through Controls: in step 8's trial its first Enter
-  didn't take; not verified (step 13, once, on purpose). On a real iPhone
-  (step 13): the camera in a Home Screen app, `prefers-reduced-transparency`,
-  the launch images. A desktop browser tab can't pair (first-run rule).
+  the owner uses Codex once so its login is fresh), and Codex's prompt box
+  through `airpocket run` (Shift+Enter as CSI u is checked only at byte
+  level). Own terminal in a real Terminal.app, iTerm2 or Ghostty window (the
+  trial plays the terminal; whether Terminal.app answers XTVERSION decides the
+  Esc delay after attaching). Setup has not run on the owner's Mac or against
+  the real Tailscale (theirs to run; 443 and 8443 are taken there by another
+  program, so it will pick 4443 and 5443). Superset's `codex` wrapper may
+  point `CODEX_HOME` elsewhere, where hooks in `~/.codex` don't fire; setup
+  doesn't detect it. `logs/service.log` has no rotation. Denying a Claude
+  permission with Esc leaves "needs permission" until the next prompt (no hook
+  fires). `/effort` through Controls: in step 8's trial its first Enter didn't
+  take; not verified (step 13, once, on purpose). On a real iPhone (step 13):
+  the camera in a Home Screen app, `prefers-reduced-transparency`, the launch
+  images. A desktop browser tab can't pair (first-run rule).
 
-## Decisions waiting for Öncel (proposed defaults)
+## Decisions waiting for the owner (proposed defaults)
 
 1. Runtime: Node 20+, shipped as an npm package since step 10; a Homebrew
    formula or one self-contained program is still open.

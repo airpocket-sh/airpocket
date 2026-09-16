@@ -6,7 +6,7 @@
 // Codex configs with hooks of their own. launchd is the real one, under a
 // throwaway label (sh.airpocket.trial) with its plist in the temp HOME and its
 // own ports, so it can't meet a real Airpocket. Tailscale is stood in for (a
-// table in memory): changing what this Mac publishes needs Öncel's OK. The
+// table in memory): changing what this Mac publishes needs the owner's OK. The
 // real ~/.claude/settings.json and ~/.codex/hooks.json are checked untouched.
 //
 //   setup: hooks merged (other hooks kept, backups written), login item running

@@ -1,9 +1,9 @@
 # Plan
 
-Airpocket is the phone side of a private tool (claude-overlay's `overlay/mobile`),
-cut loose from the desktop panel it lived in and made installable by anyone on
-macOS. It also carries on an earlier private prototype, Walkie, whose own
-terminal mode becomes the option for people without Superset or tmux.
+Airpocket is the phone side of a private tool, cut loose from the desktop
+panel it lived in and made installable by anyone on macOS. It also carries on
+an earlier private prototype, Walkie, whose own terminal mode becomes the
+option for people without Superset or tmux.
 
 ## Decisions
 
@@ -42,8 +42,8 @@ Superset, file viewing with the file-only origin, the UI, and the test suite.
 
 ## Design
 
-Öncel designs the look: a fighter-jet, flight-screen theme (cockpit, HUD). The
-phone UI step waits for those designs; the current warm palette is a
+The owner designs the look: a fighter-jet, flight-screen theme (cockpit, HUD).
+The phone UI step waits for those designs; the current warm palette is a
 placeholder carried over from the private tool.
 
 ## Build steps
@@ -87,10 +87,10 @@ Build
 12. Tests on GitHub Actions (macOS) for every change.
 
 Prove it, then launch
-13. Öncel switches his own Macs over for a few days; the private tool's phone
-    part retires (the panel stays private). Phones pair with Airpocket fresh:
+13. The owner switches their own Macs over for a few days; the private tool's
+    phone part retires (the panel stays private). Phones pair with Airpocket fresh:
     it is a separate app with its own tokens, and nothing carries over.
-    Also, once and on purpose: Controls → Effort in one of his own Claude
+    Also, once and on purpose: Controls → Effort in one of their own Claude
     sessions, to see that the command runs on its first Enter (in step 8's
     trial it seemed to wait for something on screen), then set it back.
     Claude saves /effort as the default for new sessions of that model, so
@@ -99,8 +99,8 @@ Prove it, then launch
     code on your Mac", and see whether iOS grants the camera in a Home Screen
     web app, whether it asks again on every launch, and whether the stream
     survives the app going to the background. Step 9 could not test this (no
-    simulator, and a tailnet trial needed Öncel's OK), so pairing opens on the
-    six digits and the scan is one tap away. If it works, flip SCAN_FIRST in
+    simulator, and a tailnet trial needed the owner's OK), so pairing opens on
+    the six digits and the scan is one tap away. If it works, flip SCAN_FIRST in
     app.js.
     And Codex end to end: use Codex once so its login refreshes, then run
     `node docs/reference/try-codex.js`. Step 10 stopped short of this because a
@@ -118,10 +118,10 @@ Prove it, then launch
     release.
 16. Go public: final secret scan, remove `private: true` from package.json,
     repo public, buy airpocket.sh last and point it at the repo or a small page
-    with the install command, post on X. Öncel decides three things first, all
-    found in step 11's review and all easier before anyone has cloned it:
-    - his personal Gmail address is the author of the commits, and goes public
+    with the install command, post on X. The owner decides three things first,
+    all found in step 11's review and all easier before anyone has cloned it:
+    - their personal Gmail address is the author of the commits, and goes public
       with the history unless it is rewritten now;
-    - `claude-overlay`, `claude-accounts`, port 47820 and his name appear in
-      AGENTS.md, PLAN.md and `docs/reference/shoot.js`;
+    - the private tool's name, its accounts folder, its panel's port and the
+      owner's name appear in AGENTS.md, PLAN.md and `docs/reference/shoot.js`;
     - Node 20 reached end of life in April and is still in `engines` and CI.
