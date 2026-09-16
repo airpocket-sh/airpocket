@@ -17,7 +17,7 @@ import base64, fcntl, json, os, pty, select, signal, struct, sys, termios, threa
 import pyte
 
 lock = threading.Lock()
-state = {"fd": None, "pid": None, "screen": None, "stream": None, "raw": bytearray(), "exit": None}
+state = {"answers": [], "fd": None, "pid": None, "screen": None, "stream": None, "raw": bytearray(), "exit": None}
 
 
 class Screen(pyte.Screen):
@@ -51,6 +51,11 @@ def pump():
             data = b""
         if not data:
             return
+        # Replies to the program's terminal queries, as the terminal being played sends them: [query, reply] pairs.
+        for query, answer in state["answers"]:
+            if query.encode("latin1") in data:
+                try: os.write(fd, answer.encode("latin1"))
+                except OSError: pass
         with lock:
             state["raw"].extend(data)
             try: state["stream"].feed(data)
@@ -62,8 +67,7 @@ def reply(obj):
     sys.stdout.flush()
 
 
-for line in sys.stdin:
-    req = json.loads(line)
+def handle(req):
     op = req["op"]
     if op == "spawn":
         rows, cols = req.get("rows", 40), req.get("cols", 120)
@@ -72,19 +76,26 @@ for line in sys.stdin:
             os.chdir(req["cwd"])
             os.execvpe(req["argv"][0], req["argv"], req["env"])
         set_size(fd, rows, cols)
-        state.update(fd=fd, pid=pid)
+        state.update(fd=fd, pid=pid, answers=req.get("answers") or [])
         state["screen"] = Screen(cols, rows)
         state["stream"] = pyte.ByteStream(state["screen"])
         threading.Thread(target=pump, daemon=True).start()
         reply({"pid": pid})
     elif op == "write":
-        os.write(state["fd"], base64.b64decode(req["b64"]))
-        reply({"ok": True})
+        # The program may have exited and the pty closed: say so, and keep answering.
+        try:
+            os.write(state["fd"], base64.b64decode(req["b64"]))
+            reply({"ok": True})
+        except (OSError, TypeError) as err:
+            reply({"ok": False, "error": str(err)})
     elif op == "resize":
         with lock:
             state["screen"].resize(req["rows"], req["cols"])
-        set_size(state["fd"], req["rows"], req["cols"])
-        reply({"ok": True})
+        try:
+            set_size(state["fd"], req["rows"], req["cols"])
+            reply({"ok": True})
+        except (OSError, TypeError) as err:
+            reply({"ok": False, "error": str(err)})
     elif op == "screen":
         with lock:
             reply({"screen": list(state["screen"].display), "raw": base64.b64encode(bytes(state["raw"])).decode()})
@@ -92,12 +103,13 @@ for line in sys.stdin:
         fd = state["fd"]
         state["fd"] = None
         try: os.close(fd)
-        except OSError: pass
+        except (OSError, TypeError): pass
         reply({"ok": True})
     elif op == "wait":
         end = time.time() + req.get("secs", 5)
         while time.time() < end:
-            p, status = os.waitpid(state["pid"], os.WNOHANG)
+            try: p, status = os.waitpid(state["pid"], os.WNOHANG)
+            except ChildProcessError: break
             if p:
                 state["exit"] = os.waitstatus_to_exitcode(status)
                 break
@@ -105,3 +117,10 @@ for line in sys.stdin:
         reply({"exit": state["exit"]})
     else:
         reply({"error": "unknown op"})
+
+
+for line in sys.stdin:
+    try:
+        handle(json.loads(line))
+    except Exception as err:
+        reply({"ok": False, "error": repr(err)})

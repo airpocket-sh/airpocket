@@ -47,8 +47,12 @@ Setup is the only code that writes outside the data folder: Airpocket's hook
 entries in `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR`) and
 `$CODEX_HOME/hooks.json`, each marked `# airpocket-hook`, merged after a
 timestamped backup, and the login item
-`~/Library/LaunchAgents/sh.airpocket.service.plist`. The hooks and the login
-item run a copy of Airpocket in `<data folder>/app` with Node by absolute path.
+`~/Library/LaunchAgents/sh.airpocket.service.plist`, and, when the user says
+yes (or passes `--alias`), two aliases in `~/.zshrc` or `~/.bash_profile`
+(`alias claude='airpocket run claude'`, each marked `# airpocket-alias`, backed
+up first). The hooks, the login item and those aliases run a copy of Airpocket
+in `<data folder>/app` with Node by absolute path (the aliases say `airpocket`
+when it is on PATH).
 Anyone who can write that folder could change what the agents run on every
 event, which is why it stays 0700 like the rest.
 
@@ -96,6 +100,8 @@ On the Mac, in `~/Library/Application Support/Airpocket` (or
 | `install.json` | What setup added: ports, hook files, created containers, serve ports | `setup.js` |
 | `app/` | The copy of Airpocket the hooks and login item run | `setup.js` |
 | `logs/service.log` | The service's log (launchd, umask 077) | launchd |
+| `tmux/sock` | The socket of Airpocket's own tmux server, which runs the agents started with `airpocket run` | tmux, started by `ownterm.js` |
+| `tmux/start-<random>.sh` | For a moment while an agent starts: the starting shell's environment and the agent's arguments. 0600; the script deletes itself as its first line; a leftover (the window closed at once) is removed by the next `run` after a minute | `ownterm.js` |
 
 Files are created 0600. Only in memory: the file-ref key (`FILE_SECRET`), file
 tickets, parsed transcripts.
@@ -307,6 +313,12 @@ phone must not land there.
   since pane ids start again at `%0` after a restart. A pane in copy mode is
   refused. Text goes as `send-keys -l --` in pieces of at most 4 KB, a trailing
   `;` escaped, then Enter as a separate call.
+- **Own-terminal mode** (`ownterm.js`) adds no new way in: `airpocket run`
+  starts the agent in a tmux session on `<data folder>/tmux/sock` (the folder
+  0700, a real folder of this user's, the socket checked like any other), and
+  the agent's hook records that pane like any tmux pane. The phone reaches it
+  through the same tmux bridge and checks. It never touches the user's default
+  tmux server, socket or `~/.tmux.conf` (`-S` and `-f` on every call).
 - **Superset.** Its CLI runs by a fixed path with argument lists. Workspace and
   terminal ids must match `[A-Za-z0-9_-]{1,100}`.
 - **Text** (`cleanText`). Line breaks become spaces (a newline would press
@@ -462,3 +474,11 @@ weight: **H** worth deciding before launch, **M** worth a fix or a clear note,
 20. **L: Tailscale HTTPS names are public.** Certificates for `tailscale serve`
     appear in public Certificate Transparency logs, and with them the Mac's
     tailnet name. Names only, never content.
+
+21. **L: Airpocket's tmux runs agents that outlive Airpocket.** Agents started
+    with `airpocket run` keep running after the service stops and after
+    `airpocket uninstall` (which keeps the data folder while any still run).
+    Anyone running as this user can attach to that socket and type, as with
+    any tmux server of the user's. The start script holds the starting shell's
+    environment, keys in it included, in a 0600 file for the moment before the
+    agent starts.

@@ -12,7 +12,10 @@ and sent the same stream to the phone, where xterm.js drew it. The lessons
 that carry over are in Airpocket already: paste the text, wait, then press
 Enter from the Mac; queue input from the phone so nothing interleaves.
 
-This note is a comparison, not a build. Nothing here is implemented.
+This note was the comparison before the build. Option A is built (step 10b):
+`src/ownterm.js`, `src/tmux.conf`, `airpocket run` and `airpocket attach`,
+the aliases in setup, and the trial `docs/reference/try-own-terminal.js`. What
+the trial found is at the end.
 
 ## What decides it
 

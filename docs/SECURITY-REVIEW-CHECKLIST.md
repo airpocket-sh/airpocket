@@ -182,6 +182,7 @@ All must use `execFile` or `execFileSync` with an argument list: no shell, no
 | Tailscale (`server.js`) | real path of the app bundle binary or two fixed paths | `status --json` | inherited | 6 s | nothing |
 | Tailscale (`cli.js`) | `/usr/bin/which tailscale` plus fixed paths | `status --json`; `serve status --json`; `serve --https=<port> --bg http://127.0.0.1:<port>`; `serve --https=<port> off` | inherited | 8 s for status | nothing |
 | step 10 | fill in | | | | |
+| tmux (`ownterm.js`, `airpocket run` and `attach`, on this user's terminal) | the same three fixed folders | `-V`; `-u -S <data>/tmux/sock -f <app>/src/tmux.conf new-session -s <agent>-<folder> -c <cwd> -- /bin/sh <start script>`; `-u -S <socket> attach-session -t =<name>`; `-u -S <socket> list-sessions -F <format>` | the user's shell (new-session, attach); `PATH=/usr/bin:/bin`, `LANG=en_US.UTF-8` (the rest) | none on the terminal; 10 s | nothing: the phone never starts or attaches these |
 
 - [ ] Every value that reaches an argument from the phone is validated first
       (tables above).
