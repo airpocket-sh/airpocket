@@ -4,9 +4,14 @@
 # network use beyond checkout is setting up Node and installing tmux.
 name: test
 
+# Branches are covered by their pull request; main after each merge. A push to a
+# branch with an open PR would otherwise run twice, and macOS minutes bill at 10x
+# on a private repo. Relax to every push once the repo is public.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
