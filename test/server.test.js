@@ -2,6 +2,11 @@
 // npm test   (node --test)
 // Starts the server with a stand-in service and a stand-in Superset, and
 // checks each security promise the README makes.
+// ports.js reads the tailnet ports setup chose from the data folder when it loads: on a Mac where
+// Airpocket is installed that would be its own install.json, so these tests get an empty folder.
+const os0 = require("os"), fs0 = require("fs"), path0 = require("path");
+process.env.AIRPOCKET_DIR = fs0.mkdtempSync(path0.join(os0.tmpdir(), "airpocket-nodata-"));
+for (const k of ["AIRPOCKET_PUBLIC_PORT", "AIRPOCKET_PUBLIC_FILE_PORT"]) delete process.env[k];
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("http");
@@ -175,7 +180,7 @@ test.before(() => new Promise((ok) => app.server.listen(0, "127.0.0.1", () => {
   base = `http://127.0.0.1:${app.server.address().port}`;
   app.fileServer.listen(0, "127.0.0.1", () => { fileBase = `http://127.0.0.1:${app.fileServer.address().port}`; ok(); });
 })));
-test.after(() => { app.server.close(); app.fileServer.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+test.after(() => { app.server.close(); app.fileServer.close(); fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(process.env.AIRPOCKET_DIR, { recursive: true, force: true }); });
 
 function req(method, p, { body, headers = {}, raw, at = base } = {}) {
   return new Promise((resolve, reject) => {

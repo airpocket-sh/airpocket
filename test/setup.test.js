@@ -177,7 +177,9 @@ async function world({ claude, codex, mac: macOpts, env: extraEnv = {}, agents =
   fakeMac.home = home;
   const base = await freeBase();
   const lines = [];
-  const env = { HOME: home, PATH: process.env.PATH, AIRPOCKET_PORT: String(base), ...extraEnv };
+  // An airpocket installed on this Mac (npm install -g .) would change what setup writes into the aliases.
+  const PATH = String(process.env.PATH).split(":").filter((d) => !fs.existsSync(path.join(d, "airpocket"))).join(":");
+  const env = { HOME: home, PATH, AIRPOCKET_PORT: String(base), ...extraEnv };
   const ctx = setup.context({ env, home, run: mac.run, tailscaleBin: TS, tty: false, color: false, uid: 501, waitMs: 15000,
     out: (l = "") => lines.push(l), tmuxBins: ["/nonexistent/tmux"], processes: () => ({ starts: new Map(), agents }) });
   assert.ok(!ctx.paths.claude.startsWith(REAL_HOME + "/"), "never the real home");
