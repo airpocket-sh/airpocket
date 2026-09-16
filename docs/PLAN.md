@@ -125,3 +125,8 @@ Prove it, then launch
     - the private tool's name, its accounts folder, its panel's port and the
       owner's name appear in AGENTS.md, PLAN.md and `docs/reference/shoot.js`;
     - Node 20 reached end of life in April and is still in `engines` and CI.
+
+    On the day itself, two settings only a public repository can have: switch on
+    private vulnerability reporting (SECURITY.md and the code of conduct both
+    send people to it, and GitHub only offers it once the repository is public),
+    and give the repository its topics.
