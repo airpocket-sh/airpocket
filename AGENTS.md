@@ -221,10 +221,10 @@ status line.
 
 ## Where the code stands
 
-- Steps 4 to 10, 11 (first half) and 12 are merged (PR #1 to #7, #9, #10),
-  and the lock-race fix (#8). `npm start` runs one process: the service with
-  its hook endpoint, the phone server and the file-only server, all on
-  127.0.0.1. 151 tests after #10.
+- Steps 4 to 12 are merged (PR #1 to #7, #9 to #11), and the lock-race fix
+  (#8). `npm start` runs one process: the service with its hook endpoint, the
+  phone server and the file-only server, all on 127.0.0.1. 178 tests with
+  step 10b.
 - CI (`.github/workflows/test.yml`, step 12): macOS, Node 20 and 22, a syntax
   check, `node --test` with a real tmux, and `.github/smoke.js` (the real app
   on loopback with a temporary data folder and HOME).
@@ -234,9 +234,17 @@ status line.
   (`queue.json`) in the data folder (`~/Library/Application Support/Airpocket`
   or `$AIRPOCKET_DIR`); folders 0700, files 0600, every write whole
   (temp file, fsync, rename). One service per data folder: `airpocket.lock`
-  holds `"<pid> <start time>"`, written to a temp file and linked into place;
-  a stale lock is renamed aside, and a live one moved by mistake is put
-  back. A second service throws `ELOCKED` and writes nothing.
+  holds `"<pid> <start time>"`, written to a temp file and linked into place.
+  A lock is never overwritten or unlinked unless stale: to take over a stale
+  one, a service first links the takeover marker (`airpocket.lock.takeover`,
+  itself taken over only when its process is gone), reads the lock again and
+  moves it aside only if it is still exactly what it judged stale, then links
+  its own (a newcomer that linked in between wins). A second service throws
+  `ELOCKED` and writes nothing. A running service calls `stillHeld()` on
+  every sweep and hook: if the lock is gone or names another process (read
+  wrong twice, 5 ms apart) it stops for good: no more writes, hooks get 503,
+  the hook endpoint closes, the list empties, the lock is left alone, and
+  `onLost` runs (by default the process exits).
 - Hook endpoint on 127.0.0.1:47873 (`AIRPOCKET_HOOK_PORT`), never published.
   `hook.json` = `{ port, secret }`, 0600, written only once it listens, new
   secret every start. `POST /hook/session | enqueue | dequeue | touch` with

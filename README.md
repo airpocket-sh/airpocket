@@ -110,6 +110,13 @@ limited to what a session made or mentioned, inside its own folder, checked by
 content, and PDFs and pages open from a separate file-only origin through
 two-minute links.
 
+**Know this before you pair.** A paired phone can type anything into your
+agents, including shell commands (in Claude Code and Codex, a message that
+starts with `!` runs as one), and start new sessions. Its token doesn't expire:
+it works until you revoke it on that Mac. `airpocket devices` lists the paired
+phones, and `airpocket revoke <id>` cuts one off at once. Pair only phones you
+control, and revoke a lost one straight away.
+
 ## License
 
 MIT. The fonts in `src/public/fonts` (B612, B612 Mono, IBM Plex Sans) are under the

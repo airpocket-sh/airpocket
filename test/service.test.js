@@ -419,9 +419,11 @@ async function resumeRig() {
   const sockServer = net.createServer();
   await new Promise((ok) => sockServer.listen(sock, ok));
   const typed = { tmux: [], superset: [] };
-  // The fresh liveness check stands in for ps here: the pids are made up.
-  const bridges = createBridges({ tmux: async (a) => { typed.tmux.push(a); return a.includes("capture-pane") ? "7921\n$ " : "7921 0\n"; },
-    superset: async (a) => { typed.superset.push(a); return "{}"; }, hasTmux: () => true, alive: (pid) => !t.dead.has(pid), gap: () => 0 });
+  // The fresh process check stands in for ps here: the pids are made up, each in the foreground of the pane's terminal.
+  const starts = { 8008: 1000, 7909: 2000 };
+  const inspect = (pid) => (t.dead.has(pid) || !starts[pid] ? null : { started: starts[pid], tty: "ttys004", pgid: pid, tpgid: pid });
+  const bridges = createBridges({ tmux: async (a) => { typed.tmux.push(a); return a.includes("capture-pane") ? "7921\n$ " : "7921 0 /dev/ttys004\n"; },
+    superset: async (a) => { typed.superset.push(a); return "{}"; }, hasTmux: () => true, inspect, gap: () => 0 });
   const rec = () => t.svc.knownSessions().find((r) => r.session_id === ID);
   const inTmux = { session_id: ID, agent: "claude", cwd: "/Users/x/proj", pid: 8008, started: 1000, pane: "%0", tmux: sock, tmux_pid: 7921 };
   return { t, sock, typed, bridges, rec, inTmux, close: async () => { sockServer.close(); await t.close(); } };
@@ -687,4 +689,51 @@ test("one odd read of the lock isn't enough to stop: it must look wrong twice, a
     svc.release();
   }
   assert.equal(fs.readFileSync(lockFile, "utf8"), svc.identity, "a service that stopped leaves the lock alone, even its own");
+});
+
+test("hook.json goes when the service stops, and one a crash left goes before the next service listens", async () => {
+  const t = await setup();
+  const hookFile = path.join(t.dir, "hook.json");
+  assert.ok(fs.existsSync(hookFile));
+  await t.close();
+  assert.ok(!fs.existsSync(hookFile), "a clean stop leaves nothing that points hooks at the port");
+
+  // release() alone (what the process's exit handler runs) does the same.
+  const dir = tempDir();
+  const svc = createService({ dir });
+  await new Promise((ok) => svc.listen(0, ok));
+  svc.release();
+  assert.ok(!fs.existsSync(path.join(dir, "hook.json")));
+  await new Promise((ok) => svc.close(ok));
+
+  // A crash leaves hook.json behind; the next service removes it at once, not only when it listens.
+  const crashed = tempDir();
+  fs.writeFileSync(path.join(crashed, "hook.json"), JSON.stringify({ port: 47873, secret: "S".repeat(43) }));
+  const next = createService({ dir: crashed });
+  try {
+    assert.ok(!fs.existsSync(path.join(crashed, "hook.json")), "gone before the endpoint listens (its port may be taken)");
+  } finally { next.release(); }
+});
+
+test("a service that loses its folder removes its own hook.json, never the new service's", async () => {
+  // The lock is simply gone: nobody listens for this service's secret any more.
+  const dir = tempDir();
+  const svc = createService({ dir, onLost: () => {} });
+  await new Promise((ok) => svc.listen(0, ok));
+  fs.unlinkSync(path.join(dir, "airpocket.lock"));
+  assert.equal(svc.stillHeld(), false);
+  assert.ok(!fs.existsSync(path.join(dir, "hook.json")));
+  await new Promise((ok) => svc.close(ok));
+
+  // Another service took the folder and wrote its own hook.json: that one stays.
+  const dir2 = tempDir();
+  const old = createService({ dir: dir2, onLost: () => {} });
+  await new Promise((ok) => old.listen(0, ok));
+  const theirs = JSON.stringify({ port: 40000, secret: "T".repeat(43) });
+  fs.writeFileSync(path.join(dir2, "airpocket.lock"), `${process.ppid} ${startTimeOf(process.ppid)}`);
+  fs.writeFileSync(path.join(dir2, "hook.json"), theirs);
+  assert.equal(old.stillHeld(), false);
+  old.release();
+  await new Promise((ok) => old.close(ok));
+  assert.equal(fs.readFileSync(path.join(dir2, "hook.json"), "utf8"), theirs);
 });
