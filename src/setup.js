@@ -293,9 +293,13 @@ function planSetup(f, opts = {}) {
 
   // 2. The steps.
   const install = f.install || { hooks: {} };
+  const sameCopy = realpathOr(ctx.root) === realpathOr(ctx.paths.appDir);
+  // `source` is the folder the copy came from, so the service can tell the phone when
+  // that folder has changed since (behind.js). Setup run from the copy itself copies
+  // nothing, so it names no source.
   const record = () => ({
     version: 1, airpocket: f.version, installedAt: ctx.now().toISOString(), node: ctx.node, label: ctx.label,
-    app: ctx.paths.appDir, plist: ctx.paths.plist,
+    app: ctx.paths.appDir, ...(sameCopy ? {} : { source: ctx.root }), plist: ctx.paths.plist,
     ports: { app: ctx.ports.app, file: ctx.ports.file, hook: ctx.ports.hook, publicApp: chosen.app, publicFile: chosen.file },
     serve: install.serve || [], hooks: install.hooks || {}, dataDirCreated: install.dataDirCreated ?? !f.dataDirExists,
     ...(install.aliases ? { aliases: install.aliases } : {}),
@@ -312,7 +316,6 @@ function planSetup(f, opts = {}) {
     },
   });
 
-  const sameCopy = realpathOr(ctx.root) === realpathOr(ctx.paths.appDir);
   steps.push({
     title: "Airpocket itself",
     lines: sameCopy ? [`runs from ${t(ctx.paths.appDir)} already`]

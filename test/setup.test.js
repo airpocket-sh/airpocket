@@ -23,6 +23,7 @@ const ID_ONE = "0199aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee";
 const li = require("../src/loginitem");
 const ts = require("../src/tailscale");
 const { startTimeOf } = require("../src/proc");
+const { behindSource } = require("../src/behind");
 
 const ROOT = path.join(__dirname, "..");
 const TS = "/Applications/Tailscale.app/Contents/MacOS/Tailscale";
@@ -254,6 +255,8 @@ test("fresh install: hooks, a running login item, two addresses, a pairing code;
   const install = json(P.install);
   assert.deepEqual(install.ports, { app: w.base, file: w.base + 1, hook: w.base + 2, publicApp: 443, publicFile: 8443 });
   assert.ok(fs.existsSync(path.join(P.appDir, "src", "hook.js")), "the copy is there");
+  assert.equal(install.source, w.ctx.root, "and where it came from");
+  assert.equal(behindSource(P.dataDir, P.appDir), undefined, "a copy made just now is not behind");
   assert.equal(fs.existsSync(path.join(P.appDir, "test")), false, "only what runs is copied");
   assert.ok(fs.existsSync(path.join(P.dataDir, "pairing.json")));
 
@@ -557,6 +560,29 @@ test("the phone and setup say the same about agents that haven't checked in", ()
   const table = /\n\s*const UNSEEN = (\{[\s\S]*?\n\s*\});\n/.exec(app);
   assert.ok(table, "app.js has its UNSEEN table");
   assert.deepEqual(new Function(`return ${table[1]};`)(), setup.UNSEEN);
+});
+
+test("an install record from before setup kept its source still works, and setup run from the copy names none", async () => {
+  const w = await world();
+  const P = w.ctx.paths;
+  await setupOk(w);
+  const { source, ...older } = json(P.install);
+  assert.equal(source, w.ctx.root);
+  fs.writeFileSync(P.install, JSON.stringify(older, null, 2) + "\n");
+  assert.equal(behindSource(P.dataDir, P.appDir), undefined, "no source: nothing to say");
+  assert.equal(await doctor.runDoctor(w.ctx), 0, "doctor reads it as before");
+  w.output();
+  await setupOk(w);
+  assert.equal(json(P.install).source, w.ctx.root, "setup again records it");
+
+  // The copy's own setup copies nothing, so it has no folder to compare with.
+  const fromCopy = setup.context({ ...w.ctx, env: w.ctx.env, home: w.home, run: w.mac.run, out: w.ctx.out, tty: false, uid: 501, tmuxBins: w.ctx.tmuxBins,
+    tailscaleBin: TS, root: P.appDir, processes: () => ({ starts: new Map(), agents: [] }) });
+  assert.equal(await setup.runSetup(fromCopy), 0, w.output());
+  w.output();
+  assert.equal("source" in json(P.install), false);
+  assert.equal(await setup.runUninstall(w.ctx, ["--remove-data"]), 0);
+  w.output();
 });
 
 test("a Mac that never used tailscale serve (status prints null) sets up, and uninstalls", async () => {

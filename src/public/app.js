@@ -92,7 +92,8 @@
   // ---- storage (this phone only) -------------------------------------------
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
   const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-  let hosts = load(HOSTS_KEY, []);           // [{id, name, base, token, deviceId}]
+  // answeredAt: when it last answered this phone (ms); hadSessions: it has listed a session here at least once.
+  let hosts = load(HOSTS_KEY, []);           // [{id, name, base, token, deviceId, answeredAt, hadSessions}]
   if (!Array.isArray(hosts)) hosts = [];
   const prefs = load(PREFS_KEY, { wrap: true });
   const saveHosts = () => keep(HOSTS_KEY, hosts);
@@ -346,7 +347,11 @@
 
     startPoll(async () => {
       results = await Promise.all(hosts.map(async (host) => {
-        try { const d = await api(host, "/api/sessions"); return { host, sessions: d.sessions || [], label: d.host, can: d.can || null, unseen: d.unseen || null }; }
+        try {
+          const d = await api(host, "/api/sessions");
+          answered(host, (d.sessions || []).length > 0);
+          return { host, sessions: d.sessions || [], label: d.host, can: d.can || null, unseen: d.unseen || null, copy: d.copy || null };
+        }
         catch (err) { return { host, err }; }
       }));
       asking = false;
@@ -379,6 +384,40 @@
     return { agents: [line("claude"), line("codex")].filter(Boolean), hooks: u && u.codexHooks === "untrusted" ? UNSEEN.hooks : "" };
   }
 
+  // A Mac answered: remember when, and whether it has ever listed a session. Stored at
+  // most once a minute unless something new is learned; the time is shown to the minute.
+  function answered(host, listed) {
+    const now = Date.now();
+    const learned = listed && !host.hadSessions;
+    const stale = !(host.answeredAt > now - 60000);
+    host.answeredAt = now;
+    if (listed) host.hadSessions = true;
+    if (learned || stale) saveHosts();
+  }
+
+  // When a Mac last answered: "at 14:02" today, "on 16 Sep at 14:02" before that, "" when never.
+  function answeredWhen(at, now = Date.now()) {
+    if (!Number.isFinite(at) || at <= 0) return "";
+    const d = new Date(at), today = new Date(now);
+    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (d.toDateString() === today.toDateString()) return "at " + time;
+    const date = d.toLocaleDateString([], { day: "numeric", month: "short", ...(d.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
+    return "on " + date + " at " + time;
+  }
+
+  // Until a Mac has listed a session on this phone: sessions reach the list through their
+  // hooks, so nothing shows until each one is prompted. When that Mac counts agents that
+  // haven't checked in, the UNSEEN lines say this with numbers, and this stays out.
+  const FIRST_RUN = "Sessions appear here as you work. Carry on as you normally would: each Claude Code session joins the list the next time you prompt it. " +
+    "A Codex session that was already running needs restarting once, because Codex takes its hooks at launch.";
+
+  // A Mac running an older copy of Airpocket than the folder setup copied it from (behind.js on the Mac).
+  function behindLine(name, copy) {
+    if (!copy || copy.behind !== true) return "";
+    const versions = typeof copy.running === "string" && typeof copy.source === "string" ? ` (${copy.running}; the folder has ${copy.source})` : "";
+    return `${name} runs an older Airpocket than the folder it was set up from${versions}. Run airpocket setup on that Mac to bring it up to date.`;
+  }
+
   // Three groups: what needs you, what is running, and a folded "Earlier" for
   // sessions whose process has ended, so the list stays about now.
   function drawList(results, { io, refresh }) {
@@ -409,8 +448,10 @@
             h("h2", { text: unpaired ? "Not paired any more" : count === 1 ? name(errs[0].host) + " didn't answer" : "No Mac answered" }),
             h("p", { text: unpaired ? "This phone isn't paired with " + (count === 1 ? "that Mac" : "those Macs") + " now. Pair it again from Macs."
               : count === 1 ? errs[0].err.message : "Can't reach your Macs. Is Tailscale on, and is a Mac awake?" }),
+            unpaired || count !== 1 || !answeredWhen(errs[0].host.answeredAt) ? null : h("p", { text: "Last answered " + answeredWhen(errs[0].host.answeredAt) + "." }),
             unpaired ? null : h("p", { text: "Sessions reappear on their own once one answers." })),
-          h("div", { class: "maclist" }, errs.map((r) => h("div", {}, h("span", { text: name(r.host) }), h("span", { text: r.err.status === 401 ? "not paired" : "didn't answer" })))),
+          h("div", { class: "maclist" }, errs.map((r) => h("div", {}, h("span", { text: name(r.host) }),
+            h("span", { text: r.err.status === 401 ? "not paired" : count > 1 && answeredWhen(r.host.answeredAt) ? "last answered " + answeredWhen(r.host.answeredAt) : "didn't answer" })))),
           unpaired ? null : light("check", "RETRYING")));
       setDeck(softkeys([{ label: "Macs", onclick: () => go("#/hosts") }, { label: "Retry now", onclick: refresh }]));
       return;
@@ -423,26 +464,30 @@
     const hdr = (title, n, tone) => h("div", { class: "hdr" + (n && tone ? " " + tone : "") }, h("span", { text: title }), h("span", { text: String(n) }));
     const rows = (list) => list.map((s) => row(s, multi, io));
     // Plain lines under Open, nothing to tap; with several Macs, each says which.
-    const notes = { agents: [], hooks: [] };
+    const notes = { agents: [], hooks: [], copy: [] };
     const onMac = (r, t) => (multi ? name(r.host) + ": " + t : t);
     for (const r of results) {
       if (r.err) continue;
       const l = unseenLines(r.unseen);
       for (const t of l.agents) notes.agents.push(onMac(r, t));
+      if (!l.agents.length && !r.host.hadSessions) notes.agents.push(onMac(r, FIRST_RUN));
       if (l.hooks) notes.hooks.push(onMac(r, l.hooks));
+      const behind = behindLine(name(r.host), r.copy);
+      if (behind) notes.copy.push(behind);
     }
     fill(view, ...[
       errs.map((r) => h("div", { class: "offline" }, h("div", { class: "hz", "aria-hidden": "true" }),
         h("div", { class: "o1" }, light("off", r.err.status === 401 ? "NOT PAIRED" : "OFFLINE"),
           h("b", { text: name(r.host) + (r.err.status === 401 ? " needs pairing again" : " didn't answer") })),
         h("p", { text: r.err.status === 401 ? "This phone isn't paired with it any more." : r.err.message + " Its sessions are hidden until it answers." }),
+        r.err.status !== 401 && answeredWhen(r.host.answeredAt) ? h("p", { text: "Last answered " + answeredWhen(r.host.answeredAt) + "." }) : null,
         softkeys([{ label: "Retry", onclick: refresh }, { label: "Pair again", onclick: () => go("#/add?mac=" + encodeURIComponent(r.host.base || location.origin)) }]))),
       hdr("Needs you", waiting.length, "need"),
       waiting.length ? rows(waiting) : h("div", { class: "empty", text: "Nothing is waiting on you." }),
       hdr("Open", open.length, "open"),
       open.length ? rows(open) : notes.agents.length ? h("div", { class: "empty" }, notes.agents.map((t) => h("p", { class: "unseen", text: t })))
         : h("div", { class: "empty", text: "No sessions are running." }),
-      [...(open.length ? notes.agents : []), ...notes.hooks].map((t) => h("p", { class: "mac-note", text: t })),
+      [...(open.length ? notes.agents : []), ...notes.hooks, ...notes.copy].map((t) => h("p", { class: "mac-note", text: t })),
       earlier.length ? h("button", { class: "hdr fold", "aria-expanded": String(showEarlier),
           onclick: () => { prefs.showEarlier = !showEarlier; keep(PREFS_KEY, prefs); drawList(results, { io, refresh }); } },
         h("span", {}, icon(showEarlier ? "down" : "next", 12, { sw: 2 }), "Earlier"), h("span", { text: String(earlier.length) })) : null,
@@ -1548,6 +1593,7 @@
       const lightBox = h("span", {}, light("check", "CHECKING"));
       const ring = sweep("grey");
       const detail = h("span");
+      const note = h("p", { class: "m4", hidden: true });
       const actions = h("div", { class: "m3", hidden: true });
       const remove = h("button", { class: "btn plain hazard-edge", text: "Remove", onclick: async () => {
         const ok = await confirmDialog({ title: `Remove ${host.name}?`, body: `This phone forgets ${host.name}. You can pair it again later; nothing changes on the Mac.`, action: "Remove" });
@@ -1561,8 +1607,11 @@
       api(host, "/api/hello")
         .then((d) => {
           ring.remove();
+          answered(host, false);
           fill(lightBox, light("online", "ONLINE"));
           detail.textContent = "as " + (d.device || "this phone");
+          note.textContent = behindLine(host.name, d.copy);
+          note.hidden = !note.textContent;
           if (d.device && !phone.textContent) phone.textContent = "This phone · " + d.device;
         })
         .catch((err) => {
@@ -1570,12 +1619,13 @@
           const unpaired = err.status === 401;
           fill(lightBox, light("off", unpaired ? "NOT PAIRED" : "OFFLINE"));
           detail.textContent = unpaired ? "this phone isn't paired with it now" : err.message;
+          if (!unpaired && answeredWhen(host.answeredAt)) { note.textContent = "Last answered " + answeredWhen(host.answeredAt) + "."; note.hidden = false; }
           if (unpaired) fill(actions, h("button", { class: "btn outline", text: "Pair again", onclick: () => go("#/add?mac=" + encodeURIComponent(host.base || location.origin)) }), remove);
         });
       return h("div", { class: "mac" },
         h("div", { class: "m1" }, icon("mac"), ring, h("b", { text: host.name }), lightBox),
         h("div", { class: "m2" }, h("span", { text: (host.base || location.origin).replace(/^https?:\/\//, "") }), detail),
-        actions);
+        note, actions);
     }));
     draw();
     fill(view, list,
