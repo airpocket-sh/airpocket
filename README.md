@@ -29,7 +29,8 @@ account and no relay.
 
 You need Node 20 or newer, [Tailscale](https://tailscale.com/download/mac)
 signed in with HTTPS certificates turned on for your tailnet, and Claude Code
-or Codex. tmux is optional (for sessions you run in tmux).
+or Codex. tmux (`brew install tmux`) is what lets the phone answer a session
+in any terminal; without it, only sessions in Superset can be answered.
 
 ```sh
 npm install -g airpocket
@@ -52,6 +53,10 @@ missing. Then it:
 - publishes the app and its file-only origin inside your tailnet with
   `tailscale serve` (never `funnel`), on ports nothing else uses: 443 and
   8443 when they are free.
+- asks whether to add two aliases to your shell profile (`~/.zshrc` or
+  `~/.bash_profile`), so `claude` and `codex` start where the phone can
+  answer them (below). `--alias` or `--no-alias` decides without asking.
+  Marked, backed up first, and removed by uninstall.
 - prints a pairing code and its QR.
 
 Codex asks you to review new hooks the next time it starts: choose to trust
@@ -69,7 +74,31 @@ airpocket uninstall   # removes exactly what setup added; asks before deleting p
 (with the real launchd in a trial), Claude Code end to end with real
 sessions, and Codex against recorded session files and a real Codex's hooks
 (installed, trusted, firing). Codex with real model replies driven from the
-phone has not been run end to end yet.
+phone has not been run end to end yet. `airpocket run` with a real Claude in a
+hidden terminal window (keys, paste, resize, scrollback, detach and attach).
+
+## Any terminal
+
+The phone can always *watch* a session, whatever terminal it runs in. To
+*answer* it, Airpocket needs to reach the terminal: a Superset terminal or a
+tmux pane does. For everything else (Terminal, iTerm2, Ghostty, Warp, an editor's
+terminal), start the agent through Airpocket:
+
+```sh
+airpocket run claude          # anything after the name goes to claude
+airpocket run codex resume --last
+airpocket attach              # back to one you closed the window on
+```
+
+`run` starts the agent in a tmux session of Airpocket's own (its own socket in
+Airpocket's data folder, never your tmux server or `~/.tmux.conf`), tuned to
+stay out of sight: no status bar, no prefix key, Esc with no delay,
+Shift+Enter, the mouse wheel for scrollback, copying to the clipboard. Closing
+the window doesn't stop the agent: the phone can still answer it, and
+`airpocket attach` brings it back. Inside tmux or Superset already, `run` just
+starts the agent there. With the aliases from setup, typing `claude` does all
+this for you. A session started the usual way shows on the phone as read-only,
+with a line saying how to change that.
 
 ## Security in one paragraph
 

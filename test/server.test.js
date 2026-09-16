@@ -302,7 +302,7 @@ test("a tmux session: read with capture-pane, typed with send-keys, keys by tmux
   assert.equal(s.via, "terminal");
   assert.equal(list.sessions.find((x) => x.id === CLAUDE).can.bridge, "superset");
   assert.deepEqual(list.sessions.find((x) => x.id === PLAIN).can, { bridge: null, read: false, send: false, keys: false, controls: false,
-    why: "It isn't in a Superset or tmux terminal." });
+    why: "Start it with airpocket run and the phone can answer." });
   assert.ok(!JSON.stringify(list).includes(TMUX_SOCK) && !JSON.stringify(list).includes("%7"), "socket and pane never leave the Mac");
   const n = calls.superset.length;
   const r = await req("GET", "/api/screen?id=" + TMUXS, { headers: auth() });

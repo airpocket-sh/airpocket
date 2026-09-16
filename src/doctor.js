@@ -7,7 +7,9 @@ const path = require("path");
 const cfg = require("./agentconfig");
 const ts = require("./tailscale");
 const li = require("./loginitem");
-const { survey, probe, majorOf, SOCKET_MAX } = require("./setup");
+const sa = require("./shellalias");
+const own = require("./ownterm");
+const { survey, probe, majorOf, SOCKET_MAX, ownSessions } = require("./setup");
 
 const SNAKE = (event) => event.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
 
@@ -117,8 +119,22 @@ async function checks(ctx) {
     }
   }
 
-  // Optional and informational.
-  add("INFO", "tmux", f.tmux ? f.tmux : "not found: sessions in tmux can't be reached (Superset works without it)");
+  // tmux: optional, unless the aliases send every claude and codex through airpocket run.
+  const aliases = install && install.aliases && install.aliases.file ? install.aliases.file : "";
+  const aliased = aliases ? sa.oursIn(sa.readProfile(aliases).text || "") : [];
+  const needed = aliased.length ? "FAIL" : "WARN";
+  const forRun = aliased.length ? `your ${aliased.join(" and ")} alias${aliased.length > 1 ? "es" : ""} and airpocket run need it` : "airpocket run and sessions in tmux need it";
+  if (!f.tmux) add(needed, "tmux", `not installed: ${forRun}`, own.INSTALL_TMUX);
+  else if (!f.tmuxOk) add(needed, "tmux", `${f.tmuxVersion} is older than ${own.MIN_TMUX.join(".")}: ${forRun}`, "brew upgrade tmux");
+  else {
+    const running = ownSessions(ctx).length;
+    add("PASS", "tmux", `${f.tmuxVersion ? f.tmuxVersion + " " : ""}(${f.tmux})${running ? `, ${running} agent${running === 1 ? "" : "s"} started with airpocket run` : ""}`);
+  }
+  if (aliases && aliased.length) add("PASS", "Shell aliases", `${t(aliases)}: ${aliased.join(", ")} start with airpocket run`);
+  else if (aliases) add("WARN", "Shell aliases", `setup added them to ${t(aliases)}, and they're gone`, "Add them again with: airpocket setup --alias");
+  else add("INFO", "Shell aliases", "not added: sessions started the usual way are read-only on the phone outside Superset and tmux", "Add them with: airpocket setup --alias");
+
+  // Informational.
   if (f.appVersion && f.version && f.appVersion !== f.version) add("WARN", "Version", `the service runs airpocket ${f.appVersion}, this command is ${f.version}`, "Run airpocket setup to update the copy the service runs.");
   return list;
 }

@@ -458,7 +458,7 @@ test("a session resumed outside any terminal Airpocket knows is read-only", asyn
     assert.equal(r.bridges.of(e), null);
     assert.equal((await r.bridges.writable(e)).error, "no_route");
     assert.deepEqual(r.bridges.caps(e, true), { bridge: null, read: false, send: false, keys: false, controls: false,
-      why: "It isn't in a Superset or tmux terminal." });
+      why: "Start it with airpocket run and the phone can answer." });
     assert.deepEqual([r.typed.tmux, r.typed.superset], [[], []]);
   } finally { await r.close(); }
 });
