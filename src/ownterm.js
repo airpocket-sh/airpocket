@@ -228,14 +228,24 @@ async function runAgent(ctx, argv) {
   if (bad) { ctx.err(bad); return 1; }
 
   const name = sessionName(agent, ctx.cwd, listSessions(ctx, tmux.bin).map((s) => s.name));
+  sweepScripts(path.dirname(ctx.socket));
   const script = path.join(path.dirname(ctx.socket), `start-${crypto.randomBytes(6).toString("hex")}.sh`);
   fs.writeFileSync(script, startScript(script, ctx.env, agentPath, args), { mode: 0o600, flag: "wx" });
-  try {
-    // -f counts only when this starts the server; -u: this terminal takes UTF-8.
-    return await ctx.spawn(tmux.bin, ["-u", "-S", ctx.socket, "-f", ctx.conf, "new-session", "-s", name, "-c", ctx.cwd, "--", "/bin/sh", script],
-      { env: ctx.env, cwd: ctx.cwd });
-  } finally {
-    try { fs.unlinkSync(script); } catch {}                // gone already once the agent started
+  // -f counts only when this starts the server; -u: this terminal takes UTF-8.
+  const code = await ctx.spawn(tmux.bin, ["-u", "-S", ctx.socket, "-f", ctx.conf, "new-session", "-s", name, "-c", ctx.cwd, "--", "/bin/sh", script],
+    { env: ctx.env, cwd: ctx.cwd });
+  if (code !== 0) try { fs.unlinkSync(script); } catch {}  // the session never started; otherwise the script deleted itself
+  return code;
+}
+
+/** Start scripts a session never ran (its window closed at once), after a minute. */
+function sweepScripts(dir) {
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch { return; }
+  for (const n of names) {
+    if (!/^start-[0-9a-f]{12}\.sh$/.test(n)) continue;
+    const p = path.join(dir, n);
+    try { if (Date.now() - fs.lstatSync(p).mtimeMs > 60000) fs.unlinkSync(p); } catch {}
   }
 }
 

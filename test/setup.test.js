@@ -27,7 +27,8 @@ const ROOT = path.join(__dirname, "..");
 const TS = "/Applications/Tailscale.app/Contents/MacOS/Tailscale";
 const DNS = "mac.tail1234.ts.net";
 const REAL_HOME = os.userInfo().homedir;
-const REAL_FILES = [path.join(REAL_HOME, ".claude", "settings.json"), path.join(REAL_HOME, ".codex", "hooks.json")];
+const REAL_FILES = [path.join(REAL_HOME, ".claude", "settings.json"), path.join(REAL_HOME, ".codex", "hooks.json"),
+  path.join(REAL_HOME, ".zshrc"), path.join(REAL_HOME, ".bash_profile")];
 const mtimes = () => REAL_FILES.map((f) => { try { return fs.statSync(f).mtimeMs; } catch { return null; } });
 const REAL_BEFORE = mtimes();
 
@@ -596,6 +597,124 @@ test("uninstall warns when removing ours moves the user's own Codex hooks", asyn
   assert.deepEqual(json(w.ctx.paths.codex), { hooks: { Stop: [{ hooks: [{ type: "command", command: "added later" }] }] } });
 });
 
-test("the real ~/.claude/settings.json and ~/.codex/hooks.json were not touched by these tests", () => {
+test("shell aliases: --alias adds them to ~/.zshrc, twice adds nothing, doctor checks them and tmux, uninstall gives the file back byte for byte", async () => {
+  // A profile whose last line has no newline, with a codex function of the user's own.
+  const zshrc = 'export PATH="$HOME/bin:$PATH"\ncodex() { command codex --yolo "$@"; }\n# end';
+  const w = await world({ env: { SHELL: "/bin/zsh" } });
+  const P = w.ctx.paths;
+  const file = path.join(w.home, ".zshrc");
+  fs.writeFileSync(file, zshrc, { mode: 0o640 });
+
+  const dry = snapshot(w.home);
+  assert.equal(await setup.runSetup(w.ctx, ["--dry-run", "--alias"]), 0);
+  const plan = w.output();
+  assert.match(plan, /7\. Shell aliases\n {7}~\/\.zshrc: adds at the end:\n {9}alias claude='.*run claude' # airpocket-alias\n {7}backup first/);
+  assert.match(plan, /~\/\.zshrc already defines codex \(codex\(\) \{ command codex --yolo "\$@"; \}\), so setup leaves it/);
+  assert.match(plan, /they need tmux: brew install tmux/);
+  assert.deepEqual(snapshot(w.home), dry, "the dry run changed nothing");
+
+  const out = await setup.runSetup(w.ctx, ["--alias"]).then((code) => { const o = w.output(); assert.equal(code, 0, o); return o; });
+  assert.match(out, /7\. Shell aliases: done \(backup ~\/\.zshrc\.airpocket-backup-\d{8}-\d{6}; claude in ~\/\.zshrc; open a new terminal window to use it\)/);
+  const text = fs.readFileSync(file, "utf8");
+  // airpocket isn't on this PATH, so the alias runs the copy setup made.
+  assert.equal(text, zshrc + `\nalias claude='"${w.ctx.node}" "${path.join(P.appDir, "src", "cli.js")}" run claude' # airpocket-alias\n`);
+  assert.equal(fs.statSync(file).mode & 0o777, 0o640, "its mode kept");
+  assert.deepEqual(json(P.install).aliases, { file, createdFile: false, newlineAdded: true });
+  const backups = () => fs.readdirSync(w.home).filter((n) => n.startsWith(".zshrc.airpocket-backup-"));
+  assert.equal(fs.readFileSync(path.join(w.home, backups()[0]), "utf8"), zshrc);
+  // The alias, as zsh reads it, runs the copy's cli.js.
+  const z = spawnSync("/bin/zsh", ["-f", "-c", `source ${JSON.stringify(file)} 2>/dev/null; alias claude`], { encoding: "utf8", env: { HOME: w.home, PATH: "/usr/bin:/bin" } });
+  assert.equal(z.stdout.trim(), `claude='"${w.ctx.node}" "${path.join(P.appDir, "src", "cli.js")}" run claude'`);
+
+  // Again: nothing added, no new backup, the record unchanged.
+  const again = await setup.runSetup(w.ctx, ["--alias"]).then((code) => { const o = w.output(); assert.equal(code, 0, o); return o; });
+  assert.match(again, /~\/\.zshrc: has them already \(claude\)/);
+  assert.equal(fs.readFileSync(file, "utf8"), text);
+  assert.equal(backups().length, 1);
+  assert.deepEqual(json(P.install).aliases, { file, createdFile: false, newlineAdded: true });
+
+  // Doctor: the alias is there, and tmux isn't, which the alias needs: a failure, with the fix.
+  assert.equal(await doctor.runDoctor(w.ctx), 1);
+  const report = w.output();
+  assert.match(report, /^FAIL  tmux +not installed: your claude alias and airpocket run need it\n +brew install tmux$/m);
+  assert.match(report, /^PASS  Shell aliases +~\/\.zshrc: claude start with airpocket run$/m);
+
+  // Uninstall: the file is byte for byte what it was, and a backup of it is listed.
+  assert.equal(await setup.runUninstall(w.ctx, ["--keep-data"]), 0);
+  const gone = w.output();
+  assert.match(gone, /Shell aliases\n {7}~\/\.zshrc: remove Airpocket's claude alias, nothing else/);
+  assert.match(gone, /removed: Shell aliases \(backup ~\/\.zshrc\.airpocket-backup-/);
+  assert.match(gone, / {4}~\/\.zshrc\.airpocket-backup-/);
+  assert.equal(fs.readFileSync(file, "utf8"), zshrc);
+  assert.equal(fs.statSync(file).mode & 0o777, 0o640);
+});
+
+test("shell aliases: asked on a terminal, a note without one, --no-alias quiet; bash's file created and removed whole", async () => {
+  const w = await world({ env: { SHELL: "/bin/bash" } });
+  const file = path.join(w.home, ".bash_profile");
+
+  // No terminal, no flag: nothing added, and a note says how.
+  await setupOk(w);
+  assert.equal(fs.existsSync(file), false);
+  // (setupOk consumed the output; the note is in the plan)
+  assert.match((await setup.runSetup(w.ctx, ["--dry-run"]), w.output()), /add shell aliases: airpocket setup --alias/);
+  assert.doesNotMatch((await setup.runSetup(w.ctx, ["--dry-run", "--no-alias"]), w.output()), /alias/i);
+  assert.equal(await setup.runSetup(w.ctx, ["--alias", "--no-alias"]), 2);
+  w.output();
+
+  // On a terminal it asks; no leaves everything as it was.
+  w.ctx.tty = true;
+  const asked = [];
+  w.ctx.ask = async (q) => { asked.push(q); return false; };
+  await setupOk(w);
+  assert.equal(asked.length, 1);
+  assert.match(asked[0], /Add these to ~\/\.bash_profile, so typing claude or codex starts it where your phone can answer\?\n {2}alias claude=.*\n {2}alias codex=/);
+  assert.equal(fs.existsSync(file), false);
+
+  // Yes: the file is created with both.
+  w.ctx.ask = async () => true;
+  const out = await setupOk(w);
+  assert.match(out, /Shell aliases: done \(claude and codex in ~\/\.bash_profile/);
+  assert.equal(fs.readFileSync(file, "utf8").split("\n").filter((l) => l.endsWith("# airpocket-alias")).length, 2);
+  assert.deepEqual(json(w.ctx.paths.install).aliases, { file, createdFile: true, newlineAdded: false });
+  const bash = spawnSync("/bin/bash", ["-c", `shopt -s expand_aliases; source ${JSON.stringify(file)}; alias codex`], { encoding: "utf8", env: { HOME: w.home, PATH: "/usr/bin:/bin" } });
+  assert.match(bash.stdout, /^alias codex='".*" ".*\/app\/src\/cli\.js" run codex'$/m);
+
+  // Uninstall: setup made the file and it holds only ours, so it goes.
+  w.ctx.tty = false;
+  assert.equal(await setup.runUninstall(w.ctx, ["--remove-data"]), 0);
+  assert.match(w.output(), /~\/\.bash_profile: remove Airpocket's claude and codex aliases; the file only held those, so it goes/);
+  assert.equal(fs.existsSync(file), false);
+});
+
+test("shell aliases: a shell other than zsh and bash gets a note, and airpocket on PATH is used by name", async () => {
+  let w = await world({ env: { SHELL: "/opt/homebrew/bin/fish" } });
+  assert.equal(await setup.runSetup(w.ctx, ["--dry-run", "--alias"]), 0);
+  assert.match(w.output(), /Your shell is fish, so setup adds no aliases\. To have the phone answer, start agents with: airpocket run claude/);
+
+  const bin = tempDir("airpocket-bin-");
+  fs.writeFileSync(path.join(bin, "airpocket"), "#!/bin/sh\n", { mode: 0o755 });
+  w = await world({ env: { SHELL: "/bin/zsh", PATH: `${bin}:${process.env.PATH}` } });
+  assert.equal(await setup.runSetup(w.ctx, ["--dry-run", "--alias"]), 0);
+  const out = w.output();
+  assert.match(out, /^ {9}alias claude='airpocket run claude' # airpocket-alias$/m);
+  assert.match(out, /^ {9}alias codex='airpocket run codex' # airpocket-alias$/m);
+});
+
+test("doctor's tmux line: installed and new enough, too old, missing", async () => {
+  const w = await world();
+  const bin = tempDir("airpocket-tmux-");
+  const tmuxAt = (version) => { const p = path.join(bin, `tmux-${version}`); fs.writeFileSync(p, `#!/bin/sh\necho 'tmux ${version}'\n`, { mode: 0o755 }); return p; };
+  const line = async (bins) => { w.ctx.tmuxBins = bins; return (await doctor.checks(w.ctx)).find((c) => c.name === "tmux"); };
+  const ok = await line([tmuxAt("3.6a")]);
+  assert.equal(ok.level, "PASS");
+  assert.equal(ok.detail, `3.6a (${path.join(bin, "tmux-3.6a")})`);
+  const old = await line([tmuxAt("3.1c")]);
+  assert.deepEqual([old.level, old.detail, old.fix], ["WARN", "3.1c is older than 3.2: airpocket run and sessions in tmux need it", "brew upgrade tmux"]);
+  const none = await line(["/nonexistent/tmux"]);
+  assert.deepEqual([none.level, none.detail, none.fix], ["WARN", "not installed: airpocket run and sessions in tmux need it", "brew install tmux"]);
+});
+
+test("the real ~/.claude/settings.json, ~/.codex/hooks.json, ~/.zshrc and ~/.bash_profile were not touched by these tests", () => {
   assert.deepEqual(mtimes(), REAL_BEFORE);
 });
