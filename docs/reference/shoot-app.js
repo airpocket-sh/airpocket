@@ -19,7 +19,7 @@ const http = require("http");
 const { launch, sleep } = require("./cdp");
 const { createServer } = require("../../src/server");
 const { createStore } = require("../../src/store");
-const { startTimeOf } = require("../../src/proc");
+const { startTimeOf, processInfo } = require("../../src/proc");
 
 const OUT = path.resolve(process.argv[2] || path.join(os.tmpdir(), "airpocket-shots"));
 const ONLY = process.argv[3] || "";
@@ -109,14 +109,18 @@ const screens = { "t-perm": SCREENS.perm, "t-work": SCREENS.working, "t-cx": SCR
 function mac(name, sessions, queue, { superset = true, delay = 0 } = {}) {
   const h1 = homes(name.replace(/\W/g, ""));
   const store = createStore(path.join(T, name.replace(/\W/g, "") + "-store"));
+  const sent = [];
   const app = createServer({ store, log: () => {}, hostLabel: name, homeDir: HOME, claudeDir: h1.claudeDir, codexHome: h1.codexHome, claudeProjects: h1.projects,
     knownSessions: () => sessions, getQueue: () => queue, dequeue: () => 0, hasSuperset: () => superset, typeGap: () => 0,
     fileBase: async () => "http://127.0.0.1:47999",
+    // This process stands in for every agent, in the foreground of a stand-in terminal.
+    inspectAgent: (pid) => { const i = processInfo(pid); return i && { ...i, tty: "ttys990", pgid: 9, tpgid: 9 }; },
     superset: async (args) => {
       if (args[0] === "projects") return J([{ id: "11111111-aaaa-4aaa-8aaa-111111111111", name: "shop-web" }, { id: "11111111-aaaa-4aaa-8aaa-222222222222", name: "billing" }]);
       if (args[0] === "workspaces") return J([{ id: "22222222-bbbb-4bbb-8bbb-222222222222", projectId: "11111111-aaaa-4aaa-8aaa-111111111111", name: "main", branch: "main", type: "main" }]);
       if (args[0] === "agents") return J([{ presetId: "claude", label: "Claude" }, { presetId: "codex", label: "Codex" }, { presetId: "gemini", label: "Gemini" }]);
       if (args[1] === "read") return J({ text: screens[args[args.indexOf("--terminal") + 1]] || "" });
+      if (args[1] === "send") sent.push(args[args.indexOf("--text") + 1]);
       return "{}";                                              // typing and keys go nowhere
     } });
   if (delay) {
@@ -124,7 +128,7 @@ function mac(name, sessions, queue, { superset = true, delay = 0 } = {}) {
     app.server.removeAllListeners("request");
     app.server.on("request", (req, res) => { if (req.url.startsWith("/api/sessions")) setTimeout(() => inner(req, res), delay); else inner(req, res); });
   }
-  return { name, h: h1, store, app, sessions, queue };
+  return { name, h: h1, store, app, sessions, queue, sent };
 }
 
 const S = mac("Studio", [], []);
@@ -273,6 +277,18 @@ const CHECKS = `(() => {
     { name: "4b-session-question", origin: S, hosts: () => [host(S, "", "h1"), host(A, A.base, "h2")], hash: `#/s/h1/${ID.perm}`, wait: 3200 },
     { name: "4c-session-terminal-typed", origin: S, hosts: () => [host(S, "", "h1"), host(A, A.base, "h2")], prefs: { view: "terminal", wrap: true }, hash: `#/s/h1/${ID.work}`, wait: 3200,
       before: () => { screens["t-work"] = SCREENS.typed; }, after: () => { screens["t-work"] = SCREENS.working; } },
+    { name: "4e-send-shell-confirm", origin: S, hosts: () => [host(S, "", "h1")], hash: `#/s/h1/${ID.work}`, wait: 3000, steps: async () => {
+      // Keep sends nothing; Run it sends the text as typed; then the dialog again, for the shot.
+      const check = (ok, what) => { if (!ok) { console.log("  CHECK " + what); failures++; } };
+      S.sent.length = 0;
+      await typeInto("textarea.input", "!git push --force"); await click("button.send"); await sleep(400);
+      await click(".dialog button", "Keep"); await sleep(300);
+      check(S.sent.length === 0 && (await js(`document.querySelector("textarea.input").value`)) === "!git push --force", "Keep sent nothing and kept the text");
+      await click("button.send"); await sleep(400); await click(".dialog button", "Run it"); await sleep(800);
+      check(S.sent.length === 1 && S.sent[0] === "!git push --force", "Run it sent the command once: " + J(S.sent));
+      await typeInto("textarea.input", "git push --force"); await click("button.send"); await sleep(600);
+      check(S.sent.length === 2 && !(await js(`!!document.querySelector(".dialog")`)), "a message without \"!\" is sent with no dialog");
+      await typeInto("textarea.input", "!git push --force"); await click("button.send"); await sleep(400); } },
     { name: "4d-session-read-only", origin: A, hosts: () => [host(A, "", "h2", "MacBook Air"), host(S, S.base, "h1")], hash: `#/s/h2/${ID.ended}`, wait: 3200 },
     { name: "5a-controls-claude", origin: S, hosts: () => [host(S, "", "h1")], hash: `#/s/h1/${ID.work}`, wait: 3000, steps: async () => {
       await click(".sk", "Controls"); await sleep(500); await click(".opt", "Sonnet 5"); await sleep(400); } },

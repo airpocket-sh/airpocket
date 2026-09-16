@@ -11,7 +11,10 @@
 // small endpoint on 127.0.0.1 (never published to the tailnet). Each call must
 // carry the secret in hook.json, a private file that only this Mac's user can
 // read; the secret is new every time the service starts, and hook.json is
-// written only once the endpoint is listening.
+// written only once the endpoint is listening. It goes again when the service
+// stops, and one left by a crash goes when the next service starts: a hook that
+// finds no hook.json sends nothing, so nothing reaches whatever holds the port
+// while Airpocket is down.
 //
 // One service per data folder: airpocket.lock holds the running one's pid and
 // the time it started. A second one refuses to start and writes nothing; a lock
@@ -248,6 +251,8 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
   let locked = true, lost = false;
   privateDir(dir);
   privateDir(sessionsDir);
+  // A hook.json still here is from a service that crashed: its port may be anyone's by now.
+  try { fs.unlinkSync(hookFile); } catch {}
 
   const records = new Map();          // session id -> record
   let queue = [];
@@ -312,6 +317,7 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     records.clear();
     queue = [];
     if (hookServer.listening) hookServer.close();
+    dropHookFile();
     try { onLost(); } catch (err) { log("service: onLost failed:", err && err.message); }
     return false;
   }
@@ -441,6 +447,8 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     return !!m && crypto.timingSafeEqual(got, secretHash);
   };
   const writeHookFile = (port) => writeAtomic(hookFile, JSON.stringify({ port, secret }, null, 2) + "\n");
+  /** hook.json goes when this service stops, if it is still this service's (another may have taken the folder). */
+  const dropHookFile = () => { try { if (JSON.parse(fs.readFileSync(hookFile, "utf8")).secret === secret) fs.unlinkSync(hookFile); } catch {} };
 
   const hookServer = http.createServer((req, res) => {
     const done = (status, close) => {
@@ -496,10 +504,11 @@ function createService({ dir, log = () => {}, now = Date.now, alive = processAli
     return hookServer;
   }
 
-  /** Let go of the data folder: the lock goes, if it is still this process's. */
+  /** Let go of the data folder: hook.json and the lock go, if they are still this process's. */
   function release() {
     if (!locked) return;
     locked = false;
+    dropHookFile();
     // Only a lock that still names this process; one that was replaced is someone else's.
     try { if (fs.readFileSync(lockFile, "utf8") === identity) fs.unlinkSync(lockFile); } catch {}
   }
