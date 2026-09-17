@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>Answer Claude Code and Codex from any terminal · Airpocket</title>
-<meta name="description" content="Your phone can watch a Claude Code or Codex session in any Mac terminal. To answer one, it has to run in tmux, in Superset, or through airpocket run. Which terminals work, and what run and attach do.">
+<meta name="description" content="Airpocket works in the Mac terminal you already use: Terminal.app, iTerm2, Ghostty, Warp, VS Code or Cursor. Start the agent with airpocket run claude, or let setup alias claude to it. What run and attach do.">
 <link rel="canonical" href="https://airpocket.sh/any-terminal">
 <meta name="theme-color" content="#0A0D08">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -18,14 +18,14 @@
 <meta property="og:site_name" content="Airpocket">
 <meta property="og:url" content="https://airpocket.sh/any-terminal">
 <meta property="og:title" content="Answering your agents from any terminal">
-<meta property="og:description" content="Your phone can watch a Claude Code or Codex session in any Mac terminal. To answer one, it has to run in tmux, in Superset, or through airpocket run. Which terminals work, and what run and attach do.">
+<meta property="og:description" content="Airpocket works in the Mac terminal you already use: Terminal.app, iTerm2, Ghostty, Warp, VS Code or Cursor. Start the agent with airpocket run claude, or let setup alias claude to it. What run and attach do.">
 <meta property="og:image" content="https://airpocket.sh/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="AIRPOCKET, with the dart beside it, over a dark map: Your agents fly the missions. This is the cockpit.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Answering your agents from any terminal">
-<meta name="twitter:description" content="Your phone can watch a Claude Code or Codex session in any Mac terminal. To answer one, it has to run in tmux, in Superset, or through airpocket run. Which terminals work, and what run and attach do.">
+<meta name="twitter:description" content="Airpocket works in the Mac terminal you already use: Terminal.app, iTerm2, Ghostty, Warp, VS Code or Cursor. Start the agent with airpocket run claude, or let setup alias claude to it. What run and attach do.">
 <meta name="twitter:image" content="https://airpocket.sh/og.png">
 <meta name="twitter:image:alt" content="AIRPOCKET, with the dart beside it, over a dark map: Your agents fly the missions. This is the cockpit.">
 </head>
@@ -55,42 +55,52 @@
 <div class="guide-hero">
   <div class="eyebrow"><b>G4</b><i></i>GUIDE · TERMINALS</div>
   <h1>Answering your agents from any terminal</h1>
-  <p class="lead">Airpocket's phone app can watch a Claude Code or Codex session wherever it runs. Answering it is another matter: something has to press keys in the terminal the session is in, and most terminal apps give no other program a way to do that. This page says which ones can be answered, and how <code>airpocket run</code> covers the rest.</p>
+  <p class="lead">Airpocket works in the terminal you already use. The one change is how you start the agent: <code>airpocket run claude</code> where you typed <code>claude</code>, and setup can alias even that away. Sessions in tmux or Superset need no change at all. This page says what <code>run</code> does and why it is there.</p>
 </div>
 
 <div class="guide-body">
 <article class="prose">
 
-<section id="watch-answer">
-  <div class="sec-head"><div class="sec-num">01</div><div class="sec-title"><div class="eyebrow">WATCH AND ANSWER</div><h2>Watching works anywhere; answering needs a way in</h2></div></div>
+<section id="start">
+  <div class="sec-head"><div class="sec-num">01</div><div class="sec-title"><div class="eyebrow">THE COMMAND</div><h2>Start the agent with <code>airpocket run</code></h2></div></div>
+  <pre class="cmd"><span class="c"># anything after the name goes to the agent</span>
+<span class="ps">$ </span>airpocket run claude
+<span class="ps">$ </span>airpocket run codex resume --last</pre>
+  <p>That is the whole change, in any terminal app. You see Claude Code or Codex as you always do, and the phone can answer it from wherever you are.</p>
+  <p>Or keep typing <code>claude</code>. <code>airpocket setup</code> offers to add two lines to your shell profile, <code>~/.zshrc</code> for zsh or <code>~/.bash_profile</code> for bash:</p>
+  <pre class="cmd">alias claude='airpocket run claude' <span class="c"># airpocket-alias</span>
+alias codex='airpocket run codex' <span class="c"># airpocket-alias</span></pre>
+  <p>With them, you type exactly what you typed before. Setup asks first, or takes <code>--alias</code> or <code>--no-alias</code>; it backs the file up, skips an alias you have already defined yourself, and <code>airpocket uninstall</code> removes the lines it added.</p>
+</section>
+
+<section id="by-terminal">
+  <div class="sec-head"><div class="sec-num">02</div><div class="sec-title"><div class="eyebrow">BY TERMINAL</div><h2>Terminal by terminal</h2></div></div>
+  <dl class="rows">
+    <div><dt>Terminal.app</dt><dd class="chip ok">WITH RUN</dd><dd>Start the agent with <code>airpocket run</code>, or with <code>claude</code> once setup's alias is in.</dd></div>
+    <div><dt>iTerm2</dt><dd class="chip ok">WITH RUN</dd><dd>The same.</dd></div>
+    <div><dt>Ghostty</dt><dd class="chip ok">WITH RUN</dd><dd>The same.</dd></div>
+    <div><dt>Warp</dt><dd class="chip ok">WITH RUN</dd><dd>The same.</dd></div>
+    <div><dt>VS Code, Cursor and other editors' terminals</dt><dd class="chip ok">WITH RUN</dd><dd>The same.</dd></div>
+    <div><dt>tmux, in any terminal app</dt><dd class="chip ok">AS IT IS</dd><dd>Nothing changes. The phone answers the pane directly, whichever window tmux runs in.</dd></div>
+    <div><dt>Superset</dt><dd class="chip ok">AS IT IS</dd><dd>Nothing changes. The phone answers through Superset's own command line, and on a Mac with Superset it can also start new sessions.</dd></div>
+  </dl>
+  <p>A session started the plain way, outside all of these, still shows on the phone, read-only, with one line saying how to bring it in: "Read-only here. Start it with airpocket run and the phone can answer."</p>
+</section>
+
+<section id="why">
+  <div class="sec-head"><div class="sec-num">03</div><div class="sec-title"><div class="eyebrow">WHY RUN</div><h2>Watching needs files; answering needs a way in</h2></div></div>
   <p>Watching needs only files and hooks. The phone's view of a session comes from the transcript Claude Code or Codex writes on the Mac, and from the hooks that say what has happened. The terminal it runs in makes no difference.</p>
-  <p>Answering means typing into the session's own terminal, so Airpocket needs a way to send keys there. Two kinds of terminal have one:</p>
+  <p>Answering means typing into the session's own terminal, and most terminal apps give no other program a way to do that. Two kinds of terminal have one:</p>
   <ul>
     <li><strong>A tmux pane.</strong> tmux takes keys for any of its panes from the command line. When the agent's hook runs inside tmux, it records the pane, and Airpocket types there, after checking that the agent still runs in it.</li>
     <li><strong>A Superset terminal.</strong> Superset's command line reads and types into its own terminals, and a session there records which one it is in.</li>
   </ul>
-  <p>A session anywhere else shows on the phone as read-only, with the line "Read-only here. Start it with airpocket run and the phone can answer."</p>
-</section>
-
-<section id="by-terminal">
-  <div class="sec-head"><div class="sec-num">02</div><div class="sec-title"><div class="eyebrow">BY TERMINAL</div><h2>Which terminals the phone can answer</h2></div></div>
-  <dl class="rows">
-    <div><dt>tmux, in any terminal app</dt><dd class="chip ok">ANSWERS</dd><dd>The phone answers the pane directly, whichever window tmux runs in.</dd></div>
-    <div><dt>Superset</dt><dd class="chip ok">ANSWERS</dd><dd>Through Superset's own command line. On a Mac with Superset, the phone can also start new sessions.</dd></div>
-    <div><dt>Terminal.app</dt><dd class="chip">WITH RUN</dd><dd>Watch only, unless the agent was started with <code>airpocket run</code>.</dd></div>
-    <div><dt>iTerm2</dt><dd class="chip">WITH RUN</dd><dd>Watch only, unless started with <code>airpocket run</code>.</dd></div>
-    <div><dt>Ghostty</dt><dd class="chip">WITH RUN</dd><dd>Watch only, unless started with <code>airpocket run</code>.</dd></div>
-    <div><dt>Warp</dt><dd class="chip">WITH RUN</dd><dd>Watch only, unless started with <code>airpocket run</code>.</dd></div>
-    <div><dt>VS Code, Cursor and other editors' terminals</dt><dd class="chip">WITH RUN</dd><dd>Watch only, unless started with <code>airpocket run</code>.</dd></div>
-  </dl>
+  <p><code>airpocket run</code> gives every other terminal the first of these: it puts the agent in a tmux pane of Airpocket's own, inside the window you are already in.</p>
 </section>
 
 <section id="run">
-  <div class="sec-head"><div class="sec-num">03</div><div class="sec-title"><div class="eyebrow">AIRPOCKET RUN</div><h2>What <code>airpocket run</code> does</h2></div></div>
-  <pre class="cmd"><span class="c"># anything after the name goes to the agent</span>
-<span class="ps">$ </span>airpocket run claude
-<span class="ps">$ </span>airpocket run codex resume --last</pre>
-  <p><code>run</code> starts the agent in a tmux session and attaches your window to it. You see Claude or Codex as you always do, and the tmux around it is set up to stay out of sight:</p>
+  <div class="sec-head"><div class="sec-num">04</div><div class="sec-title"><div class="eyebrow">AIRPOCKET RUN</div><h2>What <code>airpocket run</code> does</h2></div></div>
+  <p><code>run</code> starts the agent in a tmux session and attaches your window to it. The tmux around it is set up to stay out of sight:</p>
   <ul>
     <li>its own tmux server, on a socket in Airpocket's data folder, with its own settings. It never touches your tmux server or <code>~/.tmux.conf</code>;</li>
     <li>no status bar and no prefix key, so Ctrl+B stays Claude's;</li>
@@ -99,26 +109,18 @@
   </ul>
   <p>The tmux session is named after the agent and the folder, such as <code>claude-myproject</code>, with a number added when that name is taken.</p>
   <p>Where tmux would gain nothing, <code>run</code> starts the agent directly instead: inside tmux or Superset already, where the phone can reach it anyway; when there is no terminal; and for commands that print something and exit, such as <code>claude -p</code>, <code>codex exec</code> or <code>--version</code>.</p>
-  <p>It needs tmux 3.2 or newer. Without it, <code>run</code> says so and stops:</p>
+  <p>It needs tmux 3.2 or newer. Setup checks for it and says so if it is missing, and so does <code>run</code>. It is one command:</p>
   <pre class="cmd"><span class="ps">$ </span>brew install tmux</pre>
 </section>
 
 <section id="attach">
-  <div class="sec-head"><div class="sec-num">04</div><div class="sec-title"><div class="eyebrow">AIRPOCKET ATTACH</div><h2>Closing the window doesn't stop the agent</h2></div></div>
+  <div class="sec-head"><div class="sec-num">05</div><div class="sec-title"><div class="eyebrow">AIRPOCKET ATTACH</div><h2>Closing the window doesn't stop the agent</h2></div></div>
   <p>The window is only a view. Close it and the agent keeps running in its tmux session, where the phone can still answer it. To bring it back into a terminal:</p>
   <pre class="cmd"><span class="c"># the one to pick, or a numbered list</span>
 <span class="ps">$ </span>airpocket attach
 <span class="c"># or by name</span>
 <span class="ps">$ </span>airpocket attach claude-myproject</pre>
   <p>With no name, <code>attach</code> takes the only running session, or the only one with no window open, and otherwise lists them by number to choose from. A session whose agent has exited isn't offered. Inside tmux, <code>attach</code> refuses and says which command to run in a new window instead.</p>
-</section>
-
-<section id="aliases">
-  <div class="sec-head"><div class="sec-num">05</div><div class="sec-title"><div class="eyebrow">ALIASES</div><h2>Or keep typing <code>claude</code></h2></div></div>
-  <p><code>airpocket setup</code> offers to add two lines to your shell profile, <code>~/.zshrc</code> for zsh or <code>~/.bash_profile</code> for bash:</p>
-  <pre class="cmd">alias claude='airpocket run claude' <span class="c"># airpocket-alias</span>
-alias codex='airpocket run codex' <span class="c"># airpocket-alias</span></pre>
-  <p>With them, typing <code>claude</code> or <code>codex</code> in any terminal starts the agent where the phone can answer it, and nothing about how you work changes. Setup asks first, or takes <code>--alias</code> or <code>--no-alias</code>; it backs the file up, skips an alias you have already defined yourself, and <code>airpocket uninstall</code> removes the lines it added.</p>
 </section>
 
 <section id="limits">
@@ -135,11 +137,11 @@ alias codex='airpocket run codex' <span class="c"># airpocket-alias</span></pre>
 
 <nav class="toc glass" aria-label="On this page">
   <div class="eyebrow">ON THIS PAGE</div>
-  <a href="#watch-answer"><span>01</span>Watching and answering</a>
+  <a href="#start"><span>01</span>The command, and the aliases</a>
   <a href="#by-terminal"><span>02</span>Terminal by terminal</a>
-  <a href="#run"><span>03</span>What airpocket run does</a>
-  <a href="#attach"><span>04</span>airpocket attach</a>
-  <a href="#aliases"><span>05</span>The aliases</a>
+  <a href="#why"><span>03</span>Why run is there</a>
+  <a href="#run"><span>04</span>What airpocket run does</a>
+  <a href="#attach"><span>05</span>airpocket attach</a>
   <a href="#limits"><span>06</span>What to know about it</a>
 </nav>
 </div>
