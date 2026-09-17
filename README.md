@@ -24,8 +24,9 @@ open the files they made, from anywhere.
 
 Nothing sits in between: your phone talks to your Macs over your own
 [Tailscale](https://tailscale.com) network. There is no Airpocket server, no
-account and no relay. What it needs: a Mac with Node 20 or newer and Claude
-Code or Codex, and Tailscale on the Mac and on the phone.
+account and no relay. It works in the terminal you already use. What it needs:
+a Mac with Node 20 or newer and Claude Code or Codex, and Tailscale on the Mac
+and on the phone.
 
 <p align="center"><img src="docs/images/phones.png" width="100%" alt="Three phones running Airpocket. First, the session list: three sessions need you (one asking permission to use Bash, one asking which Stripe API version to target, one finished) above two open ones. Second, a session asking &quot;Do you want to proceed?&quot; with three numbered answers and a reply box. Third, a TypeScript file the agent wrote, open with line numbers."></p>
 
@@ -54,6 +55,38 @@ Code or Codex, and Tailscale on the Mac and on the phone.
   <img src="site/shots/mfd3-controls-model-effort.png" width="280" alt="The Controls sheet for a Claude Code session: Opus 5 active and Sonnet 5 picked to apply next, effort set to high, permission mode buttons, and session commands including Compact, Resume and Clear.">
 </p>
 
+## Any terminal
+
+It works in the terminal you already use: Terminal, iTerm2, Ghostty, Warp, a VS
+Code or Cursor pane. The one change is how you start the agent:
+
+```sh
+airpocket run claude          # instead of claude; anything after the name goes to it
+airpocket run codex resume --last
+airpocket attach              # back to one you closed the window on
+```
+
+Setup offers to alias `claude` and `codex` to that, and then you type exactly
+what you typed before. Sessions in Superset or tmux need no change: the phone
+answers them as they are.
+
+<p align="center">
+  <img src="site/shots/mfd2-question-answered.png" width="280" alt="A Claude Code session on the phone, asking before it runs a shell command: &quot;Do you want to proceed?&quot; with the numbered answers Yes; Yes, and don't ask again for npm test commands; and No, and tell Claude what to do differently. A reply box sits underneath.">
+</p>
+
+Why `run` is there: the phone can watch a session from its transcript and hooks
+alone, but to answer one Airpocket has to type into its terminal, and a tmux
+pane or a Superset terminal is what lets it. `run` starts the agent in a tmux
+session of Airpocket's own (its own socket in Airpocket's data folder, never
+your tmux server or `~/.tmux.conf`), tuned to stay out of sight: no status bar,
+no prefix key, Esc with no delay, Shift+Enter, the mouse wheel for scrollback,
+copying to the clipboard. Closing the window doesn't stop the agent: the phone
+can still answer it, and `airpocket attach` brings it back. Inside tmux or
+Superset already, `run` starts the agent there directly.
+
+A session started the plain way, outside all of that, still shows on the phone,
+read-only, with a line saying how to bring it in.
+
 ## Install (macOS)
 
 **Airpocket runs on each Mac whose sessions you want to see.** Install it and
@@ -64,9 +97,8 @@ per Mac and asks each one itself.
 You need, on each Mac: macOS, Node 20 or newer,
 [Tailscale](https://tailscale.com/download/mac) signed in with **MagicDNS and
 HTTPS certificates turned on for your tailnet**, and Claude Code or Codex. On
-the phone: Tailscale, signed in to the same tailnet. tmux (`brew install tmux`) is
-what `airpocket run` needs, and what lets the phone answer a session in any
-terminal; without it, only sessions in Superset can be answered.
+the phone: Tailscale, signed in to the same tailnet. Setup also checks for tmux,
+which `airpocket run` uses (above); if it's missing, `brew install tmux`.
 
 ### Which tailnet you land in
 
@@ -120,7 +152,7 @@ missing. Then it:
   8443 when they are free.
 - asks whether to add two aliases to your shell profile (`~/.zshrc` or
   `~/.bash_profile`), so `claude` and `codex` start where the phone can
-  answer them (below). `--alias` or `--no-alias` decides without asking.
+  answer them (above). `--alias` or `--no-alias` decides without asking.
   Marked, backed up first, and removed by uninstall.
 - prints a pairing code and its QR.
 
@@ -190,33 +222,6 @@ one folder in `~/.claude/settings.json`:
 ```json
 { "permissions": { "allow": ["Read(//Users/you/Library/Application Support/Airpocket/uploads/**)"] } }
 ```
-
-## Any terminal
-
-<p align="center">
-  <img src="site/shots/mfd2-question-answered.png" width="280" alt="A Claude Code session on the phone, asking before it runs a shell command: &quot;Do you want to proceed?&quot; with the numbered answers Yes; Yes, and don't ask again for npm test commands; and No, and tell Claude what to do differently. A reply box sits underneath.">
-</p>
-
-The phone can always *watch* a session, whatever terminal it runs in. To
-*answer* it, Airpocket needs to reach the terminal: a Superset terminal or a
-tmux pane does. For everything else (Terminal, iTerm2, Ghostty, Warp, an editor's
-terminal), start the agent through Airpocket:
-
-```sh
-airpocket run claude          # anything after the name goes to claude
-airpocket run codex resume --last
-airpocket attach              # back to one you closed the window on
-```
-
-`run` starts the agent in a tmux session of Airpocket's own (its own socket in
-Airpocket's data folder, never your tmux server or `~/.tmux.conf`), tuned to
-stay out of sight: no status bar, no prefix key, Esc with no delay,
-Shift+Enter, the mouse wheel for scrollback, copying to the clipboard. Closing
-the window doesn't stop the agent: the phone can still answer it, and
-`airpocket attach` brings it back. Inside tmux or Superset already, `run` just
-starts the agent there. With the aliases from setup, typing `claude` does all
-this for you. A session started the usual way shows on the phone as read-only,
-with a line saying how to change that.
 
 ## Security in one paragraph
 

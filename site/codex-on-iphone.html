@@ -98,12 +98,12 @@
 </section>
 
 <section id="where">
-  <div class="sec-head"><div class="sec-num">04</div><div class="sec-title"><div class="eyebrow">WHERE IT RUNS</div><h2>Where a session has to run to be answered</h2></div></div>
-  <p>The same as for Claude Code. The phone can watch a Codex anywhere, and answer one in a tmux pane or a Superset terminal. In any other terminal, start it through Airpocket:</p>
+  <div class="sec-head"><div class="sec-num">04</div><div class="sec-title"><div class="eyebrow">WHERE IT RUNS</div><h2>In the terminal you already use</h2></div></div>
+  <p>The same as for Claude Code. Any terminal works; start Codex through Airpocket and the phone can answer it:</p>
   <pre class="cmd"><span class="ps">$ </span>airpocket run codex
 <span class="c"># anything after the name goes to codex</span>
 <span class="ps">$ </span>airpocket run codex resume --last</pre>
-  <p><a href="/any-terminal">Answering from any terminal</a> explains what <code>run</code> does, and the aliases setup can add so that typing <code>codex</code> does it for you.</p>
+  <p>Setup can alias <code>codex</code> to that, so you type what you typed before, and a Codex in tmux or Superset needs no change. <a href="/any-terminal">Answering from any terminal</a> explains what <code>run</code> does, and what the phone shows for a Codex started the plain way.</p>
 </section>
 
 <section id="limits">
@@ -128,7 +128,7 @@
   <a href="#phone"><span>01</span>What you can do</a>
   <a href="#launch"><span>02</span>Hooks read at launch</a>
   <a href="#trust"><span>03</span>Trusting the hooks</a>
-  <a href="#where"><span>04</span>Where it has to run</a>
+  <a href="#where"><span>04</span>Where it runs</a>
   <a href="#limits"><span>05</span>Limits and what's untested</a>
 </nav>
 </div>
@@ -138,7 +138,7 @@
   <div class="related-grid">
     <a class="card glass" href="/install-tailscale"><div class="eyebrow">G1 · TAILSCALE</div><b>MagicDNS, HTTPS certificates, and which tailnet you are in</b><span>The two settings Airpocket needs, and why a work email gets in the way.</span></a>
     <a class="card glass" href="/claude-code-on-iphone"><div class="eyebrow">G2 · CLAUDE CODE</div><b>Claude Code on your iPhone</b><span>What the hooks do, why a session appears at its next prompt, and what the phone can and can't do.</span></a>
-    <a class="card glass" href="/any-terminal"><div class="eyebrow">G4 · TERMINALS</div><b>Answering from any terminal</b><span>Which terminals the phone can answer, and what airpocket run and attach do.</span></a>
+    <a class="card glass" href="/any-terminal"><div class="eyebrow">G4 · TERMINALS</div><b>Answering from any terminal</b><span>The terminal you already use, with airpocket run in front; what run and attach do.</span></a>
   </div>
   <div class="links"><a class="btn" href="/">The launch page</a><a class="btn-line" href="https://github.com/oncelozguleso/airpocket">The source on GitHub</a></div>
 </section>
