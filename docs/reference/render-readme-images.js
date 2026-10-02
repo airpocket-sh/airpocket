@@ -24,6 +24,8 @@ const PICTURES = [
   // GitHub's own size for the picture a shared repository link shows. Uploaded by hand in
   // Settings, under Social preview: GitHub has no API for it.
   { source: "social.html", out: "social-preview.png", width: 1280, height: 640, scale: 1 },
+  // The square picture a profile wants: Workspace, X, a GitHub organisation, Gravatar.
+  { source: "avatar.html", out: "avatar.png", width: 1024, height: 1024, scale: 1 },
 ];
 
 (async () => {

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="robots" content="noindex">
+<meta charset="utf-8">
+<title>Airpocket avatar</title>
+<!-- The source of avatar.png, the square picture for a profile: Google Workspace, X,
+     a GitHub organisation, Gravatar. Every one of those crops to a circle somewhere,
+     so everything that carries the identity sits inside it: the rings are the
+     radar's, the dart is the one from the header. The corner brackets fall outside
+     the circle on purpose — they show in the square crops (a GitHub organisation)
+     and are cropped away in the round ones (X, Google), and nothing is lost either
+     way. Rendered by docs/reference/render-readme-images.js. -->
+<style>
+html,body{margin:0;background:#0A0D08}
+#a{position:relative;width:1024px;height:1024px;overflow:hidden;background:#0A0D08}
+#map{position:absolute;inset:0;background:url("../../site/map.svg") 50% 46%/1500px auto no-repeat;opacity:.55}
+#grid{position:absolute;inset:0;opacity:.5;background-image:linear-gradient(rgba(231,233,222,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(231,233,222,.035) 1px,transparent 1px);background-size:64px 64px}
+/* the radar's rings, inside the circle any platform will crop to */
+.ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%}
+#r1{width:816px;height:816px;border:1px solid rgba(98,110,87,.75)}
+#r2{width:640px;height:640px;border:1px dashed rgba(143,209,79,.28)}
+/* the tick scale around the outer ring, the way the app draws one */
+#ticks{position:absolute;left:50%;top:50%;width:816px;height:816px;transform:translate(-50%,-50%);border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,#626E57 0deg .45deg,transparent .45deg 7.5deg);
+  -webkit-mask:radial-gradient(circle,transparent 48.2%,#000 48.3%,#000 50%,transparent 50.1%);
+  mask:radial-gradient(circle,transparent 48.2%,#000 48.3%,#000 50%,transparent 50.1%)}
+.br{position:absolute;width:56px;height:56px}
+.br.tl{left:84px;top:84px;border-left:2px solid rgba(215,196,158,.55);border-top:2px solid rgba(215,196,158,.55)}
+.br.tr{right:84px;top:84px;border-right:2px solid rgba(215,196,158,.55);border-top:2px solid rgba(215,196,158,.55)}
+.br.bl{left:84px;bottom:84px;border-left:2px solid rgba(215,196,158,.55);border-bottom:2px solid rgba(215,196,158,.55)}
+.br.br{right:84px;bottom:84px;border-right:2px solid rgba(215,196,158,.55);border-bottom:2px solid rgba(215,196,158,.55)}
+#dart{position:absolute;left:50%;top:50%;width:520px;height:520px;transform:translate(-50%,-50%);overflow:visible;
+  filter:drop-shadow(0 0 18px rgba(215,196,158,.55))}
+</style>
+</head>
+<body>
+<div id="a">
+  <div id="map"></div>
+  <div id="grid"></div>
+  <div id="ticks"></div>
+  <div class="ring" id="r1"></div>
+  <div class="ring" id="r2"></div>
+  <i class="br tl"></i><i class="br tr"></i><i class="br bl"></i><i class="br br"></i>
+  <svg id="dart" viewBox="0 0 24 24" fill="none" stroke="#D7C49E" stroke-width=".9" stroke-linejoin="round"><path d="M5.5 18.5l13-6.5-13-6.5v4.2l7 2.3-7 2.3z"/></svg>
+</div>
+</body>
+</html>
