@@ -12,6 +12,10 @@ Report it privately through GitHub: on this repository, open the **Security**
 tab and choose **Report a vulnerability**. Only the maintainers can see the
 report and the conversation that follows.
 
+If that route isn't open to you — GitHub only offers it on a public
+repository, and not everyone wants a GitHub account to report a bug — email
+**info@airpocket.sh** instead. It reaches the same people.
+
 A good report says:
 
 - what the problem is, and what someone could do with it;
