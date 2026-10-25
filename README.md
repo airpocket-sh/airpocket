@@ -6,12 +6,12 @@
   <a href="#security-in-one-paragraph">Security</a> ·
   <a href="https://airpocket.sh/#faq">FAQ</a> ·
   <a href="https://airpocket.sh">airpocket.sh</a> ·
-  <a href="https://github.com/oncelozguleso/airpocket/releases">Releases</a>
+  <a href="https://github.com/airpocket-sh/airpocket/releases">Releases</a>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-D7C49E?style=flat-square&labelColor=1B2118" alt="License: MIT"></a>
-  <a href="https://github.com/oncelozguleso/airpocket/actions/workflows/test.yml"><img src="https://github.com/oncelozguleso/airpocket/actions/workflows/test.yml/badge.svg?branch=main" alt="Tests on main"></a>
+  <a href="https://github.com/airpocket-sh/airpocket/actions/workflows/test.yml"><img src="https://github.com/airpocket-sh/airpocket/actions/workflows/test.yml/badge.svg?branch=main" alt="Tests on main"></a>
   <img src="https://img.shields.io/badge/platform-macOS-D7C49E?style=flat-square&labelColor=1B2118" alt="Platform: macOS">
   <img src="https://img.shields.io/badge/node-20%2B-D7C49E?style=flat-square&labelColor=1B2118" alt="Node 20 or newer">
   <img src="https://img.shields.io/badge/dependencies-none-8FD14F?style=flat-square&labelColor=1B2118" alt="Dependencies: none">
@@ -124,7 +124,7 @@ pairing code of its own, and hands out its own token.
 Airpocket isn't on npm yet. Until it is, install it from a clone:
 
 ```sh
-git clone https://github.com/oncelozguleso/airpocket.git
+git clone https://github.com/airpocket-sh/airpocket.git
 cd airpocket
 npm install -g .            # puts the airpocket command on your PATH; no dependencies
 airpocket setup --dry-run   # every change it would make; changes nothing

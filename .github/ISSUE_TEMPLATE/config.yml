@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: A security problem
-    url: https://github.com/oncelozguleso/airpocket/blob/main/SECURITY.md
+    url: https://github.com/airpocket-sh/airpocket/blob/main/SECURITY.md
     about: Please don't open a public issue. SECURITY.md says how to report it privately.
   - name: A question about installing or using Airpocket
-    url: https://github.com/oncelozguleso/airpocket/blob/main/README.md
+    url: https://github.com/airpocket-sh/airpocket/blob/main/README.md
     about: The README covers setup, doctor, tailnets, terminals and what the phone can do.
