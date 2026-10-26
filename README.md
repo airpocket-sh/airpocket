@@ -30,8 +30,9 @@ and on the phone.
 
 <p align="center"><img src="docs/images/phones.png" width="100%" alt="Three phones running Airpocket. First, the session list: three sessions need you (one asking permission to use Bash, one asking which Stripe API version to target, one finished) above two open ones. Second, a session asking &quot;Do you want to proceed?&quot; with three numbered answers and a reply box. Third, a TypeScript file the agent wrote, open with line numbers."></p>
 
-> **Status: private, work in progress.** Not on npm yet: to try it, install
-> from a clone (below). See [docs/PLAN.md](docs/PLAN.md), and
+> **Status: 0.1.0, young.** It does what this page says and it is tested, but
+> it has run on few Macs other than its author's. See
+> [docs/PLAN.md](docs/PLAN.md) for how it was built, and
 > [CONTRIBUTING.md](CONTRIBUTING.md) to send a change.
 
 ## What it will do
@@ -119,20 +120,30 @@ it serves stays inside your tailnet.
 Sharing a tailnet doesn't share sessions: every Mac still asks the phone for a
 pairing code of its own, and hands out its own token.
 
-### Try it from a clone
-
-Airpocket isn't on npm yet. Until it is, install it from a clone:
+### Install it
 
 ```sh
-git clone https://github.com/airpocket-sh/airpocket.git
-cd airpocket
-npm install -g .            # puts the airpocket command on your PATH; no dependencies
+npm install -g airpocket
 airpocket setup --dry-run   # every change it would make; changes nothing
 airpocket setup
 ```
 
-`npm install -g .` links the command to your clone. Setup copies Airpocket
-into its data folder and runs that copy (see
+No dependencies: the tarball is Airpocket and the fonts the phone app uses,
+and nothing else.
+
+### Or from a clone
+
+To read the code as you run it, or to send a change:
+
+```sh
+git clone https://github.com/airpocket-sh/airpocket.git
+cd airpocket
+npm install -g .            # the airpocket command, from your clone
+airpocket setup
+```
+
+Either way, setup copies Airpocket into its data folder and runs that copy, so
+the service keeps working if you move or delete the clone (see
 [Keeping it up to date](#keeping-it-up-to-date)).
 
 Setup checks first and stops with a plain explanation if something is
