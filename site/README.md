@@ -58,36 +58,13 @@ to `sitemap.xml`, to the header and footer lists of every page (`aria-current`
 on its own), to the related guides of the others, and to the table above. It
 carries the noindex line until launch like the rest.
 
-## Launch day: letting search engines in
+## Search engines
 
-Until the repository is public, search engines are kept out twice over, because
-every page links to a repository that would 404. When it goes public (step 16),
-in one commit and one deploy:
+`robots.txt` allows everything and no page carries a `noindex` line; both were
+closed until the repository went public on 2026-10-26, because every page links
+to it. `og.html` keeps its own noindex: it is the source of the share card, not
+a page. `grep -l 'content="noindex"' site/*.html` should list only it.
 
-1. `robots.txt`: change `Disallow: /` to `Allow: /`.
-2. Delete the `<meta name="robots" content="noindex">` line (the first line of
-   the `<head>`) from each of these five pages:
-   - `index.html`
-   - `install-tailscale.html`
-   - `claude-code-on-iphone.html`
-   - `codex-on-iphone.html`
-   - `any-terminal.html`
-
-   `og.html` keeps its own noindex: it is the source of the share card, not a
-   page. `grep -l 'content="noindex"' site/*.html` should then list only it.
-
-Do both together. With the noindex lines gone but `robots.txt` still closed, a
-crawler can't read the pages; with `robots.txt` open but the lines still there,
-it reads them and drops them. `sitemap.xml` and the canonical links need no
-change: they already name the final addresses.
-
-The share cards don't depend on any of this: chat apps and social sites read a
-page's tags whether or not search engines may index it.
-
-The launch page also carries one `application/ld+json` block describing the
-software (name, one-line description, macOS, the licence, the repository). It
-states nothing that isn't true today: no ratings, no price, no author. The
-guides have none.
 
 ## The share card and the icon
 

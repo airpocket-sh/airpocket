@@ -1,19 +1,41 @@
 {
   "name": "airpocket",
   "version": "0.1.0",
-  "private": true,
   "description": "Your Claude Code and Codex sessions, from every Mac, on your phone.",
-  "keywords": ["claude-code", "codex", "tailscale", "iphone", "terminal", "agents", "macos"],
+  "keywords": [
+    "claude-code",
+    "codex",
+    "tailscale",
+    "iphone",
+    "terminal",
+    "agents",
+    "macos"
+  ],
   "homepage": "https://airpocket.sh",
-  "bugs": { "url": "https://github.com/airpocket-sh/airpocket/issues" },
-  "repository": { "type": "git", "url": "git+https://github.com/airpocket-sh/airpocket.git" },
+  "bugs": {
+    "url": "https://github.com/airpocket-sh/airpocket/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/airpocket-sh/airpocket.git"
+  },
   "license": "MIT",
   "author": "Oncel Ozgul",
   "main": "src/server.js",
-  "bin": { "airpocket": "src/cli.js" },
-  "files": ["src/", "SECURITY.md", "CHANGELOG.md"],
-  "os": ["darwin"],
-  "engines": { "node": ">=20" },
+  "bin": {
+    "airpocket": "src/cli.js"
+  },
+  "files": [
+    "src/",
+    "SECURITY.md",
+    "CHANGELOG.md"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",

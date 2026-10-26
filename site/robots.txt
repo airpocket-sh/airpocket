@@ -1,10 +1,7 @@
 # airpocket.sh
 #
-# Closed to crawlers while the repository is private: every page links to it,
-# and those links would 404. On launch day, when the repository is public,
-# change "Disallow: /" to "Allow: /", in the same deploy that removes the
-# noindex line from each page. site/README.md has the whole list.
+# The repository is public and every link resolves, so crawlers are welcome.
 User-agent: *
-Disallow: /
+Allow: /
 
 Sitemap: https://airpocket.sh/sitemap.xml
