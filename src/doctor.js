@@ -9,7 +9,9 @@ const ts = require("./tailscale");
 const li = require("./loginitem");
 const sa = require("./shellalias");
 const own = require("./ownterm");
-const { survey, probe, majorOf, SOCKET_MAX, ownSessions } = require("./setup");
+const { survey, probe, majorOf, SOCKET_MAX, ownSessions, sessionRecords } = require("./setup");
+const { supersetInstalled } = require("./bridges");
+const { stillRunning } = require("./proc");
 
 async function checks(ctx) {
   const f = await survey(ctx);
@@ -129,6 +131,18 @@ async function checks(ctx) {
     const running = ownSessions(ctx).length;
     add("PASS", "tmux", `${f.tmuxVersion ? f.tmuxVersion + " " : ""}(${f.tmux})${running ? `, ${running} agent${running === 1 ? "" : "s"} started with airpocket run` : ""}`);
   }
+  // Superset: its CLI is the only way to reach a Superset terminal. Without it,
+  // sessions recorded in one are read-only on the phone, which is worth saying
+  // before someone finds out by typing.
+  const inSuperset = sessionRecords(ctx).filter((r) => r && r.workspace && r.terminal && stillRunning(r.pid, r.started)).length;
+  const sup = supersetInstalled(ctx.home);
+  const agents = (n) => `${n} session${n === 1 ? "" : "s"}`;
+  if (sup && inSuperset) add("PASS", "Superset", `installed, ${agents(inSuperset)} in a Superset terminal`);
+  else if (sup) add("PASS", "Superset", "installed");
+  else if (inSuperset) add("WARN", "Superset", `not installed, and ${agents(inSuperset)} run in a Superset terminal: read-only on the phone`,
+    "Those terminals can only be typed into through Superset's own command. Start the agent with airpocket run instead, or install Superset.");
+  else add("INFO", "Superset", "not installed: new sessions can't be started from the phone, and nothing here needs it");
+
   if (aliases && aliased.length) add("PASS", "Shell aliases", `${t(aliases)}: ${aliased.join(", ")} start with airpocket run`);
   else if (aliases) add("WARN", "Shell aliases", `setup added them to ${t(aliases)}, and they're gone`, "Add them again with: airpocket setup --alias");
   else add("INFO", "Shell aliases", "not added: sessions started the usual way are read-only on the phone outside Superset and tmux", "Add them with: airpocket setup --alias");

@@ -44,7 +44,9 @@ const { execFile } = require("child_process");
 const { processInfo, pidOf } = require("./proc");
 
 const ESC = String.fromCharCode(27);
-const SUPERSET = path.join(os.homedir(), ".superset", "bin", "superset");
+/** Superset's own command, under a home folder: the only way into a Superset terminal. */
+const supersetBin = (home = os.homedir()) => path.join(home, ".superset", "bin", "superset");
+const SUPERSET = supersetBin();
 // Homebrew on Apple silicon, Homebrew on Intel, MacPorts.
 const TMUX_BINS = Object.freeze(["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/opt/local/bin/tmux"]);
 // tmux takes one command of 16 KB at most (MAX_IMSGSIZE), so text goes in pieces well under that.
@@ -99,7 +101,7 @@ function runFile(file, args, timeout = 15000, env) {
 function runSuperset(args, o = {}) { return runFile(SUPERSET, args, o.timeout || 15000); }
 
 const executable = (p) => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } };
-const supersetInstalled = () => executable(SUPERSET);
+const supersetInstalled = (home) => executable(home ? supersetBin(home) : SUPERSET);
 
 // The tmux program: the first of the two usual places that holds one. Looked
 // for again at most once a minute, so installing tmux needs no restart.
@@ -265,4 +267,4 @@ function createBridges(o = {}) {
   return { of, caps, writable };
 }
 
-module.exports = { createBridges, KEYS, tmuxSocket, tmuxLiteral, tmuxPieces, runFile, runSuperset, runTmux, findTmux, supersetInstalled, TMUX_BINS };
+module.exports = { createBridges, KEYS, supersetBin, tmuxSocket, tmuxLiteral, tmuxPieces, runFile, runSuperset, runTmux, findTmux, supersetInstalled, TMUX_BINS };
