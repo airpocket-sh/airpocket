@@ -44,7 +44,9 @@ const { execFile } = require("child_process");
 const { processInfo, pidOf } = require("./proc");
 
 const ESC = String.fromCharCode(27);
-const SUPERSET = path.join(os.homedir(), ".superset", "bin", "superset");
+/** Superset's own command, under a home folder: the only way into a Superset terminal. */
+const supersetBin = (home = os.homedir()) => path.join(home, ".superset", "bin", "superset");
+const SUPERSET = supersetBin();
 // Homebrew on Apple silicon, Homebrew on Intel, MacPorts.
 const TMUX_BINS = Object.freeze(["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/opt/local/bin/tmux"]);
 // tmux takes one command of 16 KB at most (MAX_IMSGSIZE), so text goes in pieces well under that.
@@ -60,6 +62,12 @@ const NOT_IN_PANE = Object.freeze({ error: "not_in_pane",
   message: "Its agent isn't running in that tmux pane (it was only started from there), so Airpocket won't type into the pane." });
 const NOT_IN_TERMINAL = Object.freeze({ error: "not_in_terminal",
   message: "Its agent isn't running in a terminal (it was only started from one), so Airpocket won't type into it." });
+const NO_SUPERSET = Object.freeze({ error: "no_superset",
+  message: "That terminal belongs to Superset, which isn't on this Mac, so the session is read-only here.",
+  why: "Superset isn't on this Mac, so its terminal can't be reached." });
+const NO_ROUTE = Object.freeze({ error: "no_route",
+  message: "This session isn't in a terminal Airpocket can type into, so it's read-only here. Start it with airpocket run and the phone can answer.",
+  why: "Start it with airpocket run and the phone can answer." });
 const NOT_FOREGROUND = Object.freeze({ error: "not_foreground",
   message: "Something else holds its terminal right now (the agent is stopped, in the background, or behind another program), so Airpocket won't type into it." });
 
@@ -93,7 +101,7 @@ function runFile(file, args, timeout = 15000, env) {
 function runSuperset(args, o = {}) { return runFile(SUPERSET, args, o.timeout || 15000); }
 
 const executable = (p) => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } };
-const supersetInstalled = () => executable(SUPERSET);
+const supersetInstalled = (home) => executable(home ? supersetBin(home) : SUPERSET);
 
 // The tmux program: the first of the two usual places that holds one. Looked
 // for again at most once a minute, so installing tmux needs no restart.
@@ -147,6 +155,9 @@ function createBridges(o = {}) {
   const superset = o.superset || runSuperset;
   const tmux = o.tmux || runTmux;
   const hasTmux = o.hasTmux || (() => !!findTmux());
+  // Superset's CLI is what reaches a Superset terminal: without it a recorded
+  // workspace and terminal id name a terminal nothing here can type into.
+  const hasSuperset = o.hasSuperset || (o.superset ? () => true : supersetInstalled);
   const uid = o.uid ?? process.getuid();
   const inspect = o.inspect || processInfo;
   // A burst of text and an Enter right behind it reads as a paste with a line
@@ -207,6 +218,11 @@ function createBridges(o = {}) {
   /** Refused unless the agent's process group holds its terminal; else `then`. */
   const foreground = (agent, then) => (agent.pgid > 0 && agent.pgid === agent.tpgid ? then : NOT_FOREGROUND);
 
+  /** A record that names a Superset terminal, whether or not Superset is still here. */
+  const namesSuperset = (e) => !!e && TERMINAL_ID.test(String(e.workspace || "")) && TERMINAL_ID.test(String(e.terminal || ""));
+  /** Why there is no bridge: Superset gone, or never started where we could type. */
+  const noRoute = (e) => (namesSuperset(e) ? NO_SUPERSET : NO_ROUTE);
+
   /** The bridge to a session's terminal, from its record; null when it has none (read-only). */
   function of(e) {
     if (!e) return null;
@@ -214,7 +230,7 @@ function createBridges(o = {}) {
       const sock = tmuxSocket(e.tmux, uid);
       if (sock) return tmuxBridge(sock, e.pane, e.tmux_pid);
     }
-    if (TERMINAL_ID.test(String(e.workspace || "")) && TERMINAL_ID.test(String(e.terminal || ""))) return supersetBridge(e.workspace, e.terminal);
+    if (namesSuperset(e) && hasSuperset()) return supersetBridge(e.workspace, e.terminal);
     return null;
   }
 
@@ -227,7 +243,7 @@ function createBridges(o = {}) {
     const b = of(e);
     const known = !!(e && e.pid && e.started);
     const can = !!b && known && !!live;
-    const why = !b ? "Start it with airpocket run and the phone can answer." : !known ? "Airpocket doesn't know which process runs it."
+    const why = !b ? noRoute(e).why : !known ? "Airpocket doesn't know which process runs it."
       : !live ? "Its agent has exited." : "";
     return { bridge: b ? b.name : null, read: !!b, send: can, keys: can, controls: can, why };
   }
@@ -239,7 +255,7 @@ function createBridges(o = {}) {
    */
   async function writable(e) {
     const b = of(e);
-    if (!b) return { error: "no_route", message: "This session isn't in a terminal Airpocket can type into, so it's read-only here. Start it with airpocket run and the phone can answer." };
+    if (!b) { const r = noRoute(e); return { error: r.error, message: r.message }; }
     const started = e && Number.isSafeInteger(e.started) && e.started > 0 ? e.started : 0;
     const agent = pidOf(e.pid) && started ? inspect(e.pid) : null;
     if (!agent || agent.started !== started) return { error: "ended", message: "Its agent has exited, so Airpocket won't type into that terminal." };
@@ -251,4 +267,4 @@ function createBridges(o = {}) {
   return { of, caps, writable };
 }
 
-module.exports = { createBridges, KEYS, tmuxSocket, tmuxLiteral, tmuxPieces, runFile, runSuperset, runTmux, findTmux, supersetInstalled, TMUX_BINS };
+module.exports = { createBridges, KEYS, supersetBin, tmuxSocket, tmuxLiteral, tmuxPieces, runFile, runSuperset, runTmux, findTmux, supersetInstalled, TMUX_BINS };

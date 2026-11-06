@@ -916,6 +916,7 @@ function createServer(opts = {}) {
     superset: deps.superset,
     tmux: opts.tmux || runTmux,
     hasTmux: opts.hasTmux || (opts.tmux ? () => true : () => !!findTmux()),
+    hasSuperset: deps.hasSuperset,
     uid: opts.uid,
     inspect: opts.inspectAgent,
     gap: opts.typeGap,
@@ -1184,6 +1185,24 @@ function createServer(opts = {}) {
     return null;
   }
 
+  /**
+   * A write to a terminal that passed writable() a moment ago. What the terminal's
+   * own program reports becomes an answer that names it, instead of an unhandled
+   * failure the phone can only call "something went wrong on the Mac". The typed
+   * text never reaches the message: runFile keeps it out (see bridges.js).
+   * True when the keys landed.
+   */
+  async function typedOr502(bridge, res, cors, write) {
+    try { await write(); return true; } catch (err) {
+      const why = String((err && err.message) || "").trim().slice(0, 200);
+      const where = bridge.name === "tmux" ? "tmux pane" : "Superset terminal";
+      deps.log(`write failed (${bridge.name})${why ? ": " + why : ""}`);
+      json(res, 502, { error: "write_failed",
+        message: `Couldn't type into its ${where}.${why ? " " + why + "." : ""} It may have closed; airpocket doctor on the Mac says more.` }, cors);
+      return false;
+    }
+  }
+
   async function pair(res, body, cors) {
     const r = deps.store.useCode(body.code);
     if (r === "ok") {
@@ -1279,7 +1298,7 @@ function createServer(opts = {}) {
     const submit = body.submit !== false;
     const bridge = await writableOr409(e, res, cors);
     if (!bridge) return res.statusCode;
-    await bridge.type(full, submit);
+    if (!(await typedOr502(bridge, res, cors, () => bridge.type(full, submit)))) return res.statusCode;
     return json(res, 200, { ok: true, via: "terminal", submitted: submit, photos: shots.length }, cors);
   }
 
@@ -1314,7 +1333,7 @@ function createServer(opts = {}) {
     if (!key) return json(res, 400, { error: "bad_key" }, cors);
     const bridge = await writableOr409(e, res, cors);
     if (!bridge) return res.statusCode;
-    await bridge.press(key);
+    if (!(await typedOr502(bridge, res, cors, () => bridge.press(key)))) return res.statusCode;
     return json(res, 200, { ok: true }, cors);
   }
 
@@ -1495,9 +1514,12 @@ function createServer(opts = {}) {
     if (live.menu) return json(res, 409, { error: "menu_open", message: "Answer the question on screen first." }, cors);
     if (live.staged) return json(res, 409, { error: "typed_text", message: "There's unsent text in its box. Send or clear it first." }, cors);
     if (live.state === "working") return json(res, 409, { error: "busy", message: "It's working. Wait for it to finish, or press Esc first." }, cors);
-    await bridge.type(text, false);
-    await wait(300);                        // let the slash-command list catch up before Enter
-    await bridge.type("", true);
+    const typed = await typedOr502(bridge, res, cors, async () => {
+      await bridge.type(text, false);
+      await wait(300);                      // let the slash-command list catch up before Enter
+      await bridge.type("", true);
+    });
+    if (!typed) return res.statusCode;
     return json(res, 200, { ok: true, sent: text }, cors);
   }
 

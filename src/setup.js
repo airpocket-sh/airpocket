@@ -633,16 +633,22 @@ const UNSEEN = {
 };
 const unseenLine = (kind, n) => (n === 1 ? UNSEEN[kind][0] : `${n} ${UNSEEN[kind][1]}`);
 
-/**
- * Why the phone may not show every agent yet, right after setup: agents running
- * in a terminal that no session record names, and Codex hooks not trusted yet.
- */
-function unseenLines(ctx) {
+/** The service's session records, as they are on disk. Reads nothing else. */
+function sessionRecords(ctx) {
   const records = [];
   const dir = path.join(ctx.paths.dataDir, "sessions");
   let names = [];
   try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")); } catch {}
   for (const name of names.slice(0, 5000)) { const r = readJson(path.join(dir, name)); if (r && typeof r === "object") records.push(r); }
+  return records;
+}
+
+/**
+ * Why the phone may not show every agent yet, right after setup: agents running
+ * in a terminal that no session record names, and Codex hooks not trusted yet.
+ */
+function unseenLines(ctx) {
+  const records = sessionRecords(ctx);
   const scan = ctx.processes() || {};
   const n = byAgent(unrecordedAgents(Array.isArray(scan.agents) ? scan.agents : [], records));
   const lines = ["claude", "codex"].filter((kind) => n[kind]).map((kind) => unseenLine(kind, n[kind]));
@@ -828,4 +834,4 @@ function listBackups(ctx) {
 }
 
 module.exports = { context, stableNode, survey, planSetup, runSetup, unseenLines, unseenLine, UNSEEN, planUninstall, runUninstall, pairingLines, readLock, readInstall,
-  probe, listening, versionOf, majorOf, SOCKET_MAX, copyApp, tail, unsafeDataDir, ownSessions };
+  probe, listening, versionOf, majorOf, SOCKET_MAX, copyApp, tail, unsafeDataDir, ownSessions, sessionRecords};
