@@ -4,6 +4,35 @@ Every change people using Airpocket would notice, newest first. The form is
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.1 - 2026-11-06
+
+A fix for typing from the phone. Reported from a real install: the
+conversation kept updating on the phone, and a reply answered "Something went
+wrong on the Mac."
+
+### Fixed
+
+- **A terminal that fails as the keys land now says which terminal, and what
+  its own program said**, instead of the one message nobody can act on. Reading
+  a session and typing into it are different paths: the conversation comes from
+  hook events and session files and never touches a terminal, so a failure was
+  always in the last step, and that step had nothing around it. Sending a
+  message, pressing a key and running a session command are all guarded now,
+  and point at `airpocket doctor`.
+- **A session in a Superset terminal is read-only up front when Superset isn't
+  installed**, rather than looking writable and failing at the keystroke.
+  Airpocket was choosing that route from the ids on record without asking
+  whether Superset was still there. The list now says why in a few words, and
+  says the thing that helps rather than suggesting `airpocket run`, which
+  wouldn't.
+
+### Added
+
+- **`airpocket doctor` says when sessions in Superset terminals are
+  read-only**, counting only the ones that would really lose their route: an
+  agent started with `airpocket run` inside a Superset terminal is reached
+  through its tmux pane and is left alone.
+
 ## 0.1.0 - 2026-09-17
 
 The first version. Airpocket runs on each Mac where you use Claude Code or
