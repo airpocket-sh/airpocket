@@ -353,6 +353,24 @@ test("a bridge comes from the record: Superset ids, or a tmux pane on a usable s
   assert.equal(b.of({ pane: "%x", ...at, workspace: "ws-1", terminal: "term-1" }).name, "superset", "a bad pane falls back to Superset");
   const none = createBridges({ tmux: async () => "", hasTmux: () => false });
   assert.equal(none.of({ pane: "%3", ...at }), null, "tmux not installed");
+  const noSuperset = createBridges({ superset: async () => "", hasSuperset: () => false, tmux: async () => "", hasTmux: () => true });
+  assert.equal(noSuperset.of({ workspace: "ws-1", terminal: "term-1" }), null, "Superset not installed: its ids address nothing");
+  assert.equal(noSuperset.of({ pane: "%3", ...at, workspace: "ws-1", terminal: "term-1" }).name, "tmux", "the pane still works");
+});
+
+test("a Superset terminal with no Superset is read-only, and says that, not 'start it with airpocket run'", async () => {
+  const b = createBridges({ superset: async () => "", hasSuperset: () => false, hasTmux: () => false, inspect: IN_TERM });
+  const rec = { workspace: "ws-1", terminal: "term-1", ...ME };
+  assert.deepEqual(b.caps(rec, true), { bridge: null, read: false, send: false, keys: false, controls: false,
+    why: "Superset isn't on this Mac, so its terminal can't be reached." });
+  const w = await b.writable(rec);
+  assert.equal(w.error, "no_superset");
+  assert.match(w.message, /Superset/);
+  assert.doesNotMatch(w.message, /airpocket run/, "airpocket run would not help here");
+  // A session that never had a terminal still gets the advice that does help.
+  const plain = createBridges({ hasSuperset: () => false, hasTmux: () => false, inspect: IN_TERM });
+  assert.match((await plain.writable({ ...ME })).message, /airpocket run/);
+  assert.equal((await plain.writable({ ...ME })).error, "no_route");
 });
 
 test("tmux sockets: absolute, a socket itself, and this user's", async () => {

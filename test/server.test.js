@@ -111,6 +111,9 @@ SESS.push({ session_id: TMUX_OLD, bridge_id: "local:" + TMUX_OLD, title: "Old tm
 SESS.push({ session_id: GONE, bridge_id: "local:" + GONE, title: "Ended", agent: "claude", pid: process.pid, started: ME - 60, last_seen: now - 11, terminal: "term-9", workspace: "ws-9" });
 const TMUX_SCREEN = "tmux output   \n❯ ";
 let supersetHere = true;
+// When set, the stand-in terminal fails the way a real one does: the write throws
+// after writable() has already said yes.
+let supersetFails = "", tmuxFails = "";
 
 // Files: a project under a stand-in home, and a session that wrote, read and mentioned things there.
 const HOME = path.join(dir, "home"), ROOT = path.join(HOME, "proj");
@@ -157,6 +160,7 @@ const app = createServer({
     if (args[0] === "projects" && args[1] === "list") return J([{ id: PROJ, name: "Shop", path: "/Users/x/SECRET-PATH", repo: "https://x/SECRET-REPO" }, { id: "not-a-uuid", name: "bad" }]);
     if (args[0] === "workspaces" && args[1] === "list") return J([{ id: WS, projectId: PROJ, name: "main", branch: "main", type: "main", hostId: "SECRET-HOST" }]);
     if (args[0] === "agents" && args[1] === "list") return J([{ presetId: "claude", label: "Claude", command: "claude", args: ["--SECRET-FLAG"] }, { presetId: "codex", label: "Codex" }, { presetId: "Bad Id", label: "x" }]);
+    if (supersetFails && args[1] === "send") throw new Error(supersetFails);
     const term = args[args.indexOf("--terminal") + 1];
     if (args[1] === "read") return JSON.stringify({ terminalId: term, cols: 80, rows: 24, text: term === "term-2" ? LIVE_SCREEN : term === "term-3" ? CODEX_SCREEN : term === "term-4" ? STAGED_SCREEN : "hello   \n" + "─".repeat(40) + "\n❯ " });
     return "{}";
@@ -165,6 +169,7 @@ const app = createServer({
   hasSuperset: () => supersetHere,
   tmux: async (args) => {
     calls.tmux.push(args);
+    if (tmuxFails && args.includes("send-keys")) throw new Error(tmuxFails);
     if (args.includes("capture-pane")) return `${TMUX_SERVER}\n${TMUX_SCREEN}`;
     if (args[3] === "display-message") return `${TMUX_SERVER} 0 /dev/ttys998\n`;
     return "";
@@ -407,6 +412,52 @@ test("new sessions need Superset: without it the Mac says so, and nothing runs",
   } finally {
     supersetHere = true;
   }
+});
+
+test("a Superset terminal with no Superset is read-only up front, not a failure at the keystroke", async () => {
+  supersetHere = false;
+  try {
+    const s = (await req("GET", "/api/sessions", { headers: auth() })).json.sessions.find((x) => x.id === CLAUDE);
+    assert.deepEqual(s.can, { bridge: null, read: false, send: false, keys: false, controls: false,
+      why: "Superset isn't on this Mac, so its terminal can't be reached." }, "the list says why, in a few words");
+    const n = calls.superset.length;
+    const sent = await req("POST", "/api/send", { headers: auth(), body: { id: CLAUDE, text: "hi" } });
+    assert.equal(sent.status, 409, "refused before anything is typed, not 500 after");
+    assert.equal(sent.json.error, "no_superset");
+    assert.match(sent.json.message, /read-only/);
+    assert.equal((await req("POST", "/api/key", { headers: auth(), body: { id: CLAUDE, key: "1" } })).status, 409);
+    assert.equal(calls.superset.length, n, "nothing reached a Superset that isn't there");
+  } finally {
+    supersetHere = true;
+  }
+});
+
+test("a terminal that fails as the keys land says which terminal, and never 'something went wrong'", async () => {
+  supersetFails = "terminal term-1 is gone";
+  try {
+    const sent = await req("POST", "/api/send", { headers: auth(), body: { id: CLAUDE, text: "hi" } });
+    assert.equal(sent.status, 502, "a bad gateway to the terminal, not an internal error");
+    assert.equal(sent.json.error, "write_failed");
+    assert.match(sent.json.message, /Superset terminal/);
+    assert.match(sent.json.message, /terminal term-1 is gone/, "what the terminal's own program said");
+    assert.doesNotMatch(sent.json.message, /Something went wrong/);
+    const key = await req("POST", "/api/key", { headers: auth(), body: { id: CLAUDE, key: "1" } });
+    assert.equal(key.status, 502, "a key press fails the same way");
+    assert.equal(key.json.error, "write_failed");
+  } finally {
+    supersetFails = "";
+  }
+  tmuxFails = "no server running on that socket";
+  try {
+    const sent = await req("POST", "/api/send", { headers: auth(), body: { id: TMUXS, text: "hi" } });
+    assert.equal(sent.status, 502);
+    assert.match(sent.json.message, /tmux pane/);
+    assert.match(sent.json.message, /no server running/);
+    assert.match(sent.json.message, /airpocket doctor/, "it says where to look on the Mac");
+  } finally {
+    tmuxFails = "";
+  }
+  assert.equal((await req("POST", "/api/send", { headers: auth(), body: { id: TMUXS, text: "hi" } })).status, 200, "and it still works once the terminal is back");
 });
 
 test("CORS only for tailnet and loopback origins; bodies must be small JSON", async () => {
