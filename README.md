@@ -30,7 +30,7 @@ and on the phone.
 
 <p align="center"><img src="docs/images/phones.png" width="100%" alt="Three phones running Airpocket. First, the session list: three sessions need you (one asking permission to use Bash, one asking which Stripe API version to target, one finished) above two open ones. Second, a session asking &quot;Do you want to proceed?&quot; with three numbered answers and a reply box. Third, a TypeScript file the agent wrote, open with line numbers."></p>
 
-> **Status: 0.1.0, young.** It does what this page says and it is tested, but
+> **Status: 0.1.1, young.** It does what this page says and it is tested, but
 > it has run on few Macs other than its author's. See
 > [docs/PLAN.md](docs/PLAN.md) for how it was built, and
 > [CONTRIBUTING.md](CONTRIBUTING.md) to send a change.
