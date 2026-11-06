@@ -10,7 +10,7 @@ const li = require("./loginitem");
 const sa = require("./shellalias");
 const own = require("./ownterm");
 const { survey, probe, majorOf, SOCKET_MAX, ownSessions, sessionRecords } = require("./setup");
-const { supersetInstalled } = require("./bridges");
+const { supersetInstalled, createBridges } = require("./bridges");
 const { stillRunning } = require("./proc");
 
 async function checks(ctx) {
@@ -134,12 +134,17 @@ async function checks(ctx) {
   // Superset: its CLI is the only way to reach a Superset terminal. Without it,
   // sessions recorded in one are read-only on the phone, which is worth saying
   // before someone finds out by typing.
-  const inSuperset = sessionRecords(ctx).filter((r) => r && r.workspace && r.terminal && stillRunning(r.pid, r.started)).length;
+  // An agent started with airpocket run inside a Superset terminal has both
+  // addresses on record, and its tmux pane is the one the phone types into. So
+  // ask the same chooser the service asks, with Superset taken away: what it
+  // still routes needs no Superset, and only the rest would go read-only.
+  const withoutSuperset = createBridges({ hasSuperset: () => false, hasTmux: () => !!f.tmux, uid: ctx.uid });
+  const live = sessionRecords(ctx).filter((r) => r && r.workspace && r.terminal && stillRunning(r.pid, r.started));
+  const stranded = live.filter((r) => !withoutSuperset.of(r)).length;
   const sup = supersetInstalled(ctx.home);
   const agents = (n) => `${n} session${n === 1 ? "" : "s"}`;
-  if (sup && inSuperset) add("PASS", "Superset", `installed, ${agents(inSuperset)} in a Superset terminal`);
-  else if (sup) add("PASS", "Superset", "installed");
-  else if (inSuperset) add("WARN", "Superset", `not installed, and ${agents(inSuperset)} run in a Superset terminal: read-only on the phone`,
+  if (sup) add("PASS", "Superset", live.length ? `installed, ${agents(live.length)} in a Superset terminal` : "installed");
+  else if (stranded) add("WARN", "Superset", `not installed, and ${agents(stranded)} run in a Superset terminal: read-only on the phone`,
     "Those terminals can only be typed into through Superset's own command. Start the agent with airpocket run instead, or install Superset.");
   else add("INFO", "Superset", "not installed: new sessions can't be started from the phone, and nothing here needs it");
 

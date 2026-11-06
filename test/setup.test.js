@@ -783,6 +783,8 @@ test("doctor's tmux line: installed and new enough, too old, missing", async () 
 test("doctor's Superset line: read-only sessions are named before someone finds out by typing", async () => {
   const w = await world();
   const line = async () => (await doctor.checks(w.ctx)).find((c) => c.name === "Superset");
+  const tmuxBin = path.join(tempDir("airpocket-tmuxbin-"), "tmux");
+  fs.writeFileSync(tmuxBin, "#!/bin/sh\necho 'tmux 3.6a'\n", { mode: 0o755 });
   const bare = await line();
   assert.equal(bare.level, "INFO", "no Superset and nothing that needs it");
   assert.match(bare.detail, /not installed/);
@@ -802,12 +804,33 @@ test("doctor's Superset line: read-only sessions are named before someone finds 
   assert.equal(warn.detail, "not installed, and 2 sessions run in a Superset terminal: read-only on the phone");
   assert.match(warn.fix, /airpocket run/, "it says what does work");
 
+  // airpocket run inside a Superset terminal leaves both addresses on record
+  // (src/hook.js), and the phone types into the tmux pane. Superset's absence
+  // doesn't stand between them, so this one must not be counted.
+  const sockDir = tempDir("airpocket-sock-");
+  const sock = path.join(sockDir, "s.sock");
+  const sockServer = net.createServer();
+  await new Promise((r) => sockServer.listen(sock, r));
+  try {
+    w.ctx.uid = process.getuid();            // the uid that owns the socket, as the service's would be
+    w.ctx.tmuxBins = [tmuxBin];
+    rec("aaaaaaaa-0000-0000-0000-000000000005",
+      { workspace: "ws-3", terminal: "term-3", pane: "%4", tmux: sock, tmux_pid: process.pid });
+    const both = await line();
+    assert.equal(both.detail, "not installed, and 2 sessions run in a Superset terminal: read-only on the phone",
+      "the tmux route is its own: Superset's absence doesn't strand it");
+    assert.equal(both.level, "WARN");
+  } finally {
+    sockServer.close();
+  }
+
   // With Superset there, the same records are fine. Never the real ~/.superset.
   const bin = path.join(w.home, ".superset", "bin");
   fs.mkdirSync(bin, { recursive: true });
   fs.writeFileSync(path.join(bin, "superset"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   const ok = await line();
-  assert.deepEqual([ok.level, ok.detail], ["PASS", "installed, 2 sessions in a Superset terminal"]);
+  assert.deepEqual([ok.level, ok.detail], ["PASS", "installed, 3 sessions in a Superset terminal"],
+    "with Superset there, every session in one of its terminals counts");
 });
 
 test("the real ~/.claude/settings.json, ~/.codex/hooks.json, ~/.zshrc and ~/.bash_profile were not touched by these tests", () => {
